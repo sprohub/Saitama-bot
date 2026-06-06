@@ -1,6 +1,6 @@
 let handler = async (m, { conn }) => {
-  let texto = '❀ HINATA INFO GROUP ❀\n\n'
-  texto += 'Comandos para administrar tu grupo con Hinata.\n\n'
+  let texto = 'SAITAMA INFO GROUP \n\n'
+  texto += 'Comandos para administrar tu grupo con SAITAMA.\n\n'
   texto += 'COMANDOS:\n\n'
   texto += '❀ antilink - Activa/desactiva eliminación de enlaces\n'
   texto += '❀ close/ open - Cierra/abre el grupo\n'
