@@ -4,7 +4,7 @@ const handler = async (m, { conn }) => {
   let who = m.sender
   let name = await conn.getName(who)
 
-  await conn.sendMessage(m.chat, { text: '⏳ Buscando actualizaciones para SAITAMA BOT...' }, { quoted: m })
+  await conn.sendMessage(m.chat, { text: '⏳ Buscando actualizaciones para SAITAMA BOT★...' }, { quoted: m })
 
   exec('git pull', async (err, stdout, stderr) => {
     if (err) {
