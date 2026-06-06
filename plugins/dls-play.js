@@ -174,7 +174,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
   if (!input) {
     let media = null
-    try { media = await prepareWAMessageMedia({ image: { url: 'https://files.catbox.moe/r60c8l.jpg' } }, { upload: conn.waUploadToServer }) } catch {}
+    try { media = await prepareWAMessageMedia({ image: { url: 'https://i.ibb.co/PsV9qp2j/images-1.jpg' } }, { upload: conn.waUploadToServer }) } catch {}
 
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: 'Descarga música y videos', hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
