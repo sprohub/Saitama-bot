@@ -134,13 +134,13 @@ if (chat.welcome && [27, 28, 32].includes(m.messageStubType)) {
         .replace(/@group/g, groupMetadata.subject)
         .replace(/@members/g, groupSize)
     } else {
-      texto = '⛩️ 「 HINATA BOT 」 ⛩️\n\n'
-      texto += '桜 » *BIENVENID@*\n'
+      texto = '💥 「 SAITAMABOT 」 🔥\n\n'
+      texto += '桜 » *BIENVENID PE CAUSA@*\n'
       texto += '風 » ' + userMention + '\n'
       texto += '花 » ' + groupMetadata.subject + '\n'
       texto += '桜 » Miembros: ' + groupSize + '\n\n'
       texto += '✧･ﾟ: *✧･ﾟ:* *:･ﾟ✧*:･ﾟ✧\n\n'
-      texto += '> Gracias por unirte ♡'
+      texto += '> Gracias por unirte ⭐'
     }
 
     await conn.sendMessage(m.chat, {
@@ -158,8 +158,8 @@ if (chat.welcome && [27, 28, 32].includes(m.messageStubType)) {
         .replace(/@group/g, groupMetadata.subject)
         .replace(/@members/g, groupSize)
     } else {
-      texto = '⛩️ 「 HINATA BOT 」 ⛩️\n\n'
-      texto += '桜 » *ADIOS*\n'
+      texto = '💥 「 SAITAMABOT 」 💥\n\n'
+      texto += '🥱 » *porezo no loq uieren*\n'
       texto += '風 » ' + userMention + '\n'
       texto += '花 » ' + groupMetadata.subject + '\n'
       texto += '桜 » Miembros: ' + groupSize + '\n\n'
