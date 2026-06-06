@@ -11,7 +11,7 @@ let handler = async (m, { conn }) => {
     }
   }
 
-  let texto = '📊 「 HINATA TOTALCMD 」 📊\n\n'
+  let texto = '📊 「 SAITAMA-BOT 」 📊\n\n'
   texto += '⚡ » Total: ' + total + ' comandos\n\n'
   texto += '📋 » Por categoría:\n\n'
   
