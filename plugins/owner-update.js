@@ -4,7 +4,7 @@ const handler = async (m, { conn }) => {
   let who = m.sender
   let name = await conn.getName(who)
 
-  await conn.sendMessage(m.chat, { text: '⏳ Buscando actualizaciones para HINATA BOT...' }, { quoted: m })
+  await conn.sendMessage(m.chat, { text: '⏳ Buscando actualizaciones para SAITAMA BOT...' }, { quoted: m })
 
   exec('git pull', async (err, stdout, stderr) => {
     if (err) {
@@ -31,8 +31,8 @@ const handler = async (m, { conn }) => {
 
     if (stdout.includes('Already up to date')) {
       await conn.sendMessage(m.chat, {
-        image: { url: 'https://files.catbox.moe/5tegkb.png' },
-        caption: '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ HINATA BOT ㅤ֢ㅤׄㅤׅ\n\n✨ saitama  ya está en su mejor versión No hay actualizaciones pendientes\n\n> Solicitado por @' + who.split('@')[0],
+        image: { url: 'https://i.ibb.co/Q3fB2dRy/baner.jpg' },
+        caption: '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ SAITAMA BOT ㅤ֢ㅤׄㅤׅ\n\n✨ saitama  ya está en su mejor versión No hay actualizaciones pendientes\n\n> Solicitado por @' + who.split('@')[0],
         mentions: [who]
       }, { quoted: m })
       return
