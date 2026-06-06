@@ -177,8 +177,8 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     try { media = await prepareWAMessageMedia({ image: { url: 'https://files.catbox.moe/r60c8l.jpg' } }, { upload: conn.waUploadToServer }) } catch {}
 
     const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: { title: 'HINATA BOT - YOUTUBE', subtitle: 'Descarga música y videos', hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
-      body: { text: `🎬 「 HINATA YOUTUBE 」 🎵\n\n💫 » Descarga audio o video de YouTube\n\n> ${usedPrefix}${command} <nombre o link>\n> Ejemplo: ${usedPrefix}${command} Naruto Opening 1\n> 💎 Cuesta 1 diamante por descarga` },
+      header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: 'Descarga música y videos', hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
+      body: { text: `🎬 「 SAITAMA YOUTUBE 」 🎵\n\n💫 » Descarga audio o video de YouTube\n\n> ${usedPrefix}${command} <nombre o link>\n> Ejemplo: ${usedPrefix}${command} Naruto Opening 1\n> 💎 Cuesta 1 diamante por descarga` },
       footer: { text: '⫏⫏ HINATA BOT ✿' },
       nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '🎬 YOUTUBE', sections: [{ title: '¿Qué deseas hacer?', rows: [{ header: '🔍 BUSCAR', title: 'Buscar música o video', description: 'Escribe el nombre después del comando', id: 'ytinfo' }] }] }) }] }
     })
@@ -193,7 +193,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   const diamantes = getDiamantes(user)
   if (diamantes < 1) {
     return conn.sendMessage(m.chat, {
-      text: `🎬 「 HINATA YOUTUBE 」\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 1 | Tienes: ${diamantes}\n\n> Usa #work para ganar`
+      text: `🎬 「 SAITAMA YOUTUBE 」\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 1 | Tienes: ${diamantes}\n\n> Usa #work para ganar`
     }, { quoted: m })
   }
 
@@ -227,7 +227,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: { title: 'HINATA BOT - YOUTUBE', subtitle: `Resultados: ${input}`, hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
       body: { text: `🔍 「 RESULTADOS 」\n\n💫 » Búsqueda: *${input}*\n📋 ${resultados.length} resultados encontrados\n\n> Elige el que quieras descargar\n> 💎 1 diamante` },
-      footer: { text: '⫏⫏ HINATA BOT ✿' },
+      footer: { text: '⫏⫏ SAITAMA BOT ' },
       nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '🎵 RESULTADOS', sections: [{ title: `📋 ${input.toUpperCase().slice(0, 24)}`, rows }] }) }] }
     })
     const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
@@ -245,8 +245,8 @@ async function _mostrarSelectorFormato(conn, m, urlB64, titleB64, title, thumbna
     try { media = await prepareWAMessageMedia({ image: { url: thumbnail } }, { upload: conn.waUploadToServer }) } catch {}
   }
   const interactiveMessage = proto.Message.InteractiveMessage.create({
-    header: { title: 'HINATA BOT - YOUTUBE', subtitle: String(title || '').slice(0, 60), hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
-    body: { text: `🎬 「 HINATA YOUTUBE 」 🎵\n\n💫 » *${String(title || '').slice(0, 60)}*\n\n> ¿Cómo deseas descargarlo?\n> 💎 1 diamante` },
+    header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: String(title || '').slice(0, 60), hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
+    body: { text: `🎬 「 SAITAMA YOUTUBE 」 🎵\n\n💫 » *${String(title || '').slice(0, 60)}*\n\n> ¿Cómo deseas descargarlo?\n> 💎 1 diamante` },
     footer: { text: '⫏⫏ HINATA BOT ✿' },
     nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '📥 FORMATO', sections: [{ title: '¿Qué deseas descargar?', rows: [
       { header: '🎵 AUDIO', title: 'Descargar música (MP3)', description: '🎧 Alta calidad | 💎 1 diamante', id: `ytdl~audio~${urlB64}~${titleB64}` },
@@ -318,7 +318,7 @@ handler.before = async (m, { conn }) => {
     const diamantes = getDiamantes(user)
     if (diamantes < 1) {
       await conn.sendMessage(m.chat, {
-        text: `🎬 「 HINATA YOUTUBE 」\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 1 | Tienes: ${diamantes}\n\n> Usa #work para ganar`
+        text: `🎬 「 SAITAMA YOUTUBE 」\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 1 | Tienes: ${diamantes}\n\n> Usa #work para ganar`
       }, { quoted: m })
       return true
     }
