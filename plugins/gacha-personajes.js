@@ -44,7 +44,7 @@ let handler = async (m, { conn }) => {
 
   let rarityEmojis = { 'SSR': '🌟', 'SR': '⭐', 'R': '✨' }
 
-  let texto = '𖣔 「 HINATA COLECCIÓN 」 ˚ʚ♡ɞ˚\n\n'
+  let texto = ' 「 ∞ SAITAMA COLECCIÓN ♪ \n\n'
   texto += '📊 » ' + tengo + '/' + total + ' (' + porcentaje + '%)\n'
   texto += '📈 » ' + barra + '\n\n'
 
