@@ -80,7 +80,7 @@ const handler = async (m, { conn }) => {
     texto += '> Actualizado por @' + who.split('@')[0]
 
     await conn.sendMessage(m.chat, {
-      image: { url: 'https://i.ibb.co/Q3fB2dRy/baner.jpg' },
+      image: { url: 'https://i.ibb.co/PsV9qp2j/images-1.jpg' },
       caption: texto,
       mentions: [who]
     }, { quoted: m })
