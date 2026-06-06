@@ -19,7 +19,7 @@ let handler = async (m, { conn }) => {
     let minutos = Math.floor(tiempoRestante / 60)
     let segundos = tiempoRestante % 60
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA RW 」 ˚ʚ♡ɞ˚\n\n💫 » Espera ' + minutos + 'm ' + segundos + 's\n\n> Usa #claim para reclamar tu último personaje'
+      text: '𖣔 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n\n💫 » Espera ' + minutos + 'm ' + segundos + 's\n\n> Usa #claim para reclamar tu último personaje POBRE'
     }, { quoted: m })
   }
 
@@ -27,7 +27,7 @@ let handler = async (m, { conn }) => {
 
   if (!fs.existsSync(gachaPath)) {
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA RW 」 ˚ʚ♡ɞ˚\n\n💫 » No hay personajes'
+      text: '𖣔 「 HINATA RW 」 ˚ʚ♡ɞ˚\n\n💫 » No hay personajes POBRE'
     }, { quoted: m })
   }
 
@@ -60,7 +60,7 @@ let handler = async (m, { conn }) => {
 
   let rarityEmojis = { 'SSR': '🌟', 'SR': '⭐', 'R': '✨' }
 
-  let texto = '𖣔 「 HINATA RW 」 ˚ʚ♡ɞ˚\n\n'
+  let texto = '𖣔 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n\n'
   texto += '  💫 Personaje obtenido\n\n'
   texto += '  ✦ ' + char.name + ' ✦\n'
   texto += '  ' + rarityEmojis[rarity] + ' Rareza: ' + rarity + '\n'
