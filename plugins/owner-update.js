@@ -32,7 +32,7 @@ const handler = async (m, { conn }) => {
     if (stdout.includes('Already up to date')) {
       await conn.sendMessage(m.chat, {
         image: { url: 'https://files.catbox.moe/5tegkb.png' },
-        caption: '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ HINATA BOT ㅤ֢ㅤׄㅤׅ\n\n✨ Hinata ya está en su mejor versión\n🌸 No hay actualizaciones pendientes\n\n> Solicitado por @' + who.split('@')[0],
+        caption: '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ HINATA BOT ㅤ֢ㅤׄㅤׅ\n\n✨ saitama  ya está en su mejor versión No hay actualizaciones pendientes\n\n> Solicitado por @' + who.split('@')[0],
         mentions: [who]
       }, { quoted: m })
       return
@@ -45,7 +45,7 @@ const handler = async (m, { conn }) => {
     let filesEliminados = eliminados.map(c => c.split(' ').pop())
 
     let texto = '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ HINATA BOT ACTUALIZADA ㅤ֢ㅤׄㅤׅ\n\n'
-    texto += '🌸 Hinata se ha renovado\n\n'
+    texto += 'saitama está full se ha renovado\n\n'
 
     if (filesCreados.length > 0) {
       texto += '✨ *Nuevos archivos:*\n'
@@ -90,7 +90,7 @@ const handler = async (m, { conn }) => {
 handler.help = ['update']
 handler.tags = ['owner']
 handler.command = /^(update|actualizar)$/i
-handler.desc = 'Actualiza Hinata a la última versión'
+handler.desc = 'Actualiza saitama-bot a la última versión'
 handler.owner = true
 
 export default handler
