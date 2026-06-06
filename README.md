@@ -34,7 +34,15 @@ para tu comunidad de WhatsApp.
 
 | 👑 SPROH |
 |:---:|
-| Desarrollador Principal |
+| Desarrollador usurioplus |
+| Sistemas • Plugins • Soporte |
+
+</div>
+<div align="center">
+
+| 👑 ElvigilanteDv |
+|:---:|
+| Desarrollador dueño |
 | Sistemas • Plugins • Soporte |
 
 </div>
