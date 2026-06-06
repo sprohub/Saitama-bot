@@ -179,7 +179,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: 'Descarga música y videos', hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
       body: { text: `🎬 「 SAITAMA YOUTUBE 」 🎵\n\n💫 » Descarga audio o video de YouTube\n\n> ${usedPrefix}${command} <nombre o link>\n> Ejemplo: ${usedPrefix}${command} Naruto Opening 1\n> 💎 Cuesta 1 diamante por descarga` },
-      footer: { text: '⫏⫏ HINATA BOT ✿' },
+      footer: { text: '⫏ SAITAMA BOT ' },
       nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '🎬 YOUTUBE', sections: [{ title: '¿Qué deseas hacer?', rows: [{ header: '🔍 BUSCAR', title: 'Buscar música o video', description: 'Escribe el nombre después del comando', id: 'ytinfo' }] }] }) }] }
     })
     const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
