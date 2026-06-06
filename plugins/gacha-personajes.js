@@ -13,7 +13,7 @@ let handler = async (m, { conn }) => {
 
   if (!fs.existsSync(gachaPath)) {
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA COLECCIÓN 」 ˚ʚ♡ɞ˚\n\n💫 » No hay personajes disponibles'
+      text: ' 「 SAITAMA COLECCIÓN 🥱」 \n\n💫 » No hay personajes disponibles'
     }, { quoted: m })
   }
 
