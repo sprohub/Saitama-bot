@@ -18,23 +18,23 @@ const tags = {
 }
 
 const bannerCategory = {
-  main: 'https://files.catbox.moe/r60c8l.jpg',
-  group: 'https://files.catbox.moe/3tlaq0.png',
-  rpg: 'https://files.catbox.moe/e858ul.png',
-  game: 'https://i.ibb.co/r2wQ4gBD/play.png',
-  gacha: 'https://files.catbox.moe/rlnc3s.png',
-  serbot: 'https://files.catbox.moe/r60c8l.jpg',
-  owner: 'https://files.catbox.moe/52nm0t.png',
-  downloader: 'https://files.catbox.moe/ow6st7.png',
-  info: 'https://files.catbox.moe/42tsa2.png',
-  diversion: 'https://files.catbox.moe/2t7d69.png',
-  anime: 'https://files.catbox.moe/2t7d69.png'
+  main: 'https://i.ibb.co/PGCHjyQv/menu.png',
+  group: 'https://i.ibb.co/hxx2H5wb/menus.png',
+  rpg: 'https://i.ibb.co/YBrv9vH5/rpg.png',
+  game: 'https://i.ibb.co/hxx2H5wb/menus.png',
+  gacha: 'https://i.ibb.co/hxx2H5wb/menus.png',
+  serbot: 'https://i.ibb.co/hxx2H5wb/menus.png',
+  owner: 'https://i.ibb.co/hxx2H5wb/menus.png',
+  downloader: 'https://i.ibb.co/hxx2H5wb/menus.png',
+  info: 'https://i.ibb.co/hxx2H5wb/menus.png',
+  diversion: 'https://i.ibb.co/hxx2H5wb/menus.png',
+  anime: 'https://i.ibb.co/hxx2H5wb/menus.png'
 }
 
 const defaultMenu = {
   before: `
 ࿇ ══━━━✥◈✥━━━══ ࿇
-    𝕳𝖎𝖓𝖆𝖙𝖆 𝕭𝖔𝖙
+    saitama-bot
 ࿇ ══━━━✥◈✥━━━══ ࿇
  ✦%totalreg ᴜꜱᴇʀꜱ ✦ %totalcmd ᴄᴍᴅꜱ ✦
 
@@ -50,7 +50,7 @@ const defaultMenu = {
   after: `
 
 ࿇ ══━━━✥◈✥━━━══ ࿇
-ᵉˡ ᵛⁱᵍⁱˡᵃⁿᵗᵉ ✦ ᵇʳᵃʸᵃⁿʳᵏ
+ᵉˡ ᵛⁱᵍⁱˡᵃⁿᵗᵉ ✦ sprohacks
 ࿇ ══━━━✥◈✥━━━══ ࿇`
 }
 
