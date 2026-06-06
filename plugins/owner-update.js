@@ -31,7 +31,7 @@ const handler = async (m, { conn }) => {
 
     if (stdout.includes('Already up to date')) {
       await conn.sendMessage(m.chat, {
-        image: { url: 'https://i.ibb.co/Q3fB2dRy/baner.jpg' },
+        image: { url: 'https://i.ibb.co/PsV9qp2j/images-1.jpg' },
         caption: '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ SAITAMA BOT ㅤ֢ㅤׄㅤׅ\n\n✨ saitama  ya está en su mejor versión No hay actualizaciones pendientes\n\n> Solicitado por @' + who.split('@')[0],
         mentions: [who]
       }, { quoted: m })
