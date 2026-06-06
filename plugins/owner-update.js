@@ -44,7 +44,7 @@ const handler = async (m, { conn }) => {
     let filesCreados = creados.map(c => c.split(' ').pop())
     let filesEliminados = eliminados.map(c => c.split(' ').pop())
 
-    let texto = '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ HINATA BOT ACTUALIZADA ㅤ֢ㅤׄㅤׅ\n\n'
+    let texto = '★ SAITAMA BOT ACTUALIZADA★ ㅤ֢ㅤׄㅤׅ\n\n'
     texto += 'saitama está full se ha renovado\n\n'
 
     if (filesCreados.length > 0) {
@@ -80,7 +80,7 @@ const handler = async (m, { conn }) => {
     texto += '> Actualizado por @' + who.split('@')[0]
 
     await conn.sendMessage(m.chat, {
-      image: { url: 'https://files.catbox.moe/5tegkb.png' },
+      image: { url: 'https://i.ibb.co/Q3fB2dRy/baner.jpg' },
       caption: texto,
       mentions: [who]
     }, { quoted: m })
