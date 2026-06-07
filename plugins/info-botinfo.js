@@ -23,7 +23,7 @@ let handler = async (m, { conn }) => {
     disk = 'N/A'
   }
 
-  let texto = '🤖 「 HINATA BOTINFO 」 🤖\n\n'
+  let texto = '🤖 「 SAITAMA BOTINFO 」 🤖\n\n'
   texto += '👤 » *Usuarios:* ' + totalUsers + '\n'
   texto += '👥 » *Grupos:* ' + totalGroups + '\n'
   texto += '⚡ » *Comandos:* ' + totalCmds + '\n'
