@@ -13,7 +13,7 @@ let handler = async (m, { conn }) => {
     }, { quoted: m })
   }
 
-  let texto = '🥱 「 SAITAMARANK GACHA 」 ˚ʚ♡ɞ˚\n\n'
+  let texto = '🥱 「 SAITAMA RANK GACHA 」 ˚ʚ♡ɞ˚\n\n'
   texto += '🏆 » Top 10 coleccionistas\n\n'
   let medallas = ['🥇', '🥈', '🥉', '4│', '5│', '6│', '7│', '8│', '9│', '🔟']
 
