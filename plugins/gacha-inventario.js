@@ -8,7 +8,7 @@ let handler = async (m, { conn }) => {
 
   if (!user.inventory || user.inventory.length === 0) {
     return conn.sendMessage(m.chat, {
-      text: '🎒 「 HINATA INVENTARIO 」 🎒\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Tu inventario está vacío\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n> Usa #rw para conseguir personajes'
+      text: '🥱 「 SAITAMA INVENTARIO 」 🎒\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Tu inventario está vacío\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n> Usa #rw para conseguir personajes'
     }, { quoted: m })
   }
 
@@ -17,7 +17,7 @@ let handler = async (m, { conn }) => {
     items[item] = (items[item] || 0) + 1
   }
 
-  let texto = '🎒 「 HINATA INVENTARIO 」 🎒\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n'
+  let texto = '💥 「 SAITAMA INVENTARIO 」 🎒\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n'
 
   let i = 1
   for (let [name, count] of Object.entries(items)) {
