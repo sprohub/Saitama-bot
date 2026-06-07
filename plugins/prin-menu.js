@@ -83,7 +83,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }
     }
 
-    let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : 'https://i.ibb.co/PGCHjyQv/menu.png'
+    let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : 'https://i.ibb.co/q3xnknZj/IMG-20260607-WA0049.jpg'
 
     let textoMenu = defaultMenu.before
       .replace(/%totalreg/g, Object.keys(global.db.data.users).length)
