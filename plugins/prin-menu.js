@@ -18,7 +18,7 @@ const tags = {
 }
 
 const bannerCategory = {
-  main: 'https://i.ibb.co/q3xnknZj/IMG-20260607-WA0049.jpg',
+  main: 'https://i.ibb.co/qfVJPQC/giphy.gif',
   group: 'https://i.ibb.co/q3xnknZj/IMG-20260607-WA0049.jpg',
   rpg: 'https://i.ibb.co/YBrv9vH5/rpg.png',
   game: 'https://i.ibb.co/hxx2H5wb/menus.png',
@@ -83,7 +83,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }
     }
 
-    let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : 'https://i.ibb.co/q3xnknZj/IMG-20260607-WA0049.jpg'
+    let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : 'https://i.ibb.co/qfVJPQC/giphy.gif'
 
     let textoMenu = defaultMenu.before
       .replace(/%totalreg/g, Object.keys(global.db.data.users).length)
