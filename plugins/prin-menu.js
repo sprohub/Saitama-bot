@@ -18,8 +18,8 @@ const tags = {
 }
 
 const bannerCategory = {
-  main: 'https://i.ibb.co/PGCHjyQv/menu.png',
-  group: 'https://i.ibb.co/hxx2H5wb/menus.png',
+  main: 'https://i.ibb.co/q3xnknZj/IMG-20260607-WA0049.jpg',
+  group: 'https://i.ibb.co/q3xnknZj/IMG-20260607-WA0049.jpg',
   rpg: 'https://i.ibb.co/YBrv9vH5/rpg.png',
   game: 'https://i.ibb.co/hxx2H5wb/menus.png',
   gacha: 'https://i.ibb.co/hxx2H5wb/menus.png',
