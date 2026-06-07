@@ -3,7 +3,7 @@ import fetch from 'node-fetch'
 let handler = async (m, { conn, text }) => {
   if (!text) {
     return conn.sendMessage(m.chat, {
-      text: '📥 「 HINATA APK 」 📥\n\n💫 » Busca APKs\n\n> #apk <nombre>\n> #apk Minecraft\n> #apk WhatsApp Plus'
+      text: '📥 「 SAITAMA APK 」 📥\n\n💫 » Busca APKs\n\n> #apk <nombre>\n> #apk Minecraft\n> #apk WhatsApp Plus'
     }, { quoted: m })
   }
 
@@ -17,7 +17,7 @@ let handler = async (m, { conn, text }) => {
     if (!json.status || !json.data) {
       await m.react('❌')
       return conn.sendMessage(m.chat, {
-        text: '📥 「 HINATA APK 」 📥\n\n💫 » No se encontró: ' + text
+        text: '📥 「 SAITAMA APK 」 📥\n\n💫 » No se encontró: ' + text
       }, { quoted: m })
     }
 
