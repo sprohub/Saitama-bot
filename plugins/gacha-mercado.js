@@ -14,11 +14,11 @@ let handler = async (m, { conn, args }) => {
   if (!args[0]) {
     if (Object.keys(mercado).length === 0) {
       return conn.sendMessage(m.chat, {
-        text: '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » No hay personajes en venta\n\n> #mercado vender <personaje> <precio>\n> #mercado comprar <numero>\n> #mercado ver'
+        text: '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » No hay personajes en venta\n\n> #mercado vender <personaje> <precio>\n> #mercado comprar <numero>\n> #mercado ver'
       }, { quoted: m })
     }
 
-    let texto = '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » Personajes en venta:\n\n'
+    let texto = '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » Personajes en venta:\n\n'
     let id = 1
     for (let [key, item] of Object.entries(mercado)) {
       texto += '📦 #' + id + ' » ' + item.name + '\n'
@@ -35,11 +35,11 @@ let handler = async (m, { conn, args }) => {
   if (args[0] === 'ver') {
     if (Object.keys(mercado).length === 0) {
       return conn.sendMessage(m.chat, {
-        text: '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » No hay personajes en venta'
+        text: '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » No hay personajes en venta'
       }, { quoted: m })
     }
 
-    let texto = '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » Personajes en venta:\n\n'
+    let texto = '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » Personajes en venta:\n\n'
     let id = 1
     for (let [key, item] of Object.entries(mercado)) {
       texto += '📦 #' + id + ' » ' + item.name + '\n'
@@ -59,20 +59,20 @@ let handler = async (m, { conn, args }) => {
 
     if (!personaje || isNaN(precio) || precio <= 0) {
       return conn.sendMessage(m.chat, {
-        text: '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » #mercado vender <personaje> <precio>'
+        text: '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » #mercado vender <personaje> <precio>'
       }, { quoted: m })
     }
 
     if (!user.inventory || user.inventory.length === 0) {
       return conn.sendMessage(m.chat, {
-        text: '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » No tienes personajes'
+        text: '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » No tienes personajes'
       }, { quoted: m })
     }
 
     let index = user.inventory.findIndex(item => item.toLowerCase() === personaje.toLowerCase())
     if (index === -1) {
       return conn.sendMessage(m.chat, {
-        text: '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » No tienes ese personaje'
+        text: '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » No tienes ese personaje'
       }, { quoted: m })
     }
 
@@ -87,7 +87,7 @@ let handler = async (m, { conn, args }) => {
     }
 
     return conn.sendMessage(m.chat, {
-      text: '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » Personaje en venta\n\n📦 » ' + item + '\n💎 » Precio: ' + precio + '\n👤 » @' + who.split('@')[0],
+      text: '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » Personaje en venta\n\n📦 » ' + item + '\n💎 » Precio: ' + precio + '\n👤 » @' + who.split('@')[0],
       mentions: [who]
     }, { quoted: m })
   }
@@ -96,14 +96,14 @@ let handler = async (m, { conn, args }) => {
     let id = parseInt(args[1])
     if (isNaN(id) || id <= 0) {
       return conn.sendMessage(m.chat, {
-        text: '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » ID inválido\n\n> #mercado comprar <id>'
+        text: '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » ID inválido\n\n> #mercado comprar <id>'
       }, { quoted: m })
     }
 
     let keys = Object.keys(mercado)
     if (id > keys.length) {
       return conn.sendMessage(m.chat, {
-        text: '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » No existe ese ID'
+        text: '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » No existe ese ID'
       }, { quoted: m })
     }
 
@@ -112,13 +112,13 @@ let handler = async (m, { conn, args }) => {
 
     if (item.seller === who) {
       return conn.sendMessage(m.chat, {
-        text: '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » No puedes comprar tu propio personaje'
+        text: '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » No puedes comprar tu propio personaje'
       }, { quoted: m })
     }
 
     if ((user.diamantes || user.diamond || 0) < item.price) {
       return conn.sendMessage(m.chat, {
-        text: '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » No tienes suficientes 💎\n💰 » Tienes: ' + (user.diamantes || user.diamond || 0)
+        text: '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » No tienes suficientes 💎\n💰 » Tienes: ' + (user.diamantes || user.diamond || 0)
       }, { quoted: m })
     }
 
@@ -145,7 +145,7 @@ let handler = async (m, { conn, args }) => {
     delete mercado[key]
 
     return conn.sendMessage(m.chat, {
-      text: '🏪 「 HINATA MERCADO 」 🏪\n\n💫 » ¡Compra exitosa!\n\n📦 » ' + item.name + '\n💎 » Pagaste: ' + item.price + '\n📤 » De: @' + item.seller.split('@')[0] + '\n📥 » Para: @' + who.split('@')[0],
+      text: '🏪 「 SAITAMA MERCADO 」 🏪\n\n💥 » ¡Compra exitosa!\n\n📦 » ' + item.name + '\n💎 » Pagaste: ' + item.price + '\n📤 » De: @' + item.seller.split('@')[0] + '\n📥 » Para: @' + who.split('@')[0],
       mentions: [item.seller, who]
     }, { quoted: m })
   }
