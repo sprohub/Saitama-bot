@@ -14,7 +14,7 @@ let handler = async (m, { conn }) => {
   let name = await conn.getName(who)
   let pp = await conn.profilePictureUrl(who, 'image').catch(() => 'https://i.ibb.co/q3xnknZj/IMG-20260607-WA0049.jpg')
 
-  let texto = '⚔️ 「 SAITAMA🫦 PERFIL 」 ⚔️\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n'
+  let texto = '⚔️ 「 SAITAMA PERFIL 」 ⚔️\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n'
   texto += '👤 » *' + name + '*\n'
   texto += '🎖️ » Clase: ' + (user.class || 'Novato') + '\n'
   texto += '⭐ » Nivel: ' + (user.level || 0) + '\n'
