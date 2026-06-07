@@ -1,9 +1,9 @@
 let handler = async (m, { conn, args, participants }) => {
-  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '👥 「 HINATA TOP 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ Solo para grupos\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
+  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '👥 「 SAITAMA TOP 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ Solo para grupos\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
 
   if (!args[0]) {
     return conn.sendMessage(m.chat, {
-      text: '👥 「 HINATA TOP 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n📋 » Usa: #top <categoría>\n\n> #top therians\n> #top gamers\n> #top otakus\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔'
+      text: '👥 「 SAITAMA TOP 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n📋 » Usa: #top <categoría>\n\n> #top therians\n> #top gamers\n> #top otakus\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔'
     }, { quoted: m })
   }
 
