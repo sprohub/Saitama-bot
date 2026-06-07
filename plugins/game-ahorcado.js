@@ -59,9 +59,9 @@ async function mostrarTablero(conn, m, who) {
   }))
 
   const interactiveMessage = proto.Message.InteractiveMessage.create({
-    header: { title: '🎮 HINATA GAMES 🎮', subtitle: 'Ahorcado | 🏆 3 💎', hasMediaAttachment: false },
-    body: { text: '🎮 「 HINATA AHORCADO 」 🎮\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n🎯 » Vidas: ' + juego.intentos + '/6\n📝 » Palabra: ' + juego.oculta + '\n🔤 » Usadas: ' + (juego.usadas.length ? juego.usadas.join(', ') : 'Ninguna') + '\n\n' + muñecos[idx] + '\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n> Toca una letra' },
-    footer: { text: '⫏⫏ HINATA GAMES ✿' },
+    header: { title: '🎮 SAITAMA GAMES 🎮', subtitle: 'Ahorcado | 🏆 3 💎', hasMediaAttachment: false },
+    body: { text: '🎮 「 SAITAMA AHORCADO 」 🎮\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n🎯 » Vidas: ' + juego.intentos + '/6\n📝 » Palabra: ' + juego.oculta + '\n🔤 » Usadas: ' + (juego.usadas.length ? juego.usadas.join(', ') : 'Ninguna') + '\n\n' + muñecos[idx] + '\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n> Toca una letra' },
+    footer: { text: '⫏⫏ SAITAMA GAMES ★' },
     nativeFlowMessage: {
       buttons: [{
         name: 'single_select',
@@ -116,7 +116,7 @@ handler.before = async (m, { conn }) => {
         user = global.db.data.users[who]
         user.diamantes = (user.diamantes || 0) + 3
         delete juegos[who]
-        await conn.sendMessage(m.chat, { text: '🎮 「 HINATA AHORCADO 」 🎮\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n🏆 » ¡GANASTE!\n📝 » Palabra: ' + juego.palabra.toUpperCase() + '\n💎 » +3 diamantes\n💰 » Total: ' + user.diamantes + ' 💎\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
+        await conn.sendMessage(m.chat, { text: '🎮 「 SAITAMA AHORCADO 」 🎮\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n🏆 » ¡GANASTE!\n📝 » Palabra: ' + juego.palabra.toUpperCase() + '\n💎 » +3 diamantes\n💰 » Total: ' + user.diamantes + ' 💎\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
         return true
       }
 
@@ -127,7 +127,7 @@ handler.before = async (m, { conn }) => {
 
       if (juego.intentos <= 0) {
         delete juegos[who]
-        await conn.sendMessage(m.chat, { text: '🎮 「 HINATA AHORCADO 」 🎮\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n💀 » PERDISTE\n📝 » Era: ' + juego.palabra.toUpperCase() + '\n😵 » Fuiste ahorcado\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
+        await conn.sendMessage(m.chat, { text: '🎮 「 SAITAMA AHORCADO 」 🎮\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n💀 » PERDISTE\n📝 » Era: ' + juego.palabra.toUpperCase() + '\n😵 » Fuiste ahorcado\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
         return true
       }
 
