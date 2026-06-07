@@ -8,13 +8,13 @@ let handler = async (m, { conn, args }) => {
 
   if (!args[0]) {
     return conn.sendMessage(m.chat, {
-      text: '💎 「 HINATA VENDER 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Vende tus personajes\n\n> #vender <nombre>\n> #vender all\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+      text: '💎 「 SAITAMA VENDER 」 💎\n✦←pipi→✦\n\n💥 » Vende tus personajes\n\n> #vender <nombre>\n> #vender all\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
     }, { quoted: m })
   }
 
   if (!user.inventory || user.inventory.length === 0) {
     return conn.sendMessage(m.chat, {
-      text: '💎 「 HINATA VENDER 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » No tienes personajes\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+      text: '💎 「 SAITAMA VENDER 」 💎\n\n\n💫 » No tienes personajes\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
     }, { quoted: m })
   }
 
@@ -25,7 +25,7 @@ let handler = async (m, { conn, args }) => {
     user.inventory = []
 
     return conn.sendMessage(m.chat, {
-      text: '💎 「 HINATA VENDER 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Vendiste todo\n📦 » ' + total + ' personajes\n💰 » +' + ganancia + ' diamantes\n💎 » Total: ' + user.diamantes + '\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+      text: '💎 「 SAITAMA VENDER 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💥 » Vendiste todo\n📦 » ' + total + ' personajes\n💰 » +' + ganancia + ' diamantes\n💎 » Total: ' + user.diamantes + '\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
     }, { quoted: m })
   }
 
@@ -34,7 +34,7 @@ let handler = async (m, { conn, args }) => {
 
   if (index === -1) {
     return conn.sendMessage(m.chat, {
-      text: '💎 「 HINATA VENDER 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » No tienes ese personaje\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+      text: '💎 「 SAITAMA VENDER 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💥 » No tienes ese personaje\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
     }, { quoted: m })
   }
 
@@ -55,7 +55,7 @@ let handler = async (m, { conn, args }) => {
   user.diamantes = (user.diamantes || 0) + precio
 
   await conn.sendMessage(m.chat, {
-    text: '💎 「 HINATA VENDER 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Vendiste ' + personaje + '\n💰 » +' + precio + ' diamantes\n💎 » Total: ' + user.diamantes + '\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+    text: '💎 「 SAITAMA VENDER 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💥 » Vendiste ' + personaje + '\n💰 » +' + precio + ' diamantes\n💎 » Total: ' + user.diamantes + '\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
   }, { quoted: m })
 }
 
