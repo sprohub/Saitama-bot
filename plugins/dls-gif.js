@@ -19,7 +19,7 @@ let handler = async (m, { conn, text }) => {
 
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: { title: '🔍 HINATA TENOR 🔍', subtitle: 'Busca GIFs animados', hasMediaAttachment: false },
-      body: { text: '🔍 「 HINATA TENOR 」 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Busca GIFs en Tenor\n📝 » Elige o escribe: #tenor <búsqueda>\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦' },
+      body: { text: '🔍 「 SAITAMA TENOR 」 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Busca GIFs en Tenor\n📝 » Elige o escribe: #tenor <búsqueda>\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦' },
       footer: { text: '⫏⫏ HINATA BOT ✿' },
       nativeFlowMessage: {
         buttons: [{
@@ -50,7 +50,7 @@ let handler = async (m, { conn, text }) => {
     if (!json.status || !json.medias || json.medias.length === 0) {
       await m.react('❌')
       return conn.sendMessage(m.chat, {
-        text: '🔍 「 HINATA TENOR 」 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Sin resultados\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+        text: '🔍 [ SAITAMA TENOR ] 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Sin resultados\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
       }, { quoted: m })
     }
 
@@ -59,13 +59,13 @@ let handler = async (m, { conn, text }) => {
     if (random.type === 'video') {
       await conn.sendMessage(m.chat, {
         video: { url: random.data.url },
-        caption: '🔍 「 HINATA TENOR 」 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » ' + text + '\n🎬 » ' + json.results + ' resultados\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦',
+        caption: '🔍 [ SAITAMA TENOR ] 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » ' + text + '\n🎬 » ' + json.results + ' resultados\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦',
         gifPlayback: true
       }, { quoted: m })
     } else {
       await conn.sendMessage(m.chat, {
         image: { url: random.data.url },
-        caption: '🔍 「 HINATA TENOR 」 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » ' + text + '\n📷 » ' + json.results + ' resultados\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+        caption: '🔍 [ SAITAMA TENOR ] 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » ' + text + '\n📷 » ' + json.results + ' resultados\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
       }, { quoted: m })
     }
 
@@ -101,13 +101,13 @@ handler.before = async (m, { conn }) => {
     if (random.type === 'video') {
       await conn.sendMessage(m.chat, {
         video: { url: random.data.url },
-        caption: '🔍 「 HINATA TENOR 」 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » ' + query + '\n🎬 » ' + json.results + ' resultados\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦',
+        caption: '🔍 [ SAITAMA TENOR ] 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💥 » ' + query + '\n🎬 » ' + json.results + ' resultados\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦',
         gifPlayback: true
       }, { quoted: m })
     } else {
       await conn.sendMessage(m.chat, {
         image: { url: random.data.url },
-        caption: '🔍 「 HINATA TENOR 」 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » ' + query + '\n📷 » ' + json.results + ' resultados\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+        caption: '🔍 [ SAITAMA TENOR ] 🔍\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » ' + query + '\n📷 » ' + json.results + ' resultados\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
       }, { quoted: m })
     }
 
