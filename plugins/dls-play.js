@@ -247,7 +247,7 @@ async function _mostrarSelectorFormato(conn, m, urlB64, titleB64, title, thumbna
   const interactiveMessage = proto.Message.InteractiveMessage.create({
     header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: String(title || '').slice(0, 60), hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
     body: { text: `🎬 「 SAITAMA YOUTUBE 」 🎵\n\n💫 » *${String(title || '').slice(0, 60)}*\n\n> ¿Cómo deseas descargarlo?\n> 💎 1 diamante` },
-    footer: { text: '⫏⫏ HINATA BOT ✿' },
+    footer: { text: '⫏⫏ SAITAMA BOT ✿' },
     nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '📥 FORMATO', sections: [{ title: '¿Qué deseas descargar?', rows: [
       { header: '🎵 AUDIO', title: 'Descargar música (MP3)', description: '🎧 Alta calidad | 💎 1 diamante', id: `ytdl~audio~${urlB64}~${titleB64}` },
       { header: '🎬 VIDEO', title: 'Descargar video (MP4)', description: `📹 ${VIDEO_QUALITY} | 💎 1 diamante`, id: `ytdl~video~${urlB64}~${titleB64}` }
