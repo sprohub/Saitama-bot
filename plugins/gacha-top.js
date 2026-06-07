@@ -9,11 +9,11 @@ let handler = async (m, { conn }) => {
 
   if (!sorted.length) {
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA RANK GACHA 」 ˚ʚ♡ɞ˚\n\n💫 » Nadie tiene personajes aún\n\n> Usa #rw para conseguir'
+      text: '🥱 「 SAITAMA RANK GACHA 」 ˚˚\n\n💥 » Nadie tiene personajes aún\n\n> Usa #rw para conseguir'
     }, { quoted: m })
   }
 
-  let texto = '𖣔 「 HINATA RANK GACHA 」 ˚ʚ♡ɞ˚\n\n'
+  let texto = '🥱 「 SAITAMARANK GACHA 」 ˚ʚ♡ɞ˚\n\n'
   texto += '🏆 » Top 10 coleccionistas\n\n'
   let medallas = ['🥇', '🥈', '🥉', '4│', '5│', '6│', '7│', '8│', '9│', '🔟']
 
