@@ -18,7 +18,7 @@ let handler = async (m, { conn }) => {
     let minutos = Math.floor(tiempoRestante / 60)
     let segundos = tiempoRestante % 60
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA GACHA 2 」 ˚ʚ♡ɞ˚\n\n💫 » Espera ' + minutos + 'm ' + segundos + 's'
+      text: ' 「 SAITAMA GACHA 2 」 ˚ʚ♡ɞ˚\n\n💥 » Espera ' + minutos + 'm ' + segundos + 's'
     }, { quoted: m })
   }
 
@@ -37,8 +37,8 @@ let handler = async (m, { conn }) => {
     user.inventory2.push(char.name)
     cooldownsRw2[who] = now + 300000
 
-    let texto = '𖣔 「 HINATA GACHA 2 」 ˚ʚ♡ɞ˚\n\n'
-    texto += '  💫 Personaje obtenido\n\n'
+    let texto = '「 SAITAMA GACHA 2 」\n\n'
+    texto += '  💥 Personaje obtenido\n\n'
     texto += '  ✦ ' + char.name + ' ✦\n'
     texto += '  🎬 Anime: ' + (char.anime || 'Desconocido') + '\n'
     texto += '  👤 Género: ' + (char.gender || 'N/A') + '\n'
