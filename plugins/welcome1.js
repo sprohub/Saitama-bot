@@ -134,7 +134,7 @@ if (chat.welcome && [27, 28, 32].includes(m.messageStubType)) {
         .replace(/@group/g, groupMetadata.subject)
         .replace(/@members/g, groupSize)
     } else {
-      texto = '💥 「 SAITAMABOT 」 🔥\n\n'
+      texto = '💥 「 SAITAMA BOT 」 🔥\n\n'
       texto += '桜 » *BIENVENID PE CAUSA@*\n'
       texto += '風 » ' + userMention + '\n'
       texto += '花 » ' + groupMetadata.subject + '\n'
@@ -158,8 +158,8 @@ if (chat.welcome && [27, 28, 32].includes(m.messageStubType)) {
         .replace(/@group/g, groupMetadata.subject)
         .replace(/@members/g, groupSize)
     } else {
-      texto = '💥 「 SAITAMABOT 」 💥\n\n'
-      texto += '🥱 » *porezo no loq uieren*\n'
+      texto = '💥 「 SAITAMA BOT 」 💥\n\n'
+      texto += '🥱 » *porezo no lo quieren 🤣*\n'
       texto += '風 » ' + userMention + '\n'
       texto += '花 » ' + groupMetadata.subject + '\n'
       texto += '桜 » Miembros: ' + groupSize + '\n\n'
