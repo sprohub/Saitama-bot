@@ -8,7 +8,7 @@ let handler = async (m, { conn }) => {
 
   if (!user.inventory2 || user.inventory2.length === 0) {
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA INVENTARIO 2 」 ˚ʚ♡ɞ˚\n\n💫 » Tu inventario está vacío\n\n> Usa #rw2 para conseguir personajes'
+      text: '💥 「 SAITAMA INVENTARIO 2 ±\n\n🔥 » Tu inventario está vacío\n\n> Usa #rw2 para conseguir personajes'
     }, { quoted: m })
   }
 
@@ -17,7 +17,7 @@ let handler = async (m, { conn }) => {
     items[item] = (items[item] || 0) + 1
   }
 
-  let texto = '𖣔 「 HINATA INVENTARIO 2 」 ˚ʚ♡ɞ˚\n\n'
+  let texto = '𖣔 「 SAITAMA INVENTARIO 2 」 \n\n'
 
   for (let [name, count] of Object.entries(items)) {
     texto += '  ✦ ' + name + '\n     📦 x' + count + '\n\n'
