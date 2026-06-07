@@ -3,7 +3,7 @@ import fetch from 'node-fetch'
 let handler = async (m, { conn, text }) => {
   if (!text) {
     return conn.sendMessage(m.chat, {
-      text: '📥 「 HINATA MEDIAFIRE 」 📥\n\n💫 » Descarga archivos de MediaFire\n\n> #mediafire <link>\n> #mf <link>'
+      text: '📥 「 SAITAMA MEDIAFIRE 」 📥\n\n💥 » Descarga archivos de MediaFire\n\n> #mediafire <link>\n> #mf <link>'
     }, { quoted: m })
   }
 
@@ -26,7 +26,7 @@ let handler = async (m, { conn, text }) => {
 
     let { filename, size, uploaded, extension, link } = json.data
 
-    let texto = '📥 「 HINATA MEDIAFIRE 」 📥\n\n'
+    let texto = '⭐  SAITAMA MEDIAFIRE  ⭐\n\n'
     texto += '📁 » *' + filename + '*\n'
     texto += '📦 » Tamaño: ' + size + '\n'
     texto += '📅 » Subido: ' + uploaded + '\n'
