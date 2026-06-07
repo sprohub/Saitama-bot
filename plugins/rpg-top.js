@@ -8,9 +8,9 @@ let handler = async (m, { conn }) => {
 
   let mentions = sorted.map(([id]) => id)
 
-  if (!sorted.length) return conn.sendMessage(m.chat, { text: '⚔️ 「 HINATA TOP 」 ⚔️\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n📭 » Aún no hay jugadores\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
+  if (!sorted.length) return conn.sendMessage(m.chat, { text: '⚔️ 「 SAITAMA TOP 」 ⚔️\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n📭 » Aún no hay jugadores\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
 
-  let texto = '⚔️ 「 HINATA TOP GLOBAL 」 ⚔️\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n'
+  let texto = '⚔️ 「 SAITAMA TOP GLOBAL 」 ⚔️\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n'
   let medallas = ['🥇', '🥈', '🥉', '4│', '5│', '6│', '7│', '8│', '9│', '🔟']
 
   for (let i = 0; i < sorted.length; i++) {
