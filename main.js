@@ -74,7 +74,7 @@ global.timestamp = { start: new Date() };
 const __dirname = global.__dirname(import.meta.url);
 
 console.log(chalk.bold.cyan('\n' + '═'.repeat(60)));
-console.log(chalk.bold.yellow('   𑁍 HINATA BOT - BYAKUGAN ACTIVADO 𑁍'));
+console.log(chalk.bold.yellow('   𑁍 SAITAMA BOT - BYAKUGAN ACTIVADO 𑁍'));
 console.log(chalk.bold.cyan('═'.repeat(60)));
 console.log(chalk.magenta('   「No me rendiré, porque quiero ser fuerte como Naruto-kun」'));
 console.log(chalk.bold.cyan('═'.repeat(60) + '\n'));
@@ -221,7 +221,7 @@ async function reconnectSubBot(botPath) {
         }
       } else if (connection === 'close') {
         const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-        console.error(chalk.red(`💥 [HINATA BOT] Sub-bot caído en ${path.basename(botPath)}. Razón: ${reason}`));
+        console.error(chalk.red(`💥 [SAITAMA BOT] Sub-bot caído en ${path.basename(botPath)}. Razón: ${reason}`));
 
         if (reason === DisconnectReason.loggedOut || reason === 401) {
           console.log(chalk.red(`❌ [HINATA BOT] Desconexión permanente. Eliminando ${path.basename(botPath)}.`));
@@ -239,7 +239,7 @@ async function reconnectSubBot(botPath) {
     subBotConn.ev.on('creds.update', saveSubBotCreds);
     subBotConn.handler = handler.bind(subBotConn);
     subBotConn.ev.on('messages.upsert', subBotConn.handler);
-    console.log(chalk.blue(`𑁍 [HINATA BOT] Manejador asignado a: ${path.basename(botPath)}`));
+    console.log(chalk.blue(`𑁍 [SAITAMA BOT] Manejador asignado a: ${path.basename(botPath)}`));
 
     if (!global.subBots) {
       global.subBots = {};
@@ -256,7 +256,7 @@ async function startSubBots() {
 
   if (!existsSync(rutaJadiBot)) {
     mkdirSync(rutaJadiBot, { recursive: true });
-    console.log(chalk.bold.cyan(`📁 [HINATA BOT] Carpeta de sub-bots creada: ${rutaJadiBot}`));
+    console.log(chalk.bold.cyan(`📁 [SAITAMA BOT] Carpeta de sub-bots creada: ${rutaJadiBot}`));
   } else {
     console.log(chalk.bold.cyan(`📁 [HINATA BOT] Carpeta de sub-bots detectada: ${rutaJadiBot}`));
   }
@@ -264,7 +264,7 @@ async function startSubBots() {
   const readRutaJadiBot = readdirSync(rutaJadiBot);
   if (readRutaJadiBot.length > 0) {
     const credsFile = 'creds.json';
-    console.log(chalk.magenta(`𑁍 [HINATA BOT] Buscando sub-bots... Total: ${readRutaJadiBot.length}`));
+    console.log(chalk.magenta(`𑁍 [SAITAMA BOT] Buscando sub-bots... Total: ${readRutaJadiBot.length}`));
 
     for (const subBotDir of readRutaJadiBot) {
       const botPath = join(rutaJadiBot, subBotDir);
@@ -278,9 +278,9 @@ async function startSubBots() {
         }
       }
     }
-    console.log(chalk.magenta(`✅ [HINATA BOT] Proceso de sub-bots completado.`));
+    console.log(chalk.magenta(`✅ [SAITAMA BOT] Proceso de sub-bots completado.`));
   } else {
-    console.log(chalk.gray(`🌙 [HINATA BOT] No hay sub-bots para despertar.`));
+    console.log(chalk.gray(`🌙 [SAITAMA BOT] No hay sub-bots para despertar.`));
   }
 }
 
@@ -288,14 +288,14 @@ await startSubBots();
 
 async function handleLogin() {
   if (conn.authState.creds.registered) {
-    console.log(chalk.green('✅ [HINATA BOT] Ya registrada.'));
+    console.log(chalk.green('✅ [SAITAMA BOT] Ya registrada.'));
     return;
   }
 
   let loginMethod = await question(
     chalk.green(`\n` +
     `╔════════════════════════════════════╗\n` +
-    `║     𑁍 HINATA BOT MODE 𑁍          ║\n` +
+    `║      SAITAMA BOT MODE           ║\n` +
     `╠════════════════════════════════════╣\n` +
     `║ ¿Cómo deseas activar el Byakugan?  ║\n` +
     `║                                    ║\n` +
@@ -390,16 +390,16 @@ function clearTmp() {
 setInterval(() => {
   if (global.stopped === 'close' || !conn || !conn.user) return;
   clearTmp();
-  console.log(chalk.gray('🧹 [HINATA BOT] Limpieza temporal completada'));
+  console.log(chalk.gray('🧹 [SAITAMA BOT] Limpieza temporal completada'));
 }, 180000);
 
 if (typeof global.gc === 'function') {
   setInterval(() => {
-    console.log(chalk.gray(`🧠 [HINATA BOT] Optimizando chakra...`));
+    console.log(chalk.gray(`🧠 [SAITAMA BOT] Optimizando chakra...`));
     global.gc();
   }, 180000);
 } else {
-  console.log(chalk.yellow(`⚠️ [HINATA BOT] Para optimizar memoria, ejecuta con --expose-gc`));
+  console.log(chalk.yellow(`⚠️ [SAITAMA BOT] Para optimizar memoria, ejecuta con --expose-gc`));
 }
 
 async function connectionUpdate(update) {
@@ -408,7 +408,7 @@ async function connectionUpdate(update) {
 
   if (isNewLogin) {
     conn.isInit = true;
-    console.log(chalk.green('✅ [HINATA BOT] Nuevo login detectado'));
+    console.log(chalk.green('✅ [SAITAMA BOT] Nuevo login detectado'));
   }
 
   const code =
@@ -468,7 +468,7 @@ async function connectionUpdate(update) {
 }
 
 process.on('uncaughtException', (err) => {
-  console.error(chalk.red('💥 [HINATA BOT] Error no capturado:'), err);
+  console.error(chalk.red('💥 [SAITAMA BOT] Error no capturado:'), err);
 });
 
 let isInit = true;
@@ -513,7 +513,7 @@ const pluginFilter = (filename) => /\.js$/.test(filename);
 global.plugins = {};
 
 async function filesInit() {
-  console.log(chalk.blue('📂 [HINATA BOT] Cargando plugins...'));
+  console.log(chalk.blue('📂 [SAITAMA BOT] Cargando plugins...'));
   let loaded = 0;
   for (const filename of readdirSync(pluginFolder).filter(pluginFilter)) {
     try {
@@ -526,7 +526,7 @@ async function filesInit() {
       delete global.plugins[filename];
     }
   }
-  console.log(chalk.green(`✅ [HINATA BOT] ${loaded} plugins cargados correctamente`));
+  console.log(chalk.green(`✅ [SAITAMA BOT] ${loaded} plugins cargados correctamente`));
 }
 
 await filesInit();
@@ -591,13 +591,13 @@ conn.ev.on('group-participants.update', async (update) => {
           .replace(/@group/g, metadata.subject)
           .replace(/@members/g, metadata.participants.length)
       } else {
-        texto = '⛩️ 「 HINATA BOT 」 ⛩️\n\n'
+        texto = '💥 「 SAITAMA BOT 」 💥\n\n'
         texto += '桜 » *BIENVENID@*\n'
         texto += '風 » @' + user.split('@')[0] + '\n'
         texto += '花 » ' + metadata.subject + '\n'
         texto += '桜 » Miembros: ' + metadata.participants.length + '\n\n'
         texto += '✧･ﾟ: *✧･ﾟ:* *:･ﾟ✧*:･ﾟ✧\n\n'
-        texto += '> Gracias por unirte ♡'
+        texto += '> Gracias por unirte 🥱'
       }
 
       await conn.sendMessage(id, {
@@ -613,7 +613,7 @@ conn.ev.on('group-participants.update', async (update) => {
           .replace(/@group/g, metadata.subject)
           .replace(/@members/g, metadata.participants.length)
       } else {
-        texto = '⛩️ 「 HINATA BOT 」 ⛩️\n\n'
+        texto = '💥 「 SAITAMA BOT」 💥\n\n'
         texto += '桜 » *ADIOS*\n'
         texto += '風 » @' + user.split('@')[0] + '\n'
         texto += '花 » ' + metadata.subject + '\n'
