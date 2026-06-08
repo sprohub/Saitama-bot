@@ -1,0 +1,7 @@
+sessions/
+JadiBots/
+storage/databases/
+node_modules/
+tmp/
+*.log
+
