@@ -1,4 +1,4 @@
-const GROQ_KEY = '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'
+const GROQ_KEY = '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'
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 const VIGILANTE_NUM = '573225396540'
