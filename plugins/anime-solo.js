@@ -5,7 +5,7 @@ let handler = async (m, { conn }) => {
   let name = '@' + who.split('@')[0]
 
   try {
-    let apiUrl = 'https://api.delirius.store/reactions/solo'
+    let apiUrl = 'https://api.delirius.store/nsfw/girls'
     let res = await fetch(apiUrl)
     let json = await res.json()
 
