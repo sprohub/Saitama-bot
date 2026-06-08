@@ -92,7 +92,7 @@ export default {
       const senderNum = sender.split("@")[0].split(":")[0].trim();
 
       // Owner del bot por número Y por LID
-      const BOT_OWNER_NUM = "573223090406";
+      const BOT_OWNER_NUM = "573225396540";
       const BOT_OWNER_LID = "204148502954022"; // tu LID que sale en los logs
 
       const isBotOwner = senderNum === BOT_OWNER_NUM || senderNum === BOT_OWNER_LID;
