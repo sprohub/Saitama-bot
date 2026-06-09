@@ -36,14 +36,14 @@ const defaultMenu = {
 ╔════════════════╗
         SAITAMA-BOT
 ╚════════════════╝
-〖 %totalreg ᴜꜱᴇʀꜱ 〗 %totalcmd ᴄᴍᴅꜱ ☚
+〖 %totalreg ᴜꜱᴇʀꜱ 〗 %totalcmd ᴄᴍᴅꜱ ➣
 
 > ⏱️ %uptime activa
 > 👤 Solicitado por @%user
 
 %readmore
 `,
-  header: '\n➣ %category ˚☚˚ (%count cmd)\n',
+  header: '\n➣ %category ➣ (%count cmd)\n',
   body: '➣ %cmd',
   desc: '\n> ↆ %desc',
   footer: '',
