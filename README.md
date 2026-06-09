@@ -456,7 +456,7 @@ BOT_NAME=SAITAMA BOT # Nombre del bot
 
 **◈ SPROH**  
 `Lead Developer`  
-Arquitectura principal, sistema RPG y lógica core del bot.  
+SE ROBO EL BOT.  
 
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/sproh)
 
@@ -465,7 +465,7 @@ Arquitectura principal, sistema RPG y lógica core del bot.
 
 **◈ DravenHacks**  
 `Co-Developer & Designer`  
-Diseño de sistemas, landing page y experiencia de usuario.  
+DUEÑO Y CREADOR DEL BOT PRINCIPAL SOLO A EL DERECHOS DE AUTOR.  
 
 [![WhatsApp](https://img.shields.io/badge/Contacto-25D366?style=flat-square&logo=whatsapp&logoColor=white)](https://wa.me/573230904060)
 
@@ -474,7 +474,7 @@ Diseño de sistemas, landing page y experiencia de usuario.
 
 **◈ ElVigilanteDv**  
 `Security & Infrastructure`  
-Seguridad del sistema, anti-piratería y protección de código.  
+MANO DERECHA DE DRAVEN DERECHO PARA EL TAMBIEN.  
 
 [![Support](https://img.shields.io/badge/Soporte-FF6C37?style=flat-square&logo=whatsapp&logoColor=white)](https://wa.me/573225396540)
 
