@@ -23,7 +23,7 @@ let handler = async (m, { conn, text }) => {
 
     let { name, size, image, download, developer, stats, publish } = json.data
 
-    let texto = '📥 「 HINATA APK 」 📥\n\n'
+    let texto = '📥 「 SAITAMA APK 」 📥\n\n'
     texto += '📱 » *' + name + '*\n'
     texto += '👤 » Developer: ' + (developer || 'N/A') + '\n'
     texto += '📦 » Tamaño: ' + size + '\n'
