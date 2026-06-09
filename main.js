@@ -295,7 +295,7 @@ async function handleLogin() {
   let loginMethod = await question(
     chalk.green(`\n` +
     `╔════════════════════════════════════╗\n` +
-    `║     𑁍 HINATA BOT MODE 𑁍          ║\n` +
+    `║     💥 SAITAMA BOT MODE 💥          ║\n` +
     `╠════════════════════════════════════╣\n` +
     `║ ¿Cómo deseas activar el Byakugan?  ║\n` +
     `║                                    ║\n` +
@@ -395,11 +395,11 @@ setInterval(() => {
 
 if (typeof global.gc === 'function') {
   setInterval(() => {
-    console.log(chalk.gray(`🧠 [HINATA BOT] Optimizando chakra...`));
+    console.log(chalk.gray(`🧠 [SAITAMA BOT] Optimizando chakra...`));
     global.gc();
   }, 180000);
 } else {
-  console.log(chalk.yellow(`⚠️ [HINATA BOT] Para optimizar memoria, ejecuta con --expose-gc`));
+  console.log(chalk.yellow(`⚠️ [SAITAMA BOT] Para optimizar memoria, ejecuta con --expose-gc`));
 }
 
 async function connectionUpdate(update) {
@@ -408,7 +408,7 @@ async function connectionUpdate(update) {
 
   if (isNewLogin) {
     conn.isInit = true;
-    console.log(chalk.green('✅ [HINATA BOT] Nuevo login detectado'));
+    console.log(chalk.green('✅ [SAITAMA BOT] Nuevo login detectado'));
   }
 
   const code =
@@ -468,7 +468,7 @@ async function connectionUpdate(update) {
 }
 
 process.on('uncaughtException', (err) => {
-  console.error(chalk.red('💥 [HINATA BOT] Error no capturado:'), err);
+  console.error(chalk.red('💥 [SAITAMA BOT] Error no capturado:'), err);
 });
 
 let isInit = true;
@@ -513,7 +513,7 @@ const pluginFilter = (filename) => /\.js$/.test(filename);
 global.plugins = {};
 
 async function filesInit() {
-  console.log(chalk.blue('📂 [HINATA BOT] Cargando plugins...'));
+  console.log(chalk.blue('📂 [SAITAMA BOT] Cargando plugins...'));
   let loaded = 0;
   for (const filename of readdirSync(pluginFolder).filter(pluginFilter)) {
     try {
@@ -526,7 +526,7 @@ async function filesInit() {
       delete global.plugins[filename];
     }
   }
-  console.log(chalk.green(`✅ [HINATA BOT] ${loaded} plugins cargados correctamente`));
+  console.log(chalk.green(`✅ [SAITAMA BOT] ${loaded} plugins cargados correctamente`));
 }
 
 await filesInit();
