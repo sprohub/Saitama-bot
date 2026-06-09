@@ -591,7 +591,7 @@ conn.ev.on('group-participants.update', async (update) => {
           .replace(/@group/g, metadata.subject)
           .replace(/@members/g, metadata.participants.length)
       } else {
-        texto = '⛩️ 「 HINATA BOT 」 ⛩️\n\n'
+        texto = ' 「 SAITAMA BOT 」 \n\n'
         texto += '桜 » *BIENVENID@*\n'
         texto += '風 » @' + user.split('@')[0] + '\n'
         texto += '花 » ' + metadata.subject + '\n'
@@ -613,7 +613,7 @@ conn.ev.on('group-participants.update', async (update) => {
           .replace(/@group/g, metadata.subject)
           .replace(/@members/g, metadata.participants.length)
       } else {
-        texto = '⛩️ 「 HINATA BOT 」 ⛩️\n\n'
+        texto = ' 「 SAITAMA BOT 」 \n\n'
         texto += '桜 » *ADIOS*\n'
         texto += '風 » @' + user.split('@')[0] + '\n'
         texto += '花 » ' + metadata.subject + '\n'
