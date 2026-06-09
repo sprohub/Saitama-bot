@@ -33,10 +33,10 @@ const bannerCategory = {
 
 const defaultMenu = {
   before: `
-࿇ ══━━━✥◈✥━━━══ ࿇
-    saitama-bot
-࿇ ══━━━✥◈✥━━━══ ࿇
- ✦%totalreg ᴜꜱᴇʀꜱ ✦ %totalcmd ᴄᴍᴅꜱ ✦
+╔════════════════╗
+    SAITAMA-BOT
+╚════════════════╝
+ %totalreg ᴜꜱᴇʀꜱ ➣ %totalcmd ᴄᴍᴅꜱ ➣
 
 > ⏱️ %uptime activa
 > 👤 Solicitado por @%user
