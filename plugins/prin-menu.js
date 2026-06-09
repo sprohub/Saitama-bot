@@ -36,22 +36,22 @@ const defaultMenu = {
 ╔════════════════╗
     SAITAMA-BOT
 ╚════════════════╝
- %totalreg ᴜꜱᴇʀꜱ ➣ %totalcmd ᴄᴍᴅꜱ ➣
+〖 %totalreg ᴜꜱᴇʀꜱ 〗 %totalcmd ᴄᴍᴅꜱ ☚
 
 > ⏱️ %uptime activa
 > 👤 Solicitado por @%user
 
 %readmore
 `,
-  header: '\n𖣔 %category ˚ʚ♡ɞ˚ (%count cmd)\n',
+  header: '\n☚ %category ˚ʚ♡ɞ˚ (%count cmd)\n',
   body: '❧ %cmd',
   desc: '\n> ↆ %desc',
   footer: '',
   after: `
 
-࿇ ══━━━✥◈✥━━━══ ࿇
+╔════════════════╗
 ᵉˡ ᵛⁱᵍⁱˡᵃⁿᵗᵉ ✦ sprohacks
-࿇ ══━━━✥◈✥━━━══ ࿇`
+╚════════════════╝`
 }
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
