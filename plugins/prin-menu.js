@@ -4,17 +4,17 @@ import fetch from 'node-fetch'
 import { xpRange } from '../lib/levelling.js'
 
 const tags = {
-  main: '⭐ ρяιη¢ιραℓ',
-  group: '👥 ɢяυρσѕ',
-  rpg: '⚔️ яρg',
-  game: '🎮 gαмє',
-  gacha: '🎰 gα¢нα',
-  diversion: '🎪 ∂ινєяѕιση',
-  anime: '🌸 αηιмє',
-  serbot: '🤖 ѕєявσт',
-  owner: '👑 σωηєя',
-  downloader: '📥 ∂σωηℓσα∂єя',
-  info: 'ℹ️ ιηƒσ'
+  main: '⭐ principal➣',
+  group: '👥 grupos➣',
+  rpg: '⚔️ rpg➣',
+  game: '🎮 game➣',
+  gacha: '🎰 gacha➣',
+  diversion: '🎪 divercion➣',
+  anime: '🌸 anime➣',
+  serbot: '🤖 serbot➣',
+  owner: '👑 owner➣',
+  downloader: '📥 downloader➣',
+  info: 'ℹ️ info➣'
 }
 
 const bannerCategory = {
@@ -49,9 +49,9 @@ const defaultMenu = {
   footer: '',
   after: `
 
-╔════════════════╗
-ᵉˡ ᵛⁱᵍⁱˡᵃⁿᵗᵉ ✦ sprohacks
-╚════════════════╝`
+╔═════════════════╗
+  samu★ ➣ sprohacks
+╚═════════════════╝`
 }
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
@@ -92,7 +92,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       .replace(/%user/g, who.split('@')[0])
 
     if (tagSeleccionada) {
-      textoMenu = textoMenu.replace('𝕳𝖎𝖓𝖆𝖙𝖆 𝕭𝖔𝖙', '𝕳𝖎𝖓𝖆𝖙𝖆 𝕭𝖔𝖙 ✦ ' + tags[tagSeleccionada].replace(/[⭐👥⚔️🎮🎰🤖👑📥ℹ️]/g, '').trim())
+      textoMenu = textoMenu.replace('saitamabot', 'saitamabot ➣ ' + tags[tagSeleccionada].replace(/[⭐👥⚔️🎮🎰🤖👑📥ℹ️]/g, '').trim())
     }
 
     for (let tag of Object.keys(tags)) {
