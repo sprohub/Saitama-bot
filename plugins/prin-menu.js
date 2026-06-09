@@ -34,7 +34,7 @@ const bannerCategory = {
 const defaultMenu = {
   before: `
 ╔════════════════╗
-    SAITAMA-BOT
+        SAITAMA-BOT
 ╚════════════════╝
 〖 %totalreg ᴜꜱᴇʀꜱ 〗 %totalcmd ᴄᴍᴅꜱ ☚
 
@@ -43,14 +43,14 @@ const defaultMenu = {
 
 %readmore
 `,
-  header: '\n☚ %category ˚ʚ♡ɞ˚ (%count cmd)\n',
-  body: '❧ %cmd',
+  header: '\n☚ %category ˚☚˚ (%count cmd)\n',
+  body: '☚ %cmd',
   desc: '\n> ↆ %desc',
   footer: '',
   after: `
 
 ╔═════════════════╗
-  samu★ ➣ sprohacks
+   samu★ ➣ sprohacks
 ╚═════════════════╝`
 }
 
