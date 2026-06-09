@@ -43,8 +43,8 @@ const defaultMenu = {
 
 %readmore
 `,
-  header: '\n☚ %category ˚☚˚ (%count cmd)\n',
-  body: '☚ %cmd',
+  header: '\n➣ %category ˚☚˚ (%count cmd)\n',
+  body: '➣ %cmd',
   desc: '\n> ↆ %desc',
   footer: '',
   after: `
