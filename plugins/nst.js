@@ -1,33 +1,26 @@
 import fetch from 'node-fetch'
-import {
-  generateWAMessageFromContent,
-  prepareWAMessageMedia,
-  proto
-} from '@whiskeysockets/baileys'
 
 const DELIRIUS_API = 'https://api.delirius.store'
 
-let handler = async (m, { conn, usedPrefix, command }) => {
-  // Verificar usuario en la base de datos
+let handler = async (m, { conn }) => {
   let user = global.db.data.users[m.sender]
   if (!user) {
     global.db.data.users[m.sender] = { diamantes: 0, diamond: 0 }
     user = global.db.data.users[m.sender]
   }
 
-  function getDiamantes(user) { return user?.diamantes ?? user?.diamond ?? 0 }
-  function restarDiamante(user) {
-    if (user.diamantes !== undefined) user.diamantes = (user.diamantes || 0) - 1
-    else user.diamond = (user.diamond || 0) - 1
+  function getDiamantes(u) { return u?.diamantes ?? u?.diamond ?? 0 }
+  function restarDiamante(u) {
+    if (u.diamantes !== undefined) u.diamantes = (u.diamantes || 0) - 1
+    else u.diamond = (u.diamond || 0) - 1
   }
-  function devolverDiamante(user, anterior) {
-    if (user.diamantes !== undefined) user.diamantes = anterior
-    else user.diamond = anterior
+  function devolverDiamante(u, anterior) {
+    if (u.diamantes !== undefined) u.diamantes = anterior
+    else u.diamond = anterior
   }
 
   const diamantes = getDiamantes(user)
 
-  // Sin diamantes suficientes
   if (diamantes < 1) {
     return conn.sendMessage(m.chat, {
       text: `🔞 「 NST 」\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 1 | Tienes: ${diamantes}\n\n> Usa #work para ganar`
@@ -40,12 +33,28 @@ let handler = async (m, { conn, usedPrefix, command }) => {
 
   try {
     const res = await fetch(`${DELIRIUS_API}/nsfw/girls`)
-    const json = await res.json()
 
-    if (!json.status || !json.image) throw new Error('No se pudo obtener la imagen.')
+    if (!res.ok) throw new Error(`Error HTTP ${res.status}`)
+
+    const contentType = res.headers.get('content-type') || ''
+
+    let imageBuffer
+
+    // La API devuelve imagen binaria directamente
+    if (contentType.includes('image/') || contentType.includes('application/octet-stream')) {
+      imageBuffer = Buffer.from(await res.arrayBuffer())
+    } else {
+      // Intentar como JSON por si cambian la API
+      const json = await res.json()
+      if (!json.status || !json.image) throw new Error('No se pudo obtener la imagen.')
+      const imgRes = await fetch(json.image)
+      imageBuffer = Buffer.from(await imgRes.arrayBuffer())
+    }
+
+    if (!imageBuffer || imageBuffer.length < 1000) throw new Error('Imagen inválida o vacía.')
 
     await conn.sendMessage(m.chat, {
-      image: { url: json.image },
+      image: imageBuffer,
       caption: `🔞 「 NST 」\n\n💎 » Diamantes restantes: ${restantes}`
     }, { quoted: m })
 
