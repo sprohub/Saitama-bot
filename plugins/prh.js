@@ -52,7 +52,7 @@ let handler = async (m, { conn, text }) => {
     console.error('============ ERROR PH ============')
     console.error(e)
     console.error('==================================')
-    conn.sendMessage(m.chat, { text: '❌ Error, cholo' }, { quoted: m })
+    conn.sendMessage(m.chat, { text: '🥀 Error, cholo' }, { quoted: m })
   }
 }
 
