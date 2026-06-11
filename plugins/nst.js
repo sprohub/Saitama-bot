@@ -6,30 +6,29 @@ const OWNER = '573225396540'
 let handler = async (m, { conn, command }) => {
   const sender = m.sender.replace(/[^0-9]/g, '').replace(/@.+/, '')
   const isOwner = sender === OWNER
+  const body = m.body?.trim().toLowerCase() || ''
 
-  // Comando .nst on / .nst off
-  if (command === 'nst') {
-    const body = m.body?.trim().toLowerCase() || ''
-
-    if (body === '.nst on' || body === '/nst on') {
-      if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede activar este comando.' }, { quoted: m })
-      global.db.data.settings = global.db.data.settings || {}
-      global.db.data.settings.nstEnabled = true
-      return conn.sendMessage(m.chat, { text: '✅ Comando `.nst` *activado*.\nLos usuarios ya pueden usarlo.' }, { quoted: m })
-    }
-
-    if (body === '.nst off' || body === '/nst off') {
-      if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede desactivar este comando.' }, { quoted: m })
-      global.db.data.settings = global.db.data.settings || {}
-      global.db.data.settings.nstEnabled = false
-      return conn.sendMessage(m.chat, { text: '🔴 Comando `.nst` *desactivado*.\nNadie más puede usarlo.' }, { quoted: m })
-    }
+  // Comando .nst on / .nst off (solo owner)
+  if (body === '.nst on' || body === '/nst on') {
+    if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede activar este comando.' }, { quoted: m })
+    global.db.data.settings = global.db.data.settings || {}
+    global.db.data.settings.nstEnabled = true
+    return conn.sendMessage(m.chat, { text: '✅ Comando `.nst` *activado*.\nLos usuarios ya pueden usarlo.' }, { quoted: m })
   }
 
-  // Verificar si el comando está activo
+  if (body === '.nst off' || body === '/nst off') {
+    if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede desactivar este comando.' }, { quoted: m })
+    global.db.data.settings = global.db.data.settings || {}
+    global.db.data.settings.nstEnabled = false
+    return conn.sendMessage(m.chat, { text: '🔴 Comando `.nst` *desactivado*.' }, { quoted: m })
+  }
+
+  // Si está desactivado, mostrar mensaje y cortar
   const nstEnabled = global.db.data.settings?.nstEnabled ?? false
-  if (!nstEnabled && !isOwner) {
-    return conn.sendMessage(m.chat, { text: '🔴 El comando `.nst` está desactivado.' }, { quoted: m })
+  if (!nstEnabled) {
+    return conn.sendMessage(m.chat, {
+      text: `🔞 「 NST 」\n\n⛔ *Este comando es solo para admins*\n\n> Contacta al dueño del bot para más información.`
+    }, { quoted: m })
   }
 
   // Verificar usuario en la base de datos
@@ -63,7 +62,6 @@ let handler = async (m, { conn, command }) => {
 
   try {
     const res = await fetch(`${DELIRIUS_API}/nsfw/girls`)
-
     if (!res.ok) throw new Error(`Error HTTP ${res.status}`)
 
     const contentType = res.headers.get('content-type') || ''
