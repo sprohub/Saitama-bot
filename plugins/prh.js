@@ -25,7 +25,7 @@ let handler = async (m, { conn, text }) => {
     
     if (!videoUrl) throw new Error('data[0].url no existe')
 
-    let downloadUrl = `https://delirius.store{encodeURIComponent(videoUrl)}`
+    let downloadUrl = `https://api.delirius.store/download/pornhub?url=https://es.pornhub.com/view_video.php?viewkey=69206bab2519a`
     let downloadRes = await fetch(downloadUrl)
     
     console.log(`[PH LOG] Status descarga: ${downloadRes.status}`)
