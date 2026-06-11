@@ -42,4 +42,50 @@ let handler = async (m, { conn, text, command, usedPrefix }) => {
   // Si no hay texto después de on/off/aleatorio
   if (!text) {
     return conn.sendMessage(m.chat, { 
-      text: `📌 *Uso correcto:*\n• *${usedPrefix}prh on* - Activar en este chat\n• *${usedPrefix}prh off
+      text: `📌 *Uso correcto:*\n• *${usedPrefix}prh on* - Activar en este chat\n• *${usedPrefix}prh off* - Desactivar\n• *${usedPrefix}prh texto* - Buscar videos\n• *${usedPrefix}prh aleatorio* - Video random` 
+    }, { quoted: m })
+  }
+
+  // Procesar búsqueda
+  try {
+    let searchUrl = `https://api.delirius.store/search/pornhub?query=${encodeURIComponent(text)}&page=1&apikey=DkAJ1Lqs`
+    let searchRes = await fetch(searchUrl)
+    let searchJson = await searchRes.json()
+
+    if (!searchJson.status || !searchJson.data || searchJson.data.length === 0) {
+      return conn.sendMessage(m.chat, { text: '❌ No encontré videos con esa búsqueda' }, { quoted: m })
+    }
+
+    // Para búsqueda aleatoria, seleccionar video random de los resultados
+    const videoIndex = Math.floor(Math.random() * searchJson.data.length)
+    let videoUrl = searchJson.data[videoIndex].url
+    
+    let downloadUrl = `https://api.delirius.store/download/pornhub?url=${videoUrl}`
+    let downloadRes = await fetch(downloadUrl)
+    let downloadJson = await downloadRes.json()
+
+    if (!downloadJson.status || !downloadJson.data?.url) {
+      return conn.sendMessage(m.chat, { text: '❌ Error al descargar el video' }, { quoted: m })
+    }
+
+    await conn.sendMessage(m.chat, {
+      video: { url: downloadJson.data.url },
+      caption: `🔞 *PornHub*\n📝 Búsqueda: ${text}\n🎬 *Saitama Bot*`,
+      gifPlayback: false
+    }, { quoted: m })
+
+  } catch (e) {
+    console.error(e)
+    conn.sendMessage(m.chat, { text: '❌ Error en la búsqueda' }, { quoted: m })
+  }
+}
+
+// Configuración del comando
+handler.help = ['pornhub']
+handler.tags = ['downloader', 'nsfw']
+handler.command = /^(prh|pornhub|ph)$/i
+handler.desc = 'Sistema de descarga PornHub'
+handler.group = true
+handler.admin = false
+
+export default handler
