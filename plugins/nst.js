@@ -3,27 +3,27 @@ import fetch from 'node-fetch'
 const DELIRIUS_API = 'https://api.delirius.store'
 const OWNER = '573225396540'
 
-let handler = async (m, { conn, command }) => {
+let handler = async (m, { conn, text }) => {
   const sender = m.sender.replace(/[^0-9]/g, '').replace(/@.+/, '')
   const isOwner = sender === OWNER
-  const body = m.body?.trim().toLowerCase() || ''
+  const arg = text?.trim().toLowerCase() || ''
 
-  // Comando .nston / .nstoff (solo owner)
-  if (body === '.nst on' || body === '/nst on') {
+  // .nst on / .nst off — leer el argumento después del comando
+  if (arg === 'on') {
     if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede activar este comando.' }, { quoted: m })
     global.db.data.settings = global.db.data.settings || {}
     global.db.data.settings.nstEnabled = true
     return conn.sendMessage(m.chat, { text: '✅ Comando `.nst` *activado*.\nLos usuarios ya pueden usarlo.' }, { quoted: m })
   }
 
-  if (body === '.nstoff' || body === '/nst off') {
+  if (arg === 'off') {
     if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede desactivar este comando.' }, { quoted: m })
     global.db.data.settings = global.db.data.settings || {}
     global.db.data.settings.nstEnabled = false
     return conn.sendMessage(m.chat, { text: '🔴 Comando `.nst` *desactivado*.' }, { quoted: m })
   }
 
-  // Si está desactivado, mostrar mensaje y cortar
+  // Si está desactivado mostrar mensaje
   const nstEnabled = global.db.data.settings?.nstEnabled ?? false
   if (!nstEnabled) {
     return conn.sendMessage(m.chat, {
