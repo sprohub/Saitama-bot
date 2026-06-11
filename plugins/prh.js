@@ -3,9 +3,23 @@ import fetch from 'node-fetch'
 // Base de datos temporal para estados por chat
 const pornhubStates = new Map()
 
+// Números autorizados para activar/desactivar el comando
+const allowedOwners = [
+  '573225396540@s.whatsapp.net',
+  '573225814649@s.whatsapp.net'
+]
+
 let handler = async (m, { conn, text, command, usedPrefix }) => {
-  // Sistema de activación/desactivación
+  
+  // ==================== SISTEMA DE ACTIVACIÓN/DESACTIVACIÓN ====================
   if (text === 'on' || text === 'off') {
+    // Solo los números autorizados pueden activar/desactivar
+    if (!allowedOwners.includes(m.sender)) {
+      return conn.sendMessage(m.chat, { 
+        text: '❌ *Solo los propietarios pueden activar/desactivar este comando.*' 
+      }, { quoted: m })
+    }
+
     const chatId = m.chat
     if (text === 'on') {
       pornhubStates.set(chatId, true)
@@ -30,7 +44,6 @@ let handler = async (m, { conn, text, command, usedPrefix }) => {
   // Comando aleatorio
   if (text === 'aleatorio') {
     try {
-      // Categorías comunes para búsqueda aleatoria
       const categories = ['teen', 'milf', 'anal', 'blowjob', 'creampie', 'hardcore', 'lesbian', 'latina']
       const randomCategory = categories[Math.floor(Math.random() * categories.length)]
       text = randomCategory
@@ -56,11 +69,10 @@ let handler = async (m, { conn, text, command, usedPrefix }) => {
       return conn.sendMessage(m.chat, { text: '❌ No encontré videos con esa búsqueda' }, { quoted: m })
     }
 
-    // Para búsqueda aleatoria, seleccionar video random de los resultados
     const videoIndex = Math.floor(Math.random() * searchJson.data.length)
     let videoUrl = searchJson.data[videoIndex].url
     
-    let downloadUrl = `https://api.delirius.store/download/pornhub?url=${videoUrl}`
+    let downloadUrl = `https://api.delirius.store/download/pornhub?url=${encodeURIComponent(videoUrl)}`
     let downloadRes = await fetch(downloadUrl)
     let downloadJson = await downloadRes.json()
 
