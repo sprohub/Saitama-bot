@@ -8,23 +8,25 @@ let handler = async (m, { conn, text }) => {
   const isOwner = sender === OWNER
   const arg = text?.trim().toLowerCase() || ''
 
-  // .nst on / .nst off — leer el argumento después del comando
+  // .nst on / .nst off por grupo
   if (arg === 'on') {
     if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede activar este comando.' }, { quoted: m })
-    global.db.data.settings = global.db.data.settings || {}
-    global.db.data.settings.nstEnabled = true
-    return conn.sendMessage(m.chat, { text: '✅ Comando `.nst` *activado*.\nLos usuarios ya pueden usarlo.' }, { quoted: m })
+    global.db.data.chats = global.db.data.chats || {}
+    global.db.data.chats[m.chat] = global.db.data.chats[m.chat] || {}
+    global.db.data.chats[m.chat].nstEnabled = true
+    return conn.sendMessage(m.chat, { text: '✅ Comando `.nst` *activado* en este grupo.\nLos usuarios ya pueden usarlo.' }, { quoted: m })
   }
 
   if (arg === 'off') {
     if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede desactivar este comando.' }, { quoted: m })
-    global.db.data.settings = global.db.data.settings || {}
-    global.db.data.settings.nstEnabled = false
-    return conn.sendMessage(m.chat, { text: '🔴 Comando `.nst` *desactivado*.' }, { quoted: m })
+    global.db.data.chats = global.db.data.chats || {}
+    global.db.data.chats[m.chat] = global.db.data.chats[m.chat] || {}
+    global.db.data.chats[m.chat].nstEnabled = false
+    return conn.sendMessage(m.chat, { text: '🔴 Comando `.nst` *desactivado* en este grupo.' }, { quoted: m })
   }
 
-  // Si está desactivado mostrar mensaje
-  const nstEnabled = global.db.data.settings?.nstEnabled ?? false
+  // Verificar estado por grupo
+  const nstEnabled = global.db.data.chats?.[m.chat]?.nstEnabled ?? false
   if (!nstEnabled) {
     return conn.sendMessage(m.chat, {
       text: `🔞 「 NST 」\n\n⛔ *Este comando es solo para admins*\n\n> Contacta al dueño del bot para más información.`
