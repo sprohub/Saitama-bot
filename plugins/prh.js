@@ -6,7 +6,7 @@ let handler = async (m, { conn, text }) => {
   try {
     console.log(`[PH LOG] Búsqueda: "${text}"`)
 
-    let searchUrl = `https://delirius.store{encodeURIComponent(text)}&page=1&apikey=DkAJ1Lqs`
+    let searchUrl = `https://api.delirius.store/search/pornhub?query=Rusas&page=4&apikey=DkAJ1Lqs`
     let searchRes = await fetch(searchUrl)
     
     console.log(`[PH LOG] Status búsqueda: ${searchRes.status}`)
