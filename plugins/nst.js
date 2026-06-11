@@ -29,7 +29,7 @@ let handler = async (m, { conn, text }) => {
   const nstEnabled = global.db.data.chats?.[m.chat]?.nstEnabled ?? false
   if (!nstEnabled) {
     return conn.sendMessage(m.chat, {
-      text: `🔞 「 NST 」\n\n⛔ *Este comando es solo para admins*\n\n> Contacta al dueño del bot para más información.`
+      text: `🔞 「 NST SAITAMA 」\n\n⛔ *ESTE COMANDO ESTA DESACTIVADO POR EL ADMIN*\n\n> Contacta al dueño del bot.`
     }, { quoted: m })
   }
 
