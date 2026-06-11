@@ -33,34 +33,7 @@ let handler = async (m, { conn, text }) => {
     }, { quoted: m })
   }
 
-  // Verificar usuario en la base de datos
-  let user = global.db.data.users[m.sender]
-  if (!user) {
-    global.db.data.users[m.sender] = { diamantes: 0, diamond: 0 }
-    user = global.db.data.users[m.sender]
-  }
-
-  function getDiamantes(u) { return u?.diamantes ?? u?.diamond ?? 0 }
-  function restarDiamante(u) {
-    if (u.diamantes !== undefined) u.diamantes = (u.diamantes || 0) - 1
-    else u.diamond = (u.diamond || 0) - 1
-  }
-  function devolverDiamante(u, anterior) {
-    if (u.diamantes !== undefined) u.diamantes = anterior
-    else u.diamond = anterior
-  }
-
-  const diamantes = getDiamantes(user)
-
-  if (diamantes < 1) {
-    return conn.sendMessage(m.chat, {
-      text: `🔞 「 NST 」\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 1 | Tienes: ${diamantes}\n\n> Usa #work para ganar`
-    }, { quoted: m })
-  }
-
   await m.react('⏳')
-  restarDiamante(user)
-  const restantes = getDiamantes(user)
 
   try {
     const res = await fetch(`${DELIRIUS_API}/nsfw/girls`)
@@ -82,19 +55,18 @@ let handler = async (m, { conn, text }) => {
 
     await conn.sendMessage(m.chat, {
       image: imageBuffer,
-      caption: `🔞 「 NST 」\n\n💎 » Diamantes restantes: ${restantes}`
+      caption: `🔞 「 NST 」`
     }, { quoted: m })
 
     await m.react('✅')
   } catch (e) {
-    devolverDiamante(user, diamantes)
     await m.react('❌')
     const rawMsg = String(e?.message || '').toLowerCase()
     const humanMsg = rawMsg.includes('aborted') || rawMsg.includes('fetch')
-      ? '😂 Despacio viejo, ¿eres Flash?\n⏳ Espera un momento e intenta de nuevo.\n💎 Diamante devuelto.'
+      ? '😂 Despacio viejo, ¿eres Flash?\n⏳ Espera un momento e intenta de nuevo.'
       : rawMsg.includes('502') || rawMsg.includes('503') || rawMsg.includes('bad gateway')
-      ? '⚠️ El servidor está saturado.\n🔁 Intenta más tarde.\n💎 Diamante devuelto.'
-      : '❌ Algo salió mal, intenta de nuevo.\n💎 Diamante devuelto.'
+      ? '⚠️ El servidor está saturado.\n🔁 Intenta más tarde.'
+      : '❌ Algo salió mal, intenta de nuevo.'
     await conn.sendMessage(m.chat, { text: humanMsg }, { quoted: m })
   }
 }
@@ -102,6 +74,6 @@ let handler = async (m, { conn, text }) => {
 handler.help    = ['nst']
 handler.tags    = ['nsfw']
 handler.command = /^(nst)$/i
-handler.desc    = 'Envía una imagen NSFW de chicas 💎1'
+handler.desc    = 'Envía una imagen NSFW de chicas'
 
 export default handler
