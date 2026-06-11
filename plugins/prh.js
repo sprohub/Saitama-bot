@@ -3,7 +3,7 @@ import fetch from 'node-fetch'
 // Base de datos temporal para estados por chat
 const pornhubStates = new Map()
 
-// Números autorizados para activar/desactivar el comando
+// Números autorizados (solo ellos pueden on/off)
 const allowedOwners = [
   '573225396540@s.whatsapp.net',
   '573225814649@s.whatsapp.net'
@@ -11,9 +11,7 @@ const allowedOwners = [
 
 let handler = async (m, { conn, text, command, usedPrefix }) => {
   
-  // ==================== SISTEMA DE ACTIVACIÓN/DESACTIVACIÓN ====================
   if (text === 'on' || text === 'off') {
-    // Solo los números autorizados pueden activar/desactivar
     if (!allowedOwners.includes(m.sender)) {
       return conn.sendMessage(m.chat, { 
         text: '❌ *Solo los propietarios pueden activar/desactivar este comando.*' 
@@ -24,7 +22,7 @@ let handler = async (m, { conn, text, command, usedPrefix }) => {
     if (text === 'on') {
       pornhubStates.set(chatId, true)
       return conn.sendMessage(m.chat, { 
-        text: '✅ *PornHub activado* en este chat\nUsa *.prh texto* para buscar\n*.prh aleatorio* para video random\n*.prh off* para desactivar' 
+        text: '✅ *PornHub activado* en este chat\nUsa *.prh texto* para buscar\n*.prh aleatorio* para video random' 
       }, { quoted: m })
     } else {
       pornhubStates.delete(chatId)
@@ -34,70 +32,66 @@ let handler = async (m, { conn, text, command, usedPrefix }) => {
     }
   }
 
-  // Verificar si está activado en este chat
   if (!pornhubStates.has(m.chat)) {
     return conn.sendMessage(m.chat, { 
-      text: `⚠️ El comando está desactivado\nUsa *${usedPrefix}prh on* para activar` 
+      text: `⚠️ Comando desactivado\nUsa *${usedPrefix}prh on* para activar` 
     }, { quoted: m })
   }
 
-  // Comando aleatorio
   if (text === 'aleatorio') {
-    try {
-      const categories = ['teen', 'milf', 'anal', 'blowjob', 'creampie', 'hardcore', 'lesbian', 'latina']
-      const randomCategory = categories[Math.floor(Math.random() * categories.length)]
-      text = randomCategory
-    } catch (e) {
-      return conn.sendMessage(m.chat, { text: '❌ Error generando búsqueda aleatoria' }, { quoted: m })
-    }
+    const categories = ['teen', 'milf', 'anal', 'blowjob', 'creampie', 'hardcore', 'lesbian', 'latina', 'ebony']
+    text = categories[Math.floor(Math.random() * categories.length)]
   }
 
-  // Si no hay texto después de on/off/aleatorio
   if (!text) {
     return conn.sendMessage(m.chat, { 
-      text: `📌 *Uso correcto:*\n• *${usedPrefix}prh on* - Activar en este chat\n• *${usedPrefix}prh off* - Desactivar\n• *${usedPrefix}prh texto* - Buscar videos\n• *${usedPrefix}prh aleatorio* - Video random` 
+      text: `📌 *Uso:*\n\( {usedPrefix}prh on\n \){usedPrefix}prh off\n\( {usedPrefix}prh [texto]\n \){usedPrefix}prh aleatorio` 
     }, { quoted: m })
   }
 
-  // Procesar búsqueda
   try {
-    let searchUrl = `https://api.delirius.store/search/pornhub?query=${encodeURIComponent(text)}&page=1&apikey=DkAJ1Lqs`
-    let searchRes = await fetch(searchUrl)
-    let searchJson = await searchRes.json()
+    // 1. Búsqueda
+    const searchUrl = `https://api.delirius.store/search/pornhub?query=${encodeURIComponent(text)}&page=1&apikey=DkAJ1Lqs`
+    const searchRes = await fetch(searchUrl)
+    const searchJson = await searchRes.json()
 
-    if (!searchJson.status || !searchJson.data || searchJson.data.length === 0) {
-      return conn.sendMessage(m.chat, { text: '❌ No encontré videos con esa búsqueda' }, { quoted: m })
+    if (!searchJson.status || !searchJson.data?.length) {
+      return conn.sendMessage(m.chat, { text: '❌ No se encontraron videos' }, { quoted: m })
     }
 
-    const videoIndex = Math.floor(Math.random() * searchJson.data.length)
-    let videoUrl = searchJson.data[videoIndex].url
+    // 2. Tomar un video aleatorio
+    const randomVideo = searchJson.data[Math.floor(Math.random() * searchJson.data.length)]
+    const videoPageUrl = randomVideo.url
+
+    // 3. Descarga (API que mencionaste)
+    const downloadUrl = `https://api.delirius.store/download/pornhub?url=${encodeURIComponent(videoPageUrl)}`
     
-    let downloadUrl = `https://api.delirius.store/download/pornhub?url=${encodeURIComponent(videoUrl)}`
-    let downloadRes = await fetch(downloadUrl)
-    let downloadJson = await downloadRes.json()
+    const downloadRes = await fetch(downloadUrl)
+    const downloadJson = await downloadRes.json()
 
     if (!downloadJson.status || !downloadJson.data?.url) {
-      return conn.sendMessage(m.chat, { text: '❌ Error al descargar el video' }, { quoted: m })
+      console.error('Download API error:', downloadJson)
+      return conn.sendMessage(m.chat, { 
+        text: '❌ La API de descarga falló. Inténtalo de nuevo.' 
+      }, { quoted: m })
     }
 
+    // 4. Enviar video
     await conn.sendMessage(m.chat, {
       video: { url: downloadJson.data.url },
-      caption: `🔞 *PornHub*\n📝 Búsqueda: ${text}\n🎬 *Saitama Bot*`,
+      caption: `🔞 *PornHub* | Saitama Bot\n🔎 Búsqueda: ${text}\n📌 Título: ${randomVideo.title || 'Sin título'}`,
       gifPlayback: false
     }, { quoted: m })
 
   } catch (e) {
     console.error(e)
-    conn.sendMessage(m.chat, { text: '❌ Error en la búsqueda' }, { quoted: m })
+    conn.sendMessage(m.chat, { text: '❌ Error al procesar la solicitud' }, { quoted: m })
   }
 }
 
-// Configuración del comando
 handler.help = ['pornhub']
 handler.tags = ['downloader', 'nsfw']
 handler.command = /^(prh|pornhub|ph)$/i
-handler.desc = 'Sistema de descarga PornHub'
 handler.group = true
-handler.admin = false
 
 export default handler
