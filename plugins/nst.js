@@ -8,7 +8,7 @@ let handler = async (m, { conn, command }) => {
   const isOwner = sender === OWNER
   const body = m.body?.trim().toLowerCase() || ''
 
-  // Comando .nst on / .nst off (solo owner)
+  // Comando .nston / .nstoff (solo owner)
   if (body === '.nst on' || body === '/nst on') {
     if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede activar este comando.' }, { quoted: m })
     global.db.data.settings = global.db.data.settings || {}
@@ -16,7 +16,7 @@ let handler = async (m, { conn, command }) => {
     return conn.sendMessage(m.chat, { text: '✅ Comando `.nst` *activado*.\nLos usuarios ya pueden usarlo.' }, { quoted: m })
   }
 
-  if (body === '.nst off' || body === '/nst off') {
+  if (body === '.nstoff' || body === '/nst off') {
     if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede desactivar este comando.' }, { quoted: m })
     global.db.data.settings = global.db.data.settings || {}
     global.db.data.settings.nstEnabled = false
