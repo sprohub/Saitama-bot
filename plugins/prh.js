@@ -6,7 +6,7 @@ let handler = async (m, { conn, text }) => {
   try {
     console.log(`[PH LOG] Búsqueda: "${text}"`)
 
-    let searchUrl = `https://api.delirius.store/search/pornhub?query=Rusas&page=4&apikey=DkAJ1Lqs`
+    let searchUrl = `https://delirius.store{encodeURIComponent(text)}&page=1&apikey=DkAJ1Lqs`
     let searchRes = await fetch(searchUrl)
     
     console.log(`[PH LOG] Status búsqueda: ${searchRes.status}`)
@@ -25,7 +25,7 @@ let handler = async (m, { conn, text }) => {
     
     if (!videoUrl) throw new Error('data[0].url no existe')
 
-    let downloadUrl = `https://api.delirius.store/download/pornhub?url=https://es.pornhub.com/view_video.php?viewkey=69206bab2519a`
+    let downloadUrl = `https://delirius.store{encodeURIComponent(videoUrl)}`
     let downloadRes = await fetch(downloadUrl)
     
     console.log(`[PH LOG] Status descarga: ${downloadRes.status}`)
@@ -52,7 +52,7 @@ let handler = async (m, { conn, text }) => {
     console.error('============ ERROR PH ============')
     console.error(e)
     console.error('==================================')
-    conn.sendMessage(m.chat, { text: '🥀 Error, cholo' }, { quoted: m })
+    conn.sendMessage(m.chat, { text: '❌ Error, cholo' }, { quoted: m })
   }
 }
 
