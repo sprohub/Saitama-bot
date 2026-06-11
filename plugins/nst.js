@@ -87,9 +87,13 @@ let handler = async (m, { conn, text }) => {
   } catch (e) {
     devolverDiamante(user, diamantes)
     await m.react('❌')
-    await conn.sendMessage(m.chat, {
-      text: `❌ ${e.message || 'Error al obtener la imagen.'}\n💎 Diamante devuelto.`
-    }, { quoted: m })
+    const rawMsg = String(e?.message || '').toLowerCase()
+    const humanMsg = rawMsg.includes('aborted') || rawMsg.includes('fetch')
+      ? '😂 Despacio viejo, ¿eres Flash?\n⏳ Espera un momento e intenta de nuevo.\n💎 Diamante devuelto.'
+      : rawMsg.includes('502') || rawMsg.includes('503') || rawMsg.includes('bad gateway')
+      ? '⚠️ El servidor está saturado.\n🔁 Intenta más tarde.\n💎 Diamante devuelto.'
+      : '❌ Algo salió mal, intenta de nuevo.\n💎 Diamante devuelto.'
+    await conn.sendMessage(m.chat, { text: humanMsg }, { quoted: m })
   }
 }
 
