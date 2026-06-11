@@ -9,7 +9,7 @@ import {
 //   CONFIGURACIÓN — edita solo esta sección
 // =============================================
 const OWNER       = '573225396540'
-const API_BASE    = 'https://api.delirius.store'         // Cambia aquí tu API base
+const API_BASE    = 'https://api.delirius.store/search/pornhub?query=Rusas&page=4&apikey=DkAJ1Lqs'         // Cambia aquí tu API base
 const SEARCH_PATH = '/search/ytsearch'                   // Ruta de búsqueda
 const API_KEY     = ''                                   // Pon tu apikey si la necesitas
 const MAX_RESULTS = 5                                    // Máximo de resultados
