@@ -1,8 +1,38 @@
 import fetch from 'node-fetch'
 
 const DELIRIUS_API = 'https://api.delirius.store'
+const OWNER = '573225396540'
 
-let handler = async (m, { conn }) => {
+let handler = async (m, { conn, command }) => {
+  const sender = m.sender.replace(/[^0-9]/g, '').replace(/@.+/, '')
+  const isOwner = sender === OWNER
+
+  // Comando .nst on / .nst off
+  if (command === 'nst') {
+    const body = m.body?.trim().toLowerCase() || ''
+
+    if (body === '.nst on' || body === '/nst on') {
+      if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede activar este comando.' }, { quoted: m })
+      global.db.data.settings = global.db.data.settings || {}
+      global.db.data.settings.nstEnabled = true
+      return conn.sendMessage(m.chat, { text: '✅ Comando `.nst` *activado*.\nLos usuarios ya pueden usarlo.' }, { quoted: m })
+    }
+
+    if (body === '.nst off' || body === '/nst off') {
+      if (!isOwner) return conn.sendMessage(m.chat, { text: '❌ Solo el dueño puede desactivar este comando.' }, { quoted: m })
+      global.db.data.settings = global.db.data.settings || {}
+      global.db.data.settings.nstEnabled = false
+      return conn.sendMessage(m.chat, { text: '🔴 Comando `.nst` *desactivado*.\nNadie más puede usarlo.' }, { quoted: m })
+    }
+  }
+
+  // Verificar si el comando está activo
+  const nstEnabled = global.db.data.settings?.nstEnabled ?? false
+  if (!nstEnabled && !isOwner) {
+    return conn.sendMessage(m.chat, { text: '🔴 El comando `.nst` está desactivado.' }, { quoted: m })
+  }
+
+  // Verificar usuario en la base de datos
   let user = global.db.data.users[m.sender]
   if (!user) {
     global.db.data.users[m.sender] = { diamantes: 0, diamond: 0 }
@@ -37,14 +67,11 @@ let handler = async (m, { conn }) => {
     if (!res.ok) throw new Error(`Error HTTP ${res.status}`)
 
     const contentType = res.headers.get('content-type') || ''
-
     let imageBuffer
 
-    // La API devuelve imagen binaria directamente
     if (contentType.includes('image/') || contentType.includes('application/octet-stream')) {
       imageBuffer = Buffer.from(await res.arrayBuffer())
     } else {
-      // Intentar como JSON por si cambian la API
       const json = await res.json()
       if (!json.status || !json.image) throw new Error('No se pudo obtener la imagen.')
       const imgRes = await fetch(json.image)
