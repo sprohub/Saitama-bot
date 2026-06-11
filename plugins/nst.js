@@ -2,7 +2,6 @@ import fetch from 'node-fetch'
 
 const DELIRIUS_API = 'https://api.delirius.store'
 const OWNER = '573225396540'
-const OWNER = '573225814649'
 
 let handler = async (m, { conn, text }) => {
   const sender = m.sender.replace(/[^0-9]/g, '').replace(/@.+/, '')
