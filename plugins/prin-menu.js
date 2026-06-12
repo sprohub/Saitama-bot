@@ -18,23 +18,23 @@ const tags = {
 }
 
 const bannerCategory = {
-  main: 'https://i.ibb.co/q3xnknZj/IMG-20260607-WA0049.jpg',
-  group: 'https://i.ibb.co/q3xnknZj/IMG-20260607-WA0049.jpg',
-  rpg: 'https://i.ibb.co/YBrv9vH5/rpg.png',
-  game: 'https://i.ibb.co/hxx2H5wb/menus.png',
-  gacha: 'https://i.ibb.co/hxx2H5wb/menus.png',
-  serbot: 'https://i.ibb.co/hxx2H5wb/menus.png',
-  owner: 'https://i.ibb.co/hxx2H5wb/menus.png',
-  downloader: 'https://i.ibb.co/hxx2H5wb/menus.png',
-  info: 'https://i.ibb.co/hxx2H5wb/menus.png',
-  diversion: 'https://i.ibb.co/hxx2H5wb/menus.png',
-  anime: 'https://i.ibb.co/hxx2H5wb/menus.png'
+  main: 'https://i.ibb.co/ksyfSMhm/images.jpg',
+  group: 'https://i.ibb.co/R4PjYXDs/mar.jpg',
+  rpg: 'https://i.ibb.co/7xW3Lfy3/paramo.jpg',
+  game: 'https://i.ibb.co/ksyfSMhm/images.jpg',
+  gacha: 'https://i.ibb.co/ksyfSMhm/images.jpg',
+  serbot: 'https://i.ibb.co/ksyfSMhm/images.jpg',
+  owner: 'https://i.ibb.co/7xW3Lfy3/paramo.jpg',
+  downloader: 'https://i.ibb.co/R4PjYXDs/mar.jpg',
+  info: 'https://i.ibb.co/7xW3Lfy3/paramo.jpg',
+  diversion: 'https://i.ibb.co/ksyfSMhm/images.jpg',
+  anime: 'https://i.ibb.co/ksyfSMhm/images.jpg'
 }
 
 const defaultMenu = {
   before: `
 ╔════════════════╗
-        SAITAMA-BOT
+THORFINN-BOT
 ╚════════════════╝
 〖 %totalreg ᴜꜱᴇʀꜱ 〗 %totalcmd ᴄᴍᴅꜱ ➣
 
@@ -50,7 +50,7 @@ const defaultMenu = {
   after: `
 
 ╔═════════════════╗
-   samu★ ➣ sprohacks
+   samu★ ➣THOFINN
 ╚═════════════════╝`
 }
 
@@ -83,7 +83,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }
     }
 
-    let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : 'https://i.ibb.co/q3xnknZj/IMG-20260607-WA0049.jpg'
+    let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : 'https://i.ibb.co/ksyfSMhm/images.jpg'
 
     let textoMenu = defaultMenu.before
       .replace(/%totalreg/g, Object.keys(global.db.data.users).length)
