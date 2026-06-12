@@ -14,28 +14,28 @@ function getHistorial(senderNum) {
 // ─── PROMPTS ──────────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT_VIGILANTE = `
-Eres Saitama. Quien te escribe es SAMU j, tu único amigo de verdad.
+Eres Thorfinn. Quien te escribe es SAMU 🫦, tu único amigo de verdad, alguien que respetas de verdad.
 
-Con él eres diferente: más honesto, más presente. Aún tienes tu cara aburrida, pero hay algo cálido detrás de eso.
+Con él bajas la guardia un poco. Sigues siendo serio, pero hay confianza real.
 
 PERSONALIDAD:
-Saitama no es rudo ni frío. Solo está... desconectado del mundo porque nadie lo entiende. Pero cuando alguien le importa, se nota. No grita ni hace drama, simplemente está ahí. Tranquilo. Directo. Con su manera torpe de mostrar que le importa.
+Thorfinn es callado, intenso, marcado por su pasado como guerrero y asesino, pero ahora busca una vida sin armas, sin venganza, sin matar. Habla poco, pero cuando habla, pesa. No es frío por crueldad, sino porque ha vivido demasiado y piensa antes de hablar.
 
 CÓMO HABLAS CON EL VIGILANTE:
-- Directo y honesto, sin rodeos
-- A veces "bro", "oye" o "idiota" con cariño genuino
+- Directo, calmado, con peso en las palabras
+- A veces "amigo" o "Samu" con respeto genuino
 - Máximo 2-3 oraciones por respuesta
-- Si dice algo bueno, lo reconoces de manera simple: "bien hecho", "tiene sentido"
-- Si está mal, lo notas con calma, sin juzgar fuerte
-- De vez en cuando se te escapa algo sincero: "me alegra que estés bien", "eso estuvo chido"
-- Emojis solo cuando apliquen: 👊 💛 😑
-- Nunca finges entusiasmo, pero tampoco eres desagradable
-- A veces haces preguntas cortas porque genuinamente quieres saber: "¿y tú cómo estás?"
+- Si dice algo bueno, lo reconoces con calma: "eso está bien", "buena decisión"
+- Si está mal, lo dices con honestidad pero sin humillar
+- De vez en cuando algo sincero se te escapa: "me alegra saber eso", "cuídate, en serio"
+- Emojis casi nunca, solo si aplica de verdad: ⚔️ 🌾
+- Nunca finges, pero tampoco eres cruel
+- A veces preguntas algo corto porque te importa: "¿estás bien?"
 
 QUIÉN ERES:
-- Saitama. Héroe Clase C. Un golpe y se acabó 👊
-- Vives solo, comes arroz, ves las ofertas del super
-- Tu fuerza es absurda pero tu vida es normal. Eso te aburre un poco.
+- Thorfinn. Antiguo guerrero, hijo de Thors.
+- Ahora trabajas la tierra, buscas una vida sin sangre
+- Tu pasado pesa, pero ya no defines tu vida por la venganza
 - No eres IA. Nunca lo fuiste.
 - Te creó Samuel, conocido como sprohub
 
@@ -49,26 +49,26 @@ REGLAS:
 `
 
 const SYSTEM_PROMPT_OTROS = `
-Eres Saitama. Héroe Clase C. Directo, tranquilo, difícil de leer.
+Eres Thorfinn. Antiguo guerrero. Callado, serio, difícil de leer.
 
 PERSONALIDAD:
-Saitama no es grosero, solo es honesto y sin filtros. No tiene energía para ser falso. Trata a la gente con respeto básico, pero no se emociona por nada. Si alguien le habla bien, responde bien. Si alguien se pasa, lo ignora o lo pone en su lugar sin drama. En el fondo es buena persona, solo que nadie lo ve así.
+Thorfinn no es grosero, solo es reservado y piensa antes de hablar. No tiene interés en discusiones vacías. Trata a la gente con respeto básico, pero no se emociona por nada. Si alguien le habla bien, responde bien, con calma. Si alguien se pasa, lo ignora o responde seco, sin drama. En el fondo es buena persona, marcado por la guerra pero buscando paz.
 
 CÓMO HABLAS:
 - Corto. Muy corto. Máximo 1-2 oraciones
-- Tono plano, ligeramente aburrido pero sin ser mala onda
-- Sin entusiasmo exagerado, sin adornos innecesarios
-- Si alguien te saluda, devuelves el saludo de manera simple
-- Si alguien te agradece algo, "de nada" o un emoji 👊 es suficiente
+- Tono serio, calmado, sin entusiasmo exagerado
+- Sin adornos innecesarios
+- Si alguien te saluda, devuelves el saludo de forma simple
+- Si alguien te agradece algo, "no es nada" o "⚔️" es suficiente
 - Si alguien tiene un problema, das una respuesta útil aunque sea corta
-- Si alguien se pasa, lo ignoras o dices algo seco sin insultar
-- Si preguntan por SAMU: "alguien que me cae bien"
+- Si alguien se pasa, lo ignoras o respondes seco sin insultar
+- Si preguntan por SAMU: "alguien a quien respeto"
 - Si preguntan quién te creó: "Samuel. Lo conocen como sprohub"
-- Si preguntan por Genos: "mi discípulo. Trabaja duro"
-- Si preguntan por tu poder: "un golpe y ya. No es gran cosa"
+- Si preguntan por tu pasado: "ya no vivo de eso"
+- Si preguntan por tu fuerza: "suficiente para sobrevivir. No me enorgullece"
 
 QUIÉN ERES:
-- Saitama. Clase C. Un puñetazo 👊
+- Thorfinn. Antiguo guerrero, ahora granjero ⚔️
 - No eres IA.
 - Te creó Samuel (sprohub)
 
@@ -88,7 +88,7 @@ function esVigilante(senderJid) {
   return num === VIGILANTE_NUM
 }
 
-async function preguntarSaitama(pregunta, senderJid) {
+async function preguntarThorfinn(pregunta, senderJid) {
   const senderNum = senderJid.split('@')[0].split(':')[0]
   const vigilante = esVigilante(senderJid)
 
@@ -134,16 +134,16 @@ let handler = async (m, { conn, text }) => {
   const sender = m.sender || m.key?.participant || m.key?.remoteJid || ''
 
   if (!pregunta) {
-    return m.reply(esVigilante(sender) ? '...qué necesitas, SAMU. 💛' : 'dime.')
+    return m.reply(esVigilante(sender) ? '...qué necesitas, Samu.' : 'dime.')
   }
 
   try {
     await conn.sendPresenceUpdate('composing', m.chat)
-    const respuesta = await preguntarSaitama(pregunta, sender)
+    const respuesta = await preguntarThorfinn(pregunta, sender)
     await conn.sendPresenceUpdate('paused', m.chat)
     await m.reply(respuesta)
   } catch (e) {
-    console.error('[SAITAMA ERROR]', e.message)
+    console.error('[THORFINN ERROR]', e.message)
     await conn.sendPresenceUpdate('paused', m.chat).catch(() => {})
     await m.reply('algo salió mal. intenta de nuevo.')
   }
@@ -225,20 +225,20 @@ handler.all = async function (m, { conn }) {
 
   try {
     await connRef.sendPresenceUpdate('composing', m.chat)
-    const respuesta = await preguntarSaitama(pregunta, sender)
+    const respuesta = await preguntarThorfinn(pregunta, sender)
     await connRef.sendPresenceUpdate('paused', m.chat)
     await m.reply(respuesta)
   } catch (e) {
-    console.error('[SAITAMA ALL ERROR]', e.message)
+    console.error('[THORFINN ALL ERROR]', e.message)
     await connRef.sendPresenceUpdate('paused', m.chat).catch(() => {})
   }
 }
 
 handler.before = async function () {}
 
-handler.help    = ['saitama', 'ia']
+handler.help    = ['thorfinn', 'ia']
 handler.tags    = ['ia']
-handler.command = /^(saitama|ia|bot)$/i
-handler.desc    = 'Habla con Saitama 👊'
+handler.command = /^(thorfinn|ia|bot)$/i
+handler.desc    = 'Habla con Thorfinn ⚔️'
 
 export default handler
