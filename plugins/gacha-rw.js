@@ -19,7 +19,7 @@ let handler = async (m, { conn }) => {
     let minutos = Math.floor(tiempoRestante / 60)
     let segundos = tiempoRestante % 60
     return conn.sendMessage(m.chat, {
-      text: '╭━━⬣ 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n┃\n┃  ⏳ Espera ' + minutos + 'm ' + segundos + 's\n┃\n┃  💡 Usa #claim para reclamar\n┃     tu último personaje\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
+      text: '╭━━⬣ 「 SAITAMA RW 」 \n┃\n┃  ⏳ Espera ' + minutos + 'm ' + segundos + 's\n┃\n┃  💡 Usa #claim para reclamar\n┃     tu último personaje\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
@@ -27,7 +27,7 @@ let handler = async (m, { conn }) => {
 
   if (!fs.existsSync(gachaPath)) {
     return conn.sendMessage(m.chat, {
-      text: '╭━━⬣ 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n┃\n┃  ❌ No hay personajes\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
+      text: '╭━━⬣ 「 SAITAMA RW 」 \n┃\n┃  ❌ No hay personajes\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
@@ -36,7 +36,7 @@ let handler = async (m, { conn }) => {
 
   if (characters.length === 0) {
     return conn.sendMessage(m.chat, {
-      text: '╭━━⬣ 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n┃\n┃  ❌ No hay personajes\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
+      text: '╭━━⬣ 「 SAITAMA RW 」 \n┃\n┃  ❌ No hay personajes\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
