@@ -31,8 +31,8 @@ const handler = async (m, { conn }) => {
 
     if (stdout.includes('Already up to date')) {
       await conn.sendMessage(m.chat, {
-        image: { url: 'https://i.ibb.co/PsV9qp2j/images-1.jpg' },
-        caption: '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ SAITAMA BOT ㅤ֢ㅤׄㅤׅ\n\n✨ saitama  ya está en su mejor versión No hay actualizaciones pendientes\n\n> Solicitado por @' + who.split('@')[0],
+        image: { url: 'https://i.ibb.co/jkhp8BZD/wof.jpg' },
+        caption: '╭━━⬣ *SAITAMA BOT* ⬣━━╮\n\n✨ saitama ya está en su mejor versión\n> No hay actualizaciones pendientes\n\n> Solicitado por @' + who.split('@')[0] + '\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣',
         mentions: [who]
       }, { quoted: m })
       return
@@ -44,7 +44,7 @@ const handler = async (m, { conn }) => {
     let filesCreados = creados.map(c => c.split(' ').pop())
     let filesEliminados = eliminados.map(c => c.split(' ').pop())
 
-    let texto = '★ SAITAMA BOT ACTUALIZADA★ ㅤ֢ㅤׄㅤׅ\n\n'
+    let texto = '╭━━⬣ *SAITAMA BOT ACTUALIZADA* ⬣━━╮\n\n'
     texto += 'saitama está full se ha renovado\n\n'
 
     if (filesCreados.length > 0) {
@@ -77,10 +77,11 @@ const handler = async (m, { conn }) => {
       texto += '  ❀ -' + nums[2] + ' línea(s) eliminada(s)\n\n'
     }
 
-    texto += '> Actualizado por @' + who.split('@')[0]
+    texto += '> Actualizado por @' + who.split('@')[0] + '\n\n'
+    texto += '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
 
     await conn.sendMessage(m.chat, {
-      image: { url: 'https://i.ibb.co/PsV9qp2j/images-1.jpg' },
+      image: { url: 'https://i.ibb.co/jkhp8BZD/wof.jpg' },
       caption: texto,
       mentions: [who]
     }, { quoted: m })
