@@ -1,3 +1,6 @@
+import fs from 'fs'
+import path from 'path'
+
 let handler = async (m, { conn, args }) => {
   let who = m.sender
   let user = global.db.data.users[who]
@@ -8,13 +11,13 @@ let handler = async (m, { conn, args }) => {
 
   if (!args[0]) {
     return conn.sendMessage(m.chat, {
-      text: '💎 「 SAITAMA VENDER 」 💎\n✦←pipi→✦\n\n💥 » Vende tus personajes\n\n> #vender <nombre>\n> #vender all\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+      text: '╭━━⬣ 「 SAITAMA VENDER 」\n┃\n┃  Vende tus personajes\n┃\n┃  #vender <nombre>\n┃  #vender all\n┃\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
   if (!user.inventory || user.inventory.length === 0) {
     return conn.sendMessage(m.chat, {
-      text: '💎 「 SAITAMA VENDER 」 💎\n\n\n💫 » No tienes personajes\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+      text: '╭━━⬣ 「 SAITAMA VENDER 」\n┃\n┃  Sin personajes en inventario\n┃\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
@@ -25,7 +28,7 @@ let handler = async (m, { conn, args }) => {
     user.inventory = []
 
     return conn.sendMessage(m.chat, {
-      text: '💎 「 SAITAMA VENDER 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💥 » Vendiste todo\n📦 » ' + total + ' personajes\n💰 » +' + ganancia + ' diamantes\n💎 » Total: ' + user.diamantes + '\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+      text: '╭━━⬣ 「 SAITAMA VENDER 」\n┃\n┃  Vendiste todo\n┃\n┃  Personajes » ' + total + '\n┃  Ganancia   » +' + ganancia + ' diamantes\n┃  Total      » ' + user.diamantes + ' diamantes\n┃\n╰━━⬣ / ╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
@@ -34,7 +37,7 @@ let handler = async (m, { conn, args }) => {
 
   if (index === -1) {
     return conn.sendMessage(m.chat, {
-      text: '💎 「 SAITAMA VENDER 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💥 » No tienes ese personaje\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+      text: '╭━━⬣ 「 SAITAMA VENDER 」\n┃\n┃  No tienes ese personaje\n┃\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
@@ -42,7 +45,8 @@ let handler = async (m, { conn, args }) => {
   user.inventory.splice(index, 1)
 
   let gachaPath = path.join(process.cwd(), 'gacha.json')
-  let characters = fs.existsSync(gachaPath) ? JSON.parse(fs.readFileSync(gachaPath, 'utf8')) : []
+  let raw = fs.existsSync(gachaPath) ? JSON.parse(fs.readFileSync(gachaPath, 'utf8')) : []
+  let characters = Array.isArray(raw) ? raw : (raw.data || [])
   let charData = characters.find(c => c.name.toLowerCase() === nombre)
 
   let precio = 2
@@ -55,7 +59,7 @@ let handler = async (m, { conn, args }) => {
   user.diamantes = (user.diamantes || 0) + precio
 
   await conn.sendMessage(m.chat, {
-    text: '💎 「 SAITAMA VENDER 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💥 » Vendiste ' + personaje + '\n💰 » +' + precio + ' diamantes\n💎 » Total: ' + user.diamantes + '\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+    text: '╭━━⬣ 「 SAITAMA VENDER 」\n┃\n┃  Vendiste: ' + personaje + '\n┃  Ganancia: +' + precio + ' diamantes\n┃  Total:    ' + user.diamantes + ' diamantes\n┃\n╰━━⬣ / ╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
   }, { quoted: m })
 }
 
