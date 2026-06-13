@@ -4,18 +4,24 @@ let handler = async (m, { conn, participants, groupMetadata }) => {
   let admins = participants.filter(p => p.admin)
   let owner = groupMetadata.owner
 
-  let texto = '𖣔 「 HINATA ADMINS 」 ˚ʚ♡ɞ˚\n\n'
-  texto += 'Creador » @' + owner.split('@')[0] + '\n\n'
+  let texto = `╭━━⬣ 「 SAITAMA ADMINS 」\n\n`
+  texto += `┃ 👑 Creador » @${owner.split('@')[0]}\n`
 
   for (let admin of admins) {
-    let rol = admin.admin === 'superadmin' ? 'Creador' : 'Admin'
-    texto += rol + ' » @' + admin.id.split('@')[0] + '\n'
+    let rol = admin.admin === 'superadmin' ? '👑 Creador' : '🛡️ Admin'
+    texto += `┃ ${rol} » @${admin.id.split('@')[0]}\n`
   }
+
+  texto += `\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n⫏⫏ SAITAMA BOT ✿`
 
   let mentions = admins.map(a => a.id)
   mentions.push(owner)
 
-  await conn.sendMessage(m.chat, { text: texto, mentions }, { quoted: m })
+  await conn.sendMessage(m.chat, {
+    image: { url: 'https://i.ibb.co/j94w01QV/mascota.jpg' },
+    caption: texto,
+    mentions
+  }, { quoted: m })
 }
 
 handler.help = ['admins']
