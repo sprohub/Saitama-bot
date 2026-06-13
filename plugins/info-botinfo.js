@@ -44,8 +44,8 @@ let handler = async (m, { conn }) => {
 ┃ 🖥️ CPU: ${cpu}
 ┃ 💻 Sistema: ${sistema}
 ┃ 📦 Node: ${node}
-╰━━━━━━━━━━━━━━━━━━━━━━⬣
-⫏⫏ SAITAMA BOT ✿`
+╰━━━━━━━━━━━━━━━━━━━━━⬣
+⫏ SAITAMA BOT ✿`
 
   await conn.sendMessage(
     m.chat,
