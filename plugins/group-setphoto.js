@@ -1,3 +1,5 @@
+import sharp from 'sharp'
+
 const OWNERS = ['573225396540', '573225814649']
 
 let handler = async (m, { conn, isAdmin, isBotAdmin }) => {
@@ -41,7 +43,12 @@ let handler = async (m, { conn, isAdmin, isBotAdmin }) => {
       throw new Error('No se pudo descargar la imagen correctamente')
     }
 
-    await conn.updateProfilePicture(m.chat, img)
+    const resized = await sharp(img)
+      .resize(640, 640)
+      .jpeg({ quality: 80 })
+      .toBuffer()
+
+    await conn.updateProfilePicture(m.chat, resized)
 
     await conn.sendMessage(m.chat, {
       text: '╭━━⬣ *SAITAMA SETPHOTO* ⬣━━╮\n\n✅ » Foto del grupo actualizada\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣'
@@ -49,7 +56,7 @@ let handler = async (m, { conn, isAdmin, isBotAdmin }) => {
   } catch (e) {
     console.error('[SETPHOTO ERROR]', e)
     await conn.sendMessage(m.chat, {
-      text: `╭━━⬣ *SAITAMA SETPHOTO* ⬣━━╮\n\n❌ » Error: ${e.message}\n\n❥ Intenta con otra imagen (formato JPG/PNG, no muy pequeña)\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+      text: `╭━━⬣ *SAITAMA SETPHOTO* ⬣━━╮\n\n❌ » Error: ${e.message}\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
     }, { quoted: m })
   }
 }
