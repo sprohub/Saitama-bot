@@ -1,6 +1,9 @@
 let handler = async (m, { conn }) => {
   let texto = `╭━━⬣ 「 SAITAMA OWNER 」
 
+🌐 *API*
+┃ 🔗 https://elvigilante-api.onrender.com
+
 👑 *EL VIGILANTE*
 ┃ 📱 +591 77474230
 ┃ 💎 Desarrollador Principal
@@ -14,15 +17,9 @@ let handler = async (m, { conn }) => {
 ┃ 🐙 https://github.com/BrayanRK
 
 👑 *SPROHUB*
-┃ 📱 +1 000 0000000
+┃ 📱 +57 3225396540
 ┃ 💎 Colaborador / Desarrollador
 ┃ 🐙 https://github.com/sprohub
-
-👑 *SAMU COLOMBIA*
-┃ 📱 +57 000 0000000
-┃ 💎 Colaborador / Desarrollador
-┃ 🇨🇴 Colaborador desde Colombia, apoyando en el desarrollo y mantenimiento del bot.
-┃ 🐙 https://github.com/samucolombia
 
 🌸 *GRUPO OFICIAL*
 ┃ 💬 Únete a nuestra comunidad
@@ -30,9 +27,6 @@ let handler = async (m, { conn }) => {
 
 📦 *REPOSITORIO*
 ┃ 🐙 https://github.com/ElvigilanteDv/Saitama-Bot
-
-🌐 *API*
-┃ 🔗 https://elvigilante-api.onrender.com
 
 ╰━━━━━━━━━━━━━━━━━━━━━━⬣
 ⫏⫏ SAITAMA BOT ✿
