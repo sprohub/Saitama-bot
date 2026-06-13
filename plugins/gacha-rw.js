@@ -19,7 +19,7 @@ let handler = async (m, { conn }) => {
     let minutos = Math.floor(tiempoRestante / 60)
     let segundos = tiempoRestante % 60
     return conn.sendMessage(m.chat, {
-      text: ' 「 SAITAMA RW 」 \n\n💥 » Espera ' + minutos + 'm ' + segundos + 's\n\n> Usa #claim para reclamar tu último personaje POBRE'
+      text: '╭━━⬣ 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n┃\n┃  ⏳ Espera ' + minutos + 'm ' + segundos + 's\n┃\n┃  💡 Usa #claim para reclamar\n┃     tu último personaje\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
@@ -27,18 +27,16 @@ let handler = async (m, { conn }) => {
 
   if (!fs.existsSync(gachaPath)) {
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n\n💥 » No hay personajes POBRE'
+      text: '╭━━⬣ 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n┃\n┃  ❌ No hay personajes\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
   let raw = JSON.parse(fs.readFileSync(gachaPath, 'utf8'))
-
-  // Compatible con array plano O formato ElVigilante { status, data: [...] }
   let characters = Array.isArray(raw) ? raw : (raw.data || [])
 
   if (characters.length === 0) {
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n\n💥 » No hay personajes POBRE'
+      text: '╭━━⬣ 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n┃\n┃  ❌ No hay personajes\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
@@ -69,12 +67,21 @@ let handler = async (m, { conn }) => {
 
   let rarityEmojis = { 'SSR': '🌟', 'SR': '⭐', 'R': '✨' }
 
-  let texto = ' 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n\n'
-  texto += '  💥 Personaje obtenido\n\n'
-  texto += '  ✦ ' + char.name + ' ✦\n'
-  texto += '  ' + rarityEmojis[rarity] + ' Rareza: ' + rarity + '\n'
-  texto += '  ⚔️ ' + char.attack + ' | 🛡️ ' + char.defense + ' | ❤️ ' + char.health + '\n\n'
-  texto += '> Usa #claim para guardarlo\n> ⏳ 5 minutos | #rw'
+  let texto = '╭━━⬣ 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n'
+  texto += '┃\n'
+  texto += '┃  💥 Personaje obtenido\n'
+  texto += '┃\n'
+  texto += '┃  ✦ ' + char.name + ' ✦\n'
+  texto += '┃  ' + rarityEmojis[rarity] + ' Rareza: ' + rarity + '\n'
+  texto += '┃\n'
+  texto += '┃  ⚔️  ATK » ' + char.attack + '\n'
+  texto += '┃  🛡️  DEF » ' + char.defense + '\n'
+  texto += '┃  ❤️  HP  » ' + char.health + '\n'
+  texto += '┃\n'
+  texto += '╰━━⬣ / ╰━━━━━━━━━━━━━━━━━━━━━━⬣\n'
+  texto += '         SAITAMA\n\n'
+  texto += '> Usa #claim para guardarlo\n'
+  texto += '> ⏳ 5 minutos | #rw'
 
   await conn.sendMessage(m.chat, {
     image: { url: char.image },
