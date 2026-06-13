@@ -3,6 +3,7 @@ let handler = async (m, { conn }) => {
 
 🌐 *API*
 ┃ 🔗 https://elvigilante-api.onrender.com
+┃ 💬 Grupo de la API: https://chat.whatsapp.com/K11rQWn1S8X2XLRUuLoeau
 
 👑 *EL VIGILANTE*
 ┃ 📱 +591 77474230
@@ -25,7 +26,7 @@ let handler = async (m, { conn }) => {
 ┃ 💬 Únete a nuestra comunidad
 ┃ 📲 https://chat.whatsapp.com/EEppolIlNjGDZrmNyDERRr
 
-🫩 *GRUPO SAITAMA*
+🌸 *GRUPO SAITAMA*
 ┃ 💬 Pruebas y novedades
 ┃ 📲 https://chat.whatsapp.com/GrnEybt0lVO9PbWfEf88AQ
 
