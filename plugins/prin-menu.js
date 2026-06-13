@@ -14,7 +14,7 @@ const tags = {
   serbot: '🤖 serbot➣',
   owner: '👑 owner➣',
   downloader: '📥 downloader➣',
-  info: 'ℹ️ info➣'
+  info: 'ℹ️ info➣',
   tools: '🛠️ tools➣'
 }
 
@@ -29,7 +29,7 @@ const bannerCategory = {
   downloader: 'https://i.ibb.co/C38P3Wqg/ultra.jpg',
   info: 'https://i.ibb.co/jkhp8BZD/wof.jpg',
   diversion: 'https://i.ibb.co/j94w01QV/mascota.jpg',
-  anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
+  anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg',
   tools: 'https://i.ibb.co/jkhp8BZD/wof.jpg'
 }
 
@@ -95,7 +95,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       .replace(/%user/g, who.split('@')[0])
 
     if (tagSeleccionada) {
-      textoMenu = textoMenu.replace('SAITAMA-BOT', 'SAITAMA-BOT ➣ ' + tags[tagSeleccionada].replace(/[⭐👥⚔️🎮🎰🤖👑📥ℹ️🎪🌸]/g, '').trim())
+      textoMenu = textoMenu.replace('SAITAMA-BOT', 'SAITAMA-BOT ➣ ' + tags[tagSeleccionada].replace(/[⭐👥⚔️🎮🎰🤖👑📥ℹ️🎪🌸🛠️]/g, '').trim())
     }
 
     for (let tag of Object.keys(tags)) {
@@ -138,7 +138,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
 
 handler.help = ['menu']
 handler.tags = ['main']
-handler.command = /^(menu|menú|help)(rpg|group|diversion|game|gacha|serbot|owner|downloader|info|main)?$/i
+handler.command = /^(menu|menú|help)(rpg|group|diversion|game|gacha|serbot|owner|downloader|info|main|tools)?$/i
 handler.register = false
 handler.desc = 'Muestra el menú'
 
