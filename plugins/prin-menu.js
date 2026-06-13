@@ -30,7 +30,7 @@ const bannerCategory = {
   info: 'https://i.ibb.co/jkhp8BZD/wof.jpg',
   diversion: 'https://i.ibb.co/j94w01QV/mascota.jpg',
   anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
-tools: 'https://i.ibb.co/jkhp8BZD/wof.jpg'
+  tools: 'https://i.ibb.co/jkhp8BZD/wof.jpg'
 }
 
 const defaultMenu = {
