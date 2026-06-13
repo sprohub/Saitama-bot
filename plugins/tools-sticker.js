@@ -53,9 +53,13 @@ async function addExif(webpBuf, packname, author) {
 
 let handler = async (m, { conn }) => {
   let q = m.quoted ? m.quoted : m
+  let mtype = q.mtype || ''
   let mime = (q.msg || q).mimetype || ''
 
-  if (!/image|gif/.test(mime)) {
+  let isImage = /image/.test(mime) || mtype === 'imageMessage'
+  let isVideo = /video/.test(mime) || mtype === 'videoMessage'
+
+  if (!isImage && !isVideo) {
     return conn.sendMessage(m.chat, {
       text:
         '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
@@ -71,7 +75,7 @@ let handler = async (m, { conn }) => {
         '│  1. Cita cualquier imagen\n' +
         '│  2. Escribe *.crs* y envía ✅\n' +
         '│\n' +
-        '│ ⚠️ _Solo imágenes o gif_\n' +
+        '│ ⚠️ _Solo imágenes, gif o videos cortos_\n' +
         '│\n' +
         '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
     }, { quoted: m })
@@ -117,6 +121,6 @@ let handler = async (m, { conn }) => {
 handler.help = ['crs']
 handler.tags = ['tools']
 handler.command = /^(crs)$/i
-handler.desc = 'Convierte una imagen en sticker — SAITAMA-BOT'
+handler.desc = 'Convierte una imagen, gif o video en sticker — SAITAMA-BOT'
 
 export default handler
