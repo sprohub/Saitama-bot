@@ -31,7 +31,16 @@ let handler = async (m, { conn }) => {
     }, { quoted: m })
   }
 
-  let characters = JSON.parse(fs.readFileSync(gachaPath, 'utf8'))
+  let raw = JSON.parse(fs.readFileSync(gachaPath, 'utf8'))
+
+  // Compatible con array plano O formato ElVigilante { status, data: [...] }
+  let characters = Array.isArray(raw) ? raw : (raw.data || [])
+
+  if (characters.length === 0) {
+    return conn.sendMessage(m.chat, {
+      text: '𖣔 「 SAITAMA RW 」 ˚ʚ♡ɞ˚\n\n💥 » No hay personajes POBRE'
+    }, { quoted: m })
+  }
 
   if (!user.inventory) user.inventory = []
 
