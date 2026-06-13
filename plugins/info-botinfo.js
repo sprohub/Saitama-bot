@@ -34,19 +34,18 @@ let handler = async (m, { conn }) => {
     }
   } catch {}
 
-  let texto = `🤖 「 SAITAMA BOTINFO 」 🤖
-
-👤 » *Usuarios:* ${totalUsers}
-👥 » *Grupos:* ${totalGroups}
-⚡ » *Comandos:* ${totalCmds}
-⏱️ » *Activa:* ${dias}d ${horas}h ${minutos}m
-💾 » *RAM:* ${ram} MB
-💿 » *Disco:* ${disk}
-🖥️ » *CPU:* ${cpu}
-💻 » *Sistema:* ${sistema}
-📦 » *Node:* ${node}
-
-⫏⫏ HINATA BOT ✿`
+  let texto = `╭━━⬣ 「 SAITAMA BOTINFO 」
+┃ 👤 Usuarios: ${totalUsers}
+┃ 👥 Grupos: ${totalGroups}
+┃ ⚡ Comandos: ${totalCmds}
+┃ ⏱️ Activa: ${dias}d ${horas}h ${minutos}m
+┃ 💾 RAM: ${ram} MB
+┃ 💿 Disco: ${disk}
+┃ 🖥️ CPU: ${cpu}
+┃ 💻 Sistema: ${sistema}
+┃ 📦 Node: ${node}
+╰━━━━━━━━━━━━━━━━━━━━━━⬣
+⫏⫏ SAITAMA BOT ✿`
 
   await conn.sendMessage(
     m.chat,
