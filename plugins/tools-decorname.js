@@ -1,5 +1,7 @@
 import fetch from 'node-fetch'
 
+global.lastSymbols = global.lastSymbols || {}
+
 let handler = async (m, { conn, text, command }) => {
   if (!text) return conn.sendMessage(m.chat, { text: `✦ Ingresa un nombre.\nEjemplo: *${command} Saitama*` }, { quoted: m })
 
@@ -11,18 +13,20 @@ let handler = async (m, { conn, text, command }) => {
       return conn.sendMessage(m.chat, { text: '⚠️ No se encontraron resultados.' }, { quoted: m })
     }
 
-    let symbols = json.data.symbols
-    let total = symbols.length
+    let symbols = json.data.symbols.slice(0, 30)
+
+    global.lastSymbols[m.sender] = { symbols, name: text }
 
     let texto = '╭━━⬣ ✦ AESTHETIC SYMBOLS ✦\n┃\n'
     texto += `┃ 🔎 » ${text}\n`
-    texto += `┃ 📦 » ${total} resultados\n┃\n`
+    texto += `┃ 📦 » ${symbols.length} resultados\n┃\n`
 
-    symbols.slice(0, 30).forEach((s, i) => {
+    symbols.forEach((s, i) => {
       texto += `┃ ${i + 1}. ${s} ${text}\n`
     })
 
-    texto += '┃\n╰━━━━━━━━━━━━━━━━━━━━━━⬣ SAITAMA'
+    texto += '┃\n┃ ✎ Usa *.locatesimb <número>* para elegir uno\n'
+    texto += '╰━━━━━━━━━━━━━━━━━━━━━━⬣ SAITAMA'
 
     await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
   } catch (e) {
