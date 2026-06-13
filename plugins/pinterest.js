@@ -116,7 +116,7 @@ async function sendPinterestVideo(conn, m, videoUrl, caption) {
 
 // ─── Buscar en Pinterest ─────────────────────────────────────────────────────
 async function searchPinterest(query) {
-  const res = await fetch(`${DELIRIUS_API}/search/pinterest?q=${encodeURIComponent(query)}`, { timeout: REQUEST_TIMEOUT })
+  const res = await fetch(`${DELIRIUS_API}/search/pinterestv2?text=${encodeURIComponent(query)}`, { timeout: REQUEST_TIMEOUT })
   const json = await res.json()
   if (!json.status || !json.data?.length) throw new Error('No se encontraron resultados en Pinterest')
   return json.data.slice(0, 10)
