@@ -16,7 +16,7 @@ let handler = async (m, { conn }) => {
     let minutos = Math.floor(tiempoRestante / 60)
     let segundos = tiempoRestante % 60
     return conn.sendMessage(m.chat, {
-      text: '⛏️ 「 HINATA MINE 」 ⛏️\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Pico descansando\n⏳ » ' + minutos + 'm ' + segundos + 's\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+      text: '╭━━⬣ ⛏️ SAITAMA MINE ⛏️\n┃\n┃ 💫 » Pico descansando\n┃ ⏳ » ' + minutos + 'm ' + segundos + 's\n┃\n╰━━━━━━━━━━━━━━━━━━━━━━⬣ SAITAMA'
     }, { quoted: m })
   }
 
@@ -69,16 +69,17 @@ let handler = async (m, { conn }) => {
   user.exp = (user.exp || 0) + exp
   cooldownsMine[who] = now + 300000
 
-  let texto = '⛏️ 「 HINATA MINE 」 ⛏️\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n'
-  texto += '  💫 ' + rareza + '\n'
-  texto += '  ✦ ' + mensaje[Math.floor(Math.random() * mensaje.length)] + '\n\n'
-  texto += '  💎 +' + diamantes + ' diamantes\n'
-  texto += '  ✨ +' + exp + ' experiencia\n'
-  texto += '  💰 Total: ' + user.diamantes + ' 💎\n\n'
-  texto += '✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n> ⏳ 5 minutos | #minar'
+  let texto = '╭━━⬣ ⛏️ SAITAMA MINE ⛏️\n┃\n'
+  texto += '┃ 💫 ' + rareza + '\n'
+  texto += '┃ ✦ ' + mensaje[Math.floor(Math.random() * mensaje.length)] + '\n┃\n'
+  texto += '┃ 💎 +' + diamantes + ' diamantes\n'
+  texto += '┃ ✨ +' + exp + ' experiencia\n'
+  texto += '┃ 💰 Total: ' + user.diamantes + ' 💎\n┃\n'
+  texto += '┃ ⏳ 5 minutos | #minar\n'
+  texto += '╰━━━━━━━━━━━━━━━━━━━━━━⬣ SAITAMA'
 
   await conn.sendMessage(m.chat, {
-    image: { url: 'https://files.catbox.moe/iw3z4l.jpeg' },
+    image: { url: 'https://i.ibb.co/39XH0fkg/minas.jpg' },
     caption: texto
   }, { quoted: m })
 }
