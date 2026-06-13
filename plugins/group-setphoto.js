@@ -1,3 +1,5 @@
+import { Readable } from 'stream'
+
 const OWNERS = ['573225396540', '573225814649']
 
 let handler = async (m, { conn, isAdmin, isBotAdmin }) => {
@@ -35,11 +37,23 @@ let handler = async (m, { conn, isAdmin, isBotAdmin }) => {
     }, { quoted: m })
   }
 
-  let img = await q.download()
-  await conn.updateProfilePicture(m.chat, img)
-  await conn.sendMessage(m.chat, {
-    text: '╭━━⬣ *SAITAMA SETPHOTO* ⬣━━╮\n\n✅ » Foto del grupo actualizada\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣'
-  }, { quoted: m })
+  try {
+    let img = await q.download()
+    if (!img || !Buffer.isBuffer(img)) {
+      throw new Error('No se pudo descargar la imagen correctamente')
+    }
+
+    await conn.updateProfilePicture(m.chat, { stream: Readable.from(img) })
+
+    await conn.sendMessage(m.chat, {
+      text: '╭━━⬣ *SAITAMA SETPHOTO* ⬣━━╮\n\n✅ » Foto del grupo actualizada\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣'
+    }, { quoted: m })
+  } catch (e) {
+    console.error('[SETPHOTO ERROR]', e)
+    await conn.sendMessage(m.chat, {
+      text: `╭━━⬣ *SAITAMA SETPHOTO* ⬣━━╮\n\n❌ » Error: ${e.message}\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+    }, { quoted: m })
+  }
 }
 
 handler.help = ['setphoto']
