@@ -1,0 +1,71 @@
+import { sticker, addExif } from '../lib/sticker.js'
+
+let handler = async (m, { conn, args }) => {
+  let q = m.quoted ? m.quoted : m
+  let mime = (q.msg || q).mimetype || ''
+
+  if (!/image|video/.test(mime)) {
+    return conn.sendMessage(
+      m.chat,
+      {
+        text:
+          '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
+          '│\n' +
+          '│ 📌 *Uso:* Envía o cita una imagen\n' +
+          '│         con el comando\n' +
+          '│ 📝 *Cmd:* .crs\n' +
+          '│\n' +
+          '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
+      },
+      { quoted: m }
+    )
+  }
+
+  await m.react('⏳')
+
+  try {
+    let media = await q.download()
+
+    const packname = 'SAITAMA-BOT'
+    const author = 'by SPROH'
+
+    let webpBuffer = await sticker(media, null, packname, author)
+
+    if (webpBuffer && !webpBuffer.toString().includes('WEBP')) {
+      try {
+        webpBuffer = await addExif(webpBuffer, packname, author)
+      } catch (_) {}
+    }
+
+    await conn.sendMessage(
+      m.chat,
+      { sticker: webpBuffer },
+      { quoted: m }
+    )
+
+    await m.react('✅')
+  } catch (e) {
+    console.error('[tools-sticker] Error:', e)
+    await m.react('❌')
+    conn.sendMessage(
+      m.chat,
+      {
+        text:
+          '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
+          '│\n' +
+          '│ ❌ Error al crear el sticker.\n' +
+          '│ _Envía una imagen válida._\n' +
+          '│\n' +
+          '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
+      },
+      { quoted: m }
+    )
+  }
+}
+
+handler.help = ['crs']
+handler.tags = ['tools']
+handler.command = /^(crs|sticker|s)$/i
+handler.desc = 'Convierte una imagen en sticker con el nombre SAITAMA-BOT'
+
+export default handler
