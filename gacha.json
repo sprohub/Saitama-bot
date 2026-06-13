@@ -888,4 +888,130 @@
       "rarity": "SSR",
       "attack": 96,
       "defense": 80,
+"health": 92,
+      "image": "https://files.catbox.moe/3v02ej.jpg"
+    },
+    {
+      "name": "Trafalgar Law",
+      "rarity": "SSR",
+      "attack": 92,
+      "defense": 82,
+      "health": 90,
+      "image": "https://files.catbox.moe/c5arcp.jpg"
+    },
+    {
+      "name": "Shanks",
+      "rarity": "SSR",
+      "attack": 118,
+      "defense": 105,
+      "health": 110,
+      "image": "https://files.catbox.moe/rftjst.jpg"
+    },
+    {
+      "name": "Whitebeard",
+      "rarity": "SSR",
+      "attack": 125,
+      "defense": 115,
+      "health": 130,
+      "image": "https://files.catbox.moe/f75ht7.jpg"
+    },
+    {
+      "name": "Kaido",
+      "rarity": "SSR",
+      "attack": 130,
+      "defense": 120,
+      "health": 140,
+      "image": "https://files.catbox.moe/5ao2g2.jpg"
+    },
+    {
+      "name": "Zeldris",
+      "rarity": "SSR",
+      "attack": 230,
+      "defense": 200,
+      "health": 195,
+      "image": "https://files.catbox.moe/pv0mqp.jpg"
+    },
+    {
+      "name": "Estarossa",
+      "rarity": "SSR",
+      "attack": 220,
+      "defense": 190,
+      "health": 200,
+      "image": "https://files.catbox.moe/tykq74.jpg"
+    },
+    {
+      "name": "Gilthunder",
+      "rarity": "R",
+      "attack": 95,
+      "defense": 80,
+      "health": 90,
+      "image": "https://files.catbox.moe/5r7yj1.jpg"
+    },
+    {
+      "name": "Gohan Beast",
+      "rarity": "SSR",
+      "attack": 450,
+      "defense": 380,
+      "health": 360,
+      "image": "https://files.catbox.moe/7w0fz9.jpg"
+    },
+    {
+      "name": "Frieza Golden",
+      "rarity": "SSR",
+      "attack": 430,
+      "defense": 400,
+      "health": 320,
+      "image": "https://files.catbox.moe/9pmv6j.jpg"
+    },
+    {
+      "name": "Cell Perfecto",
+      "rarity": "SSR",
+      "attack": 400,
+      "defense": 380,
+      "health": 350,
+      "image": "https://files.catbox.moe/zwjq2y.jpg"
+    },
+    {
+      "name": "Majin Buu",
+      "rarity": "SSR",
+      "attack": 390,
+      "defense": 370,
+      "health": 500,
+      "image": "https://files.catbox.moe/xd1jlq.jpg"
+    },
+    {
+      "name": "Piccolo",
+      "rarity": "SR",
+      "attack": 280,
+      "defense": 260,
+      "health": 270,
+      "image": "https://files.catbox.moe/2oipzf.jpg"
+    },
+    {
+      "name": "Trunks del Futuro",
+      "rarity": "SR",
+      "attack": 310,
+      "defense": 270,
+      "health": 285,
+      "image": "https://files.catbox.moe/9vc00a.jpg"
+    },
+    {
+      "name": "Whis",
+      "rarity": "SSR",
+      "attack": 600,
+      "defense": 590,
+      "health": 400,
+      "image": "https://files.catbox.moe/f9qh0h.jpg"
+    },
+    {
+      "name": "Zamasu",
+      "rarity": "SSR",
+      "attack": 490,
+      "defense": 460,
+      "health": 380,
+      "image": "https://files.catbox.moe/nk4106.jpg"
+    }
+  ],
+  "timestamp": "2026-06-13T03:56:00.000Z"
+}
   
