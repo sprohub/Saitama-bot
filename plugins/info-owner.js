@@ -23,7 +23,11 @@ let handler = async (m, { conn }) => {
 
 🌸 *GRUPO OFICIAL*
 ┃ 💬 Únete a nuestra comunidad
-┃ 📲 https://chat.whatsapp.com/TU_LINK
+┃ 📲 https://chat.whatsapp.com/EEppolIlNjGDZrmNyDERRr
+
+🫩 *GRUPO SAITAMA*
+┃ 💬 Pruebas y novedades
+┃ 📲 https://chat.whatsapp.com/GrnEybt0lVO9PbWfEf88AQ
 
 📦 *REPOSITORIO*
 ┃ 🐙 https://github.com/ElvigilanteDv/Saitama-Bot
