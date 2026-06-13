@@ -1,81 +1,77 @@
 import { sticker, addExif } from '../lib/sticker.js'
 
 let handler = async (m, { conn }) => {
-  let q = m.quoted ? m.quoted : m
-  let mime = (q.msg || q).mimetype || q.mimetype || ''
+  let isMedia = m.msg?.mimetype
+  let isQuotedMedia = m.quoted?.msg?.mimetype
 
-  if (!/image|video/.test(mime)) {
-    return conn.sendMessage(
-      m.chat,
-      {
-        text:
-          '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
-          '│\n' +
-          '│ 📌 *Uso:* Envía o cita una imagen\n' +
-          '│         con el comando\n' +
-          '│ 📝 *Cmd:* .crs\n' +
-          '│\n' +
-          '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
-      },
-      { quoted: m }
-    )
+  if (!isMedia && !isQuotedMedia) {
+    return conn.sendMessage(m.chat, {
+      text:
+        '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
+        '│\n' +
+        '│ 📸 *¿Cómo crear un sticker?*\n' +
+        '│\n' +
+        '│ *Modo 1 — Imagen con caption:*\n' +
+        '│  1. Selecciona una imagen\n' +
+        '│  2. En el caption escribe *.crs*\n' +
+        '│  3. Envía ✅\n' +
+        '│\n' +
+        '│ *Modo 2 — Citar imagen:*\n' +
+        '│  1. Cita cualquier imagen\n' +
+        '│  2. Escribe *.crs* y envía ✅\n' +
+        '│\n' +
+        '│ ⚠️ _Solo imágenes o videos_\n' +
+        '│\n' +
+        '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
+    }, { quoted: m })
   }
 
   await m.react('⏳')
 
   try {
-    // Descargar usando downloadM igual que los demás plugins del bot
-    let media = await conn.downloadM(
-      q.mediaMessage[q.mediaType],
-      q.mediaType.replace(/message/i, '')
-    )
+    let media
+    if (isQuotedMedia) {
+      media = await conn.downloadM(
+        m.quoted.mediaMessage[m.quoted.mediaType],
+        m.quoted.mediaType.replace(/message/i, '')
+      )
+    } else {
+      media = await conn.downloadM(
+        m.mediaMessage[m.mediaType],
+        m.mediaType.replace(/message/i, '')
+      )
+    }
 
     const packname = 'SAITAMA-BOT'
     const author = 'by SPROH'
 
     let webpBuffer = await sticker(media, null, packname, author)
 
-    if (webpBuffer && !Buffer.isBuffer(webpBuffer)) {
-      webpBuffer = Buffer.from(webpBuffer)
-    }
+    if (!Buffer.isBuffer(webpBuffer)) webpBuffer = Buffer.from(webpBuffer)
 
-    // Aplicar exif si aún no tiene metadata
-    if (webpBuffer && !webpBuffer.includes('sticker-pack-name')) {
-      try {
-        webpBuffer = await addExif(webpBuffer, packname, author)
-      } catch (_) {}
-    }
+    try { webpBuffer = await addExif(webpBuffer, packname, author) } catch (_) {}
 
-    await conn.sendMessage(
-      m.chat,
-      { sticker: webpBuffer },
-      { quoted: m }
-    )
-
+    await conn.sendMessage(m.chat, { sticker: webpBuffer }, { quoted: m })
     await m.react('✅')
 
   } catch (e) {
-    console.error('[tools-sticker] Error:', e)
+    console.error('[tools-sticker]', e)
     await m.react('❌')
-    conn.sendMessage(
-      m.chat,
-      {
-        text:
-          '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
-          '│\n' +
-          '│ ❌ Error al crear el sticker.\n' +
-          '│ _Envía una imagen válida._\n' +
-          '│\n' +
-          '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
-      },
-      { quoted: m }
-    )
+    conn.sendMessage(m.chat, {
+      text:
+        '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
+        '│\n' +
+        '│ ❌ Error al crear el sticker.\n' +
+        '│ _Envía una imagen válida._\n' +
+        '│\n' +
+        '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
+    }, { quoted: m })
   }
 }
 
 handler.help = ['crs']
 handler.tags = ['tools']
 handler.command = /^(crs)$/i
-handler.desc = 'Convierte una imagen en sticker con el nombre SAITAMA-BOT'
+handler.desc = 'Convierte una imagen en sticker — SAITAMA-BOT'
 
 export default handler
