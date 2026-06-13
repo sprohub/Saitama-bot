@@ -1,5 +1,3 @@
-let cooldownsWeekly = {}
-
 let handler = async (m, { conn }) => {
   let who = m.sender
   let user = global.db.data.users[who]
@@ -18,18 +16,26 @@ let handler = async (m, { conn }) => {
     let dias = Math.floor(restante / 86400000)
     let horas = Math.floor((restante % 86400000) / 3600000)
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA WEEKLY 」 ˚ʚ♡ɞ˚\n\n💫 » Ya reclamaste\n⏳ » Vuelve en ' + dias + 'd ' + horas + 'h'
+      text: `╭━━⬣『 SAITAMA WEEKLY 』⬣
+┃
+┃ 👊 » Ya reclamaste tu recompensa
+┃ ⏳ » Vuelve en ${dias}d ${horas}h
+┃
+╰━━━━━━━━━━━━━━━━━━━━━━⬣`
     }, { quoted: m })
   }
 
   user.diamantes = (user.diamantes || 0) + 500
   user.lastWeekly = now
 
-  let texto = '𖣔 「 HINATA WEEKLY 」 ˚ʚ♡ɞ˚\n\n'
-  texto += '🎁 » Recompensa semanal\n'
-  texto += '💎 » +500 diamantes\n'
-  texto += '💰 » Total: ' + user.diamantes + ' 💎\n\n'
-  texto += '> Vuelve en 7 días'
+  let texto = `╭━━⬣『 SAITAMA WEEKLY 』⬣
+┃
+┃ 🎁 » Recompensa semanal reclamada
+┃ 💎 » +500 diamantes obtenidos
+┃ 💰 » Total: ${user.diamantes} 💎
+┃
+┃ > Vuelve en 7 días
+╰━━━━━━━━━━━━━━━━━━━━━━⬣`
 
   await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
 }
