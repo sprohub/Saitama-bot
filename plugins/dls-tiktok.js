@@ -5,6 +5,8 @@ import {
   proto
 } from '@whiskeysockets/baileys'
 
+const SAITAMA_IMG = 'https://i.ibb.co/TB7cZfFG/SAITAMAmenu.jpg'
+
 let handler = async (m, { conn, text, usedPrefix, command }) => {
   let who = m.sender
   let user = global.db.data.users[who]
@@ -14,19 +16,27 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   }
 
   if (!text) {
-    let media = await prepareWAMessageMedia({ image: { url: 'https://files.catbox.moe/r60c8l.jpg' } }, { upload: conn.waUploadToServer })
+    let media = await prepareWAMessageMedia({ image: { url: SAITAMA_IMG } }, { upload: conn.waUploadToServer })
 
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: {
-        title: 'HINATA BOT - TIKTOK',
+        title: 'SAITAMA BOT - TIKTOK',
         subtitle: 'Busca y descarga videos',
         hasMediaAttachment: true,
         imageMessage: media.imageMessage
       },
       body: {
-        text: '🎵 「 HINATA TIKTOK 」 🎵\n\n💫 » Busca videos en TikTok\n\n> ' + usedPrefix + command + ' <búsqueda>\n> Ejemplo: ' + usedPrefix + command + ' Chaewon\n> 💎 Cuesta 1 diamante por descarga'
+        text: `╭━━⬣『 SAITAMA TIKTOK 』⬣
+┃
+┃ 🎵 » Busca videos en TikTok
+┃
+┃ 📌 » ${usedPrefix}${command} <búsqueda>
+┃ 📌 » ${usedPrefix}${command} Chaewon
+┃ 💎 » Cuesta 1 diamante por descarga
+┃
+╰━━━━━━━━━━━━━━━━━━━━━━⬣`
       },
-      footer: { text: '⫏⫏ HINATA BOT ✿' },
+      footer: { text: '⚡ SAITAMA BOT ⚡' },
       nativeFlowMessage: {
         buttons: [{
           name: 'single_select',
@@ -56,7 +66,15 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
   if ((user.diamantes || user.diamond || 0) < 1) {
     return conn.sendMessage(m.chat, {
-      text: '🎵 「 HINATA TIKTOK 」 🎵\n\n💫 » No tienes suficientes diamantes\n\n💎 Necesitas: 1 diamante\n💰 Tienes: ' + (user.diamantes || user.diamond || 0) + ' diamantes\n\n> Usa #work para ganar'
+      text: `╭━━⬣『 SAITAMA TIKTOK 』⬣
+┃
+┃ 💔 » Sin diamantes suficientes
+┃
+┃ 💎 Necesitas: 1 diamante
+┃ 💰 Tienes: ${user.diamantes || user.diamond || 0} 💎
+┃
+┃ > Usa #work para ganar
+╰━━━━━━━━━━━━━━━━━━━━━━⬣`
     }, { quoted: m })
   }
 
@@ -86,7 +104,16 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
       await conn.sendMessage(m.chat, {
         video: { url: videoUrl },
-        caption: '🎵 「 HINATA TIKTOK 」 🎵\n\n💫 » Descarga completada\n\n🎬 » ' + (json.data.title || '') + '\n👤 » ' + (json.data.author?.nickname || '') + '\n⏱️ » ' + (json.data.duration || '') + 's\n💎 » Restantes: ' + total
+        caption: `╭━━⬣『 SAITAMA TIKTOK 』⬣
+┃
+┃ ✅ » Descarga completada
+┃
+┃ 🎬 » ${json.data.title || ''}
+┃ 👤 » ${json.data.author?.nickname || ''}
+┃ ⏱️ » ${json.data.duration || ''}s
+┃ 💎 » Restantes: ${total}
+┃
+╰━━━━━━━━━━━━━━━━━━━━━━⬣`
       }, { quoted: m })
 
       await m.react('✅')
@@ -94,7 +121,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     } catch (e) {
       console.log(e)
       await m.react('❌')
-      conn.sendMessage(m.chat, { text: '❌ Error al descargar' }, { quoted: m })
+      conn.sendMessage(m.chat, { text: `╭━━⬣『 SAITAMA TIKTOK 』⬣\n┃\n┃ ❌ » Error al descargar\n┃\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` }, { quoted: m })
     }
     return
   }
@@ -111,12 +138,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     }
 
     let resultados = searchData.meta.slice(0, 10)
-    let primeraImagen = resultados[0].author?.avatar || ''
-
-    let media = null
-    if (primeraImagen) {
-      media = await prepareWAMessageMedia({ image: { url: primeraImagen } }, { upload: conn.waUploadToServer })
-    }
+    let media = await prepareWAMessageMedia({ image: { url: SAITAMA_IMG } }, { upload: conn.waUploadToServer })
 
     let rows = resultados.map((video, i) => ({
       header: '🎬 ' + (video.author?.nickname || video.author?.username || 'Desconocido'),
@@ -127,15 +149,22 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: {
-        title: 'HINATA BOT - TIKTOK',
+        title: 'SAITAMA BOT - TIKTOK',
         subtitle: 'Selecciona un video',
-        hasMediaAttachment: !!media,
-        imageMessage: media ? media.imageMessage : undefined
+        hasMediaAttachment: true,
+        imageMessage: media.imageMessage
       },
       body: {
-        text: '🎵 「 HINATA TIKTOK 」 🎵\n\n💫 » Búsqueda: ' + query + '\n\n> Elige un video\n> 💎 1 diamante al descargar'
+        text: `╭━━⬣『 SAITAMA TIKTOK 』⬣
+┃
+┃ 🔍 » Búsqueda: ${query}
+┃
+┃ > Elige un video
+┃ > 💎 1 diamante al descargar
+┃
+╰━━━━━━━━━━━━━━━━━━━━━━⬣`
       },
-      footer: { text: '⫏⫏ HINATA BOT ✿' },
+      footer: { text: '⚡ SAITAMA BOT ⚡' },
       nativeFlowMessage: {
         buttons: [{
           name: 'single_select',
@@ -156,7 +185,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   } catch (e) {
     console.log(e)
     await m.react('❌')
-    conn.sendMessage(m.chat, { text: '❌ No se encontraron resultados' }, { quoted: m })
+    conn.sendMessage(m.chat, { text: `╭━━⬣『 SAITAMA TIKTOK 』⬣\n┃\n┃ ❌ » No se encontraron resultados\n┃\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` }, { quoted: m })
   }
 }
 
@@ -178,7 +207,9 @@ handler.before = async (m, { conn }) => {
 
     let misDiamantes = user.diamantes || user.diamond || 0
     if (misDiamantes < 1) {
-      await conn.sendMessage(m.chat, { text: '🎵 「 HINATA TIKTOK 」 🎵\n\n💫 » No tienes 1 diamante\n\n> Usa #work para ganar' }, { quoted: m })
+      await conn.sendMessage(m.chat, {
+        text: `╭━━⬣『 SAITAMA TIKTOK 』⬣\n┃\n┃ 💔 » No tienes 1 diamante\n┃\n┃ > Usa #work para ganar\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+      }, { quoted: m })
       return true
     }
 
@@ -195,7 +226,9 @@ handler.before = async (m, { conn }) => {
     }
 
     await m.react('⏳')
-    await conn.sendMessage(m.chat, { text: '⏳ Descargando...\n💎 -1 diamante' }, { quoted: m })
+    await conn.sendMessage(m.chat, {
+      text: `╭━━⬣『 SAITAMA TIKTOK 』⬣\n┃\n┃ ⏳ » Descargando...\n┃ 💎 » -1 diamante\n┃\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+    }, { quoted: m })
 
     let downloadUrl = `https://api.delirius.store/download/tiktok?url=${encodeURIComponent(videoUrl)}`
     let res = await fetch(downloadUrl)
@@ -215,7 +248,16 @@ handler.before = async (m, { conn }) => {
 
     await conn.sendMessage(m.chat, {
       video: { url: videoDownloadUrl },
-      caption: '🎵 「 HINATA TIKTOK 」 🎵\n\n💫 » Descarga completada\n\n🎬 » ' + (json.data.title || titulo) + '\n👤 » ' + (json.data.author?.nickname || '') + '\n⏱️ » ' + (json.data.duration || '') + 's\n💎 » Restantes: ' + total
+      caption: `╭━━⬣『 SAITAMA TIKTOK 』⬣
+┃
+┃ ✅ » Descarga completada
+┃
+┃ 🎬 » ${json.data.title || titulo}
+┃ 👤 » ${json.data.author?.nickname || ''}
+┃ ⏱️ » ${json.data.duration || ''}s
+┃ 💎 » Restantes: ${total}
+┃
+╰━━━━━━━━━━━━━━━━━━━━━━⬣`
     }, { quoted: m })
 
     await m.react('✅')
@@ -223,7 +265,9 @@ handler.before = async (m, { conn }) => {
 
   } catch (e) {
     console.log(e)
-    await conn.sendMessage(m.chat, { text: '❌ Error: ' + e.message }, { quoted: m })
+    await conn.sendMessage(m.chat, {
+      text: `╭━━⬣『 SAITAMA TIKTOK 』⬣\n┃\n┃ ❌ » ${e.message}\n┃\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+    }, { quoted: m })
     await m.react('❌')
     return true
   }
