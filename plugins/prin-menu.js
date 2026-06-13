@@ -15,6 +15,7 @@ const tags = {
   owner: '👑 owner➣',
   downloader: '📥 downloader➣',
   info: 'ℹ️ info➣'
+  tools: '🛠️ tools➣'
 }
 
 const bannerCategory = {
