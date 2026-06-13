@@ -415,7 +415,7 @@ handler.before = async (m, { conn }) => {
 }
 
 handler.help    = ['pts', 'pinterest']
-handler.tags    = ['downloader']
+handler.tags    = ['tools']
 handler.command = /^(pts|pinterest|pin)$/i
 handler.desc    = 'Descarga imágenes y videos de Pinterest 💎1'
 
