@@ -30,7 +30,10 @@ let handler = async (m, { conn }) => {
   texto += '         SAITAMA\n\n'
   texto += '> Total: ' + user.inventory.length + ' personajes'
 
-  await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
+  await conn.sendMessage(m.chat, {
+    image: { url: 'https://i.ibb.co/G44ZsZF7/6b4e11c0-db53-486c-b014-2e616033406b.jpg' },
+    caption: texto
+  }, { quoted: m })
 }
 
 handler.help = ['inventario']
