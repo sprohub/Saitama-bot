@@ -70,7 +70,7 @@ let handler = async (m, { conn }) => {
         '│  1. Cita cualquier imagen\n' +
         '│  2. Escribe *.crs* y envía ✅\n' +
         '│\n' +
-        '│ ⚠️ _Solo imágenes o videos_\n' +
+        '│ ⚠️ _Solo imágenes o gif_\n' +
         '│\n' +
         '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
     }, { quoted: m })
