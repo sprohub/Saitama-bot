@@ -14,36 +14,41 @@ let handler = async (m, { conn, text }) => {
   try {
     let url = `https://elvigilante-api.onrender.com/api/tools/qr?apiKey=${API_KEY}&text=${encodeURIComponent(text)}`
     let res = await fetch(url)
-    let json = await res.json()
+    let contentType = res.headers.get('content-type') || ''
 
-    if (!json || json.error) {
-      return conn.sendMessage(m.chat, {
-        text: '❌ No se pudo generar el QR, intenta más tarde'
+    // La API devuelve la imagen directo (png/jpeg)
+    if (contentType.includes('image')) {
+      let buffer = Buffer.from(await res.arrayBuffer())
+      return await conn.sendMessage(m.chat, {
+        image: buffer,
+        caption: `✅ *QR Generado*\n📝 ${text}`
       }, { quoted: m })
     }
 
-    // Si la API devuelve una imagen en base64
-    if (json.image || json.data?.image || json.result?.image) {
-      let imgBase64 = json.image || json.data?.image || json.result?.image
+    // Si devuelve JSON
+    let json = await res.json()
+
+    let imgUrl = json?.url || json?.data?.url || json?.result?.url || json?.image_url
+    if (imgUrl) {
+      let imgRes = await fetch(imgUrl)
+      let buffer = Buffer.from(await imgRes.arrayBuffer())
+      return await conn.sendMessage(m.chat, {
+        image: buffer,
+        caption: `✅ *QR Generado*\n📝 ${text}`
+      }, { quoted: m })
+    }
+
+    let imgBase64 = json?.image || json?.data?.image || json?.result?.image
+    if (imgBase64) {
       let buffer = Buffer.from(imgBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64')
       return await conn.sendMessage(m.chat, {
         image: buffer,
-        caption: `✅ *QR generado*\n📝 Texto: ${text}`
+        caption: `✅ *QR Generado*\n📝 ${text}`
       }, { quoted: m })
     }
 
-    // Si la API devuelve una URL de imagen
-    if (json.url || json.data?.url || json.result?.url) {
-      let imgUrl = json.url || json.data?.url || json.result?.url
-      return await conn.sendMessage(m.chat, {
-        image: { url: imgUrl },
-        caption: `✅ *QR generado*\n📝 Texto: ${text}`
-      }, { quoted: m })
-    }
-
-    // Si no se reconoce la respuesta
     conn.sendMessage(m.chat, {
-      text: `❌ Respuesta inesperada de la API:\n${JSON.stringify(json, null, 2)}`
+      text: `❌ Respuesta inesperada:\n${JSON.stringify(json, null, 2)}`
     }, { quoted: m })
 
   } catch (e) {
