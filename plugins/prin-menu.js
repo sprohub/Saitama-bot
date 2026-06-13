@@ -6,6 +6,7 @@ import { xpRange } from '../lib/levelling.js'
 const tags = {
   main: '⭐ principal➣',
   group: '👥 grupos➣',
+  tools: '🛠️ tools➣',
   rpg: '⚔️ rpg➣',
   game: '🎮 game➣',
   gacha: '🎰 gacha➣',
@@ -14,13 +15,13 @@ const tags = {
   serbot: '🤖 serbot➣',
   owner: '👑 owner➣',
   downloader: '📥 downloader➣',
-  info: 'ℹ️ info➣',
-  tools: '🛠️ tools➣'
+  info: 'ℹ️ info➣'
 }
 
 const bannerCategory = {
   main: 'https://i.ibb.co/TB7cZfFG/SAITAMAmenu.jpg',
   group: 'https://i.ibb.co/C38P3Wqg/ultra.jpg',
+  tools: 'https://i.ibb.co/jkhp8BZD/wof.jpg',
   rpg: 'https://i.ibb.co/V040CGfq/enojado.jpg',
   game: 'https://i.ibb.co/jkhp8BZD/wof.jpg',
   gacha: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg',
@@ -29,8 +30,7 @@ const bannerCategory = {
   downloader: 'https://i.ibb.co/C38P3Wqg/ultra.jpg',
   info: 'https://i.ibb.co/jkhp8BZD/wof.jpg',
   diversion: 'https://i.ibb.co/j94w01QV/mascota.jpg',
-  anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg',
-  tools: 'https://i.ibb.co/jkhp8BZD/wof.jpg'
+  anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
 }
 
 const defaultMenu = {
