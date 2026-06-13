@@ -1,8 +1,8 @@
 import { sticker, addExif } from '../lib/sticker.js'
 
-let handler = async (m, { conn, args }) => {
+let handler = async (m, { conn }) => {
   let q = m.quoted ? m.quoted : m
-  let mime = (q.msg || q).mimetype || ''
+  let mime = (q.msg || q).mimetype || q.mimetype || ''
 
   if (!/image|video/.test(mime)) {
     return conn.sendMessage(
@@ -24,14 +24,23 @@ let handler = async (m, { conn, args }) => {
   await m.react('⏳')
 
   try {
-    let media = await q.download()
+    // Descargar usando downloadM igual que los demás plugins del bot
+    let media = await conn.downloadM(
+      q.mediaMessage[q.mediaType],
+      q.mediaType.replace(/message/i, '')
+    )
 
     const packname = 'SAITAMA-BOT'
     const author = 'by SPROH'
 
     let webpBuffer = await sticker(media, null, packname, author)
 
-    if (webpBuffer && !webpBuffer.toString().includes('WEBP')) {
+    if (webpBuffer && !Buffer.isBuffer(webpBuffer)) {
+      webpBuffer = Buffer.from(webpBuffer)
+    }
+
+    // Aplicar exif si aún no tiene metadata
+    if (webpBuffer && !webpBuffer.includes('sticker-pack-name')) {
       try {
         webpBuffer = await addExif(webpBuffer, packname, author)
       } catch (_) {}
@@ -44,6 +53,7 @@ let handler = async (m, { conn, args }) => {
     )
 
     await m.react('✅')
+
   } catch (e) {
     console.error('[tools-sticker] Error:', e)
     await m.react('❌')
@@ -65,7 +75,7 @@ let handler = async (m, { conn, args }) => {
 
 handler.help = ['crs']
 handler.tags = ['tools']
-handler.command = /^(crs|sticker|s)$/i
+handler.command = /^(crs)$/i
 handler.desc = 'Convierte una imagen en sticker con el nombre SAITAMA-BOT'
 
 export default handler
