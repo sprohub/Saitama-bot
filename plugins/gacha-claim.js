@@ -11,7 +11,7 @@ let handler = async (m, { conn }) => {
 
   if (!global.lastRoll || !global.lastRoll[who]) {
     return conn.sendMessage(m.chat, {
-      text: '╭━━⬣ 「 SAITAMA CLAIM 」 ˚ʚ♡ɞ˚\n┃\n┃  💫 Sin personaje pendiente\n┃\n┃  💡 Usa #rw primero\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
+      text: '╭━━⬣ 「 SAITAMA CLAIM 」 \n┃\n┃  💫 Sin personaje pendiente\n┃\n┃  💡 Usa #rw primero\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
