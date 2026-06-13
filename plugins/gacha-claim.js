@@ -32,7 +32,7 @@ let handler = async (m, { conn }) => {
   let total = user.diamantes !== undefined ? user.diamantes : (user.diamond || 0)
   let rarityEmojis = { 'SSR': '🌟', 'SR': '⭐', 'R': '✨' }
 
-  let texto = '╭━━⬣ 「 SAITAMA CLAIM 」 ˚ʚ♡ɞ˚\n'
+  let texto = '╭━━⬣ 「 SAITAMA CLAIM 」 \n'
   texto += '┃\n'
   texto += '┃  💫 Personaje reclamado\n'
   texto += '┃\n'
