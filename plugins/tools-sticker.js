@@ -1,11 +1,10 @@
 import { spawn } from 'child_process'
-import { fileTypeFromBuffer } from 'file-type'
 import webp from 'node-webpmux'
 import crypto from 'crypto'
 
-async function toWebp(buffer) {
+async function toWebp(buffer, isVideo = false) {
   return new Promise((resolve, reject) => {
-    const ff = spawn('ffmpeg', [
+    const args = [
       '-y', '-i', 'pipe:0',
       '-vf', 'scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000,fps=15',
       '-vcodec', 'libwebp',
@@ -13,9 +12,12 @@ async function toWebp(buffer) {
       '-qscale', '50',
       '-loop', '0',
       '-preset', 'default',
-      '-an', '-vsync', '0',
-      '-f', 'webp', 'pipe:1'
-    ])
+      '-vsync', '0',
+    ]
+    if (!isVideo) args.push('-an')   // sin audio en imágenes
+    args.push('-f', 'webp', 'pipe:1')
+
+    const ff = spawn('ffmpeg', args)
     let bufs = []
     ff.stdout.on('data', d => bufs.push(d))
     ff.on('close', code => {
@@ -66,11 +68,11 @@ let handler = async (m, { conn }) => {
         '│  2. En el caption escribe *.crs*\n' +
         '│  3. Envía ✅\n' +
         '│\n' +
-        '│ *Modo 2 — Citar imagen:*\n' +
-        '│  1. Cita cualquier imagen\n' +
+        '│ *Modo 2 — Citar imagen/video/gif:*\n' +
+        '│  1. Cita cualquier imagen o video\n' +
         '│  2. Escribe *.crs* y envía ✅\n' +
         '│\n' +
-        '│ ⚠️ _Solo imágenes o videos_\n' +
+        '│ ⚠️ _Imágenes, videos y GIFs_\n' +
         '│\n' +
         '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
     }, { quoted: m })
@@ -80,19 +82,24 @@ let handler = async (m, { conn }) => {
 
   try {
     let media
+    let mime = ''
+
     if (isQuotedMedia) {
+      mime = m.quoted.msg.mimetype
       media = await conn.downloadM(
         m.quoted.mediaMessage[m.quoted.mediaType],
         m.quoted.mediaType.replace(/message/i, '')
       )
     } else {
+      mime = m.msg.mimetype
       media = await conn.downloadM(
         m.mediaMessage[m.mediaType],
         m.mediaType.replace(/message/i, '')
       )
     }
 
-    let webpBuf = await toWebp(media)
+    const isVideo = /video/.test(mime)
+    let webpBuf = await toWebp(media, isVideo)
     webpBuf = await addExif(webpBuf, 'SAITAMA-BOT', 'by SPROH')
 
     await conn.sendMessage(m.chat, { sticker: webpBuf }, { quoted: m })
@@ -106,7 +113,7 @@ let handler = async (m, { conn }) => {
         '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
         '│\n' +
         '│ ❌ Error al crear el sticker.\n' +
-        '│ _Envía una imagen válida._\n' +
+        '│ _Envía una imagen o video válido._\n' +
         '│\n' +
         '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
     }, { quoted: m })
@@ -116,6 +123,6 @@ let handler = async (m, { conn }) => {
 handler.help = ['crs']
 handler.tags = ['tools']
 handler.command = /^(crs)$/i
-handler.desc = 'Convierte una imagen en sticker — SAITAMA-BOT'
+handler.desc = 'Convierte imagen/video/gif en sticker — SAITAMA-BOT'
 
 export default handler
