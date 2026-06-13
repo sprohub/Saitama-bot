@@ -1,13 +1,10 @@
 let handler = async (m, { conn }) => {
-  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '𖣔 「 HINATA LINK 」 ˚ʚ♡ɞ˚\n\n💫 » Solo para grupos' }, { quoted: m })
+  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '╭━━⬣ 「 SAITAMA LINK 」\n┃ 💫 Solo para grupos\n╰━━━━━━━━━━━━━━━━━━━━━━⬣' }, { quoted: m })
 
   let code = await conn.groupInviteCode(m.chat)
   let link = 'https://chat.whatsapp.com/' + code
 
-  let texto = '𖣔 「 HINATA LINK 」 ˚ʚ♡ɞ˚\n\n'
-  texto += '🔗 » Enlace del grupo\n'
-  texto += '📋 » ' + link + '\n\n'
-  texto += '> Comparte con cuidado'
+  let texto = `╭━━⬣ 「 SAITAMA LINK 」\n┃ 🔗 Enlace del grupo\n┃ 📋 ${link}\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n⫏⫏ SAITAMA BOT ✿\n> Comparte con cuidado`
 
   await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
 }
