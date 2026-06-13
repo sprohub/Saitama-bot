@@ -1,7 +1,7 @@
 import { spawn } from 'child_process'
-import { fileTypeFromBuffer } from 'file-type'
 import webp from 'node-webpmux'
 import crypto from 'crypto'
+import { downloadMediaMessage } from '@whiskeysockets/baileys'
 
 async function toWebp(buffer) {
   return new Promise((resolve, reject) => {
@@ -18,6 +18,7 @@ async function toWebp(buffer) {
     ])
     let bufs = []
     ff.stdout.on('data', d => bufs.push(d))
+    ff.stderr.on('data', () => {})
     ff.on('close', code => {
       if (code !== 0) return reject(new Error('ffmpeg error ' + code))
       resolve(Buffer.concat(bufs))
@@ -51,10 +52,10 @@ async function addExif(webpBuf, packname, author) {
 }
 
 let handler = async (m, { conn }) => {
-  let isMedia = m.msg?.mimetype
-  let isQuotedMedia = m.quoted?.msg?.mimetype
+  let q = m.quoted ? m.quoted : m
+  let mime = (q.msg || q).mimetype || ''
 
-  if (!isMedia && !isQuotedMedia) {
+  if (!/image|gif/.test(mime)) {
     return conn.sendMessage(m.chat, {
       text:
         '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
@@ -79,18 +80,11 @@ let handler = async (m, { conn }) => {
   await m.react('⏳')
 
   try {
-    let media
-    if (isQuotedMedia) {
-      media = await conn.downloadM(
-        m.quoted.mediaMessage[m.quoted.mediaType],
-        m.quoted.mediaType.replace(/message/i, '')
-      )
-    } else {
-      media = await conn.downloadM(
-        m.mediaMessage[m.mediaType],
-        m.mediaType.replace(/message/i, '')
-      )
-    }
+    let media = await downloadMediaMessage(
+      m.quoted ? { message: m.quoted.message || { [m.quoted.mtype]: m.quoted.msg } } : m,
+      'buffer',
+      {}
+    )
 
     let webpBuf = await toWebp(media)
     webpBuf = await addExif(webpBuf, 'SAITAMA-BOT', 'by SPROH')
@@ -101,15 +95,6 @@ let handler = async (m, { conn }) => {
   } catch (e) {
     console.error('[tools-sticker]', e)
     await m.react('❌')
-    conn.sendMessage(m.chat, {
-      text:
-        '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
-        '│\n' +
-        '│ ❌ Error al crear el sticker.\n' +
-        '│ _Envía una imagen válida._\n' +
-        '│\n' +
-        '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
-    }, { quoted: m })
   }
 }
 
