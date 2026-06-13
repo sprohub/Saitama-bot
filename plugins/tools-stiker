@@ -7,7 +7,7 @@ let handler = async (m, { conn }) => {
   if (!isMedia && !isQuotedMedia) {
     return conn.sendMessage(m.chat, {
       text:
-        '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
+        '╭━━⬣ *SAITAMA-BOT* \n' +
         '│\n' +
         '│ 📸 *¿Cómo crear un sticker?*\n' +
         '│\n' +
