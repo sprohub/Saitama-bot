@@ -8,7 +8,7 @@ let handler = async (m, { conn }) => {
 
   if (!user.inventory || user.inventory.length === 0) {
     return conn.sendMessage(m.chat, {
-      text: '🥱 「 SAITAMA INVENTARIO 」 🎒\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Tu inventario está vacío\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n> Usa #rw para conseguir personajes'
+      text: '╭━━⬣ 「 SAITAMA INVENTARIO 」 🎒\n┃\n┃  💫 Tu inventario está vacío\n┃\n┃  💡 Usa #rw para conseguir\n┃     personajes\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n         SAITAMA'
     }, { quoted: m })
   }
 
@@ -17,16 +17,18 @@ let handler = async (m, { conn }) => {
     items[item] = (items[item] || 0) + 1
   }
 
-  let texto = '💥 「 SAITAMA INVENTARIO 」 🎒\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n'
+  let texto = '╭━━⬣ 「 SAITAMA INVENTARIO 」 🎒\n'
+  texto += '┃\n'
 
-  let i = 1
   for (let [name, count] of Object.entries(items)) {
-    texto += '  ✦ ' + name + '\n'
-    texto += '     📦 x' + count + '\n\n'
-    i++
+    texto += '┃  ✦ ' + name + '\n'
+    texto += '┃     📦 x' + count + '\n'
+    texto += '┃\n'
   }
 
-  texto += '✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n> Total: ' + user.inventory.length + ' personajes'
+  texto += '╰━━⬣ / ╰━━━━━━━━━━━━━━━━━━━━━━⬣\n'
+  texto += '         SAITAMA\n\n'
+  texto += '> Total: ' + user.inventory.length + ' personajes'
 
   await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
 }
