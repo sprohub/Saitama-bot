@@ -80,23 +80,27 @@ let handler = async (m, { conn }) => {
   await m.react('⏳')
 
   try {
-    let mediaMsg
+    let media
 
-    if (m.quoted) {
-      mediaMsg = {
-        key: {
-          remoteJid: m.chat,
-          id: m.quoted.id,
-          fromMe: m.quoted.fromMe,
-          participant: m.quoted.sender
-        },
-        message: m.quoted.message || { [m.quoted.mtype]: m.quoted.msg }
-      }
+    if (m.quoted && typeof m.quoted.download === 'function') {
+      media = await m.quoted.download()
+    } else if (typeof m.download === 'function') {
+      media = await m.download()
     } else {
-      mediaMsg = m
-    }
+      let mediaMsg = m.quoted
+        ? {
+            key: {
+              remoteJid: m.chat,
+              id: m.quoted.id,
+              fromMe: m.quoted.fromMe,
+              participant: m.quoted.sender
+            },
+            message: m.quoted.message
+          }
+        : m
 
-    let media = await downloadMediaMessage(mediaMsg, 'buffer', {})
+      media = await downloadMediaMessage(mediaMsg, 'buffer', {})
+    }
 
     let webpBuf = await toWebp(media)
     webpBuf = await addExif(webpBuf, 'SAITAMA-BOT', 'by SPROH')
