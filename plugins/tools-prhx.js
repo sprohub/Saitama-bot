@@ -1,3 +1,7 @@
+// === FIX RCANAL ERROR ===
+if (typeof rcanal === 'undefined') global.rcanal = false
+// ========================
+
 import fetch from 'node-fetch'
 import fs from 'fs'
 import path from 'path'
@@ -21,7 +25,6 @@ let handler = async (m, { conn, text, usedPrefix, command, isOwner: isBotOwner }
   const isEnabled = global.db.data.chats[chatId].prhx
   const input = text?.trim()
 
-  // === ACTIVAR / DESACTIVAR ===
   if (input === 'on' || input === 'off') {
     if (!isOwner(m.sender) && !isBotOwner) {
       return conn.sendMessage(m.chat, {
@@ -37,10 +40,9 @@ let handler = async (m, { conn, text, usedPrefix, command, isOwner: isBotOwner }
     }, { quoted: m })
   }
 
-  // === BÚSQUEDA ===
   if (!isEnabled) {
     return conn.sendMessage(m.chat, {
-      text: `╭━━⬣ *SAITAMA PRHX* ⬣━━╮\n\n❌ El comando está desactivado en este grupo.\nUsa \`.prhx on\` para activarlo (solo owners).\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+      text: `╭━━⬣ *SAITAMA PRHX* ⬣━━╮\n\n❌ El comando está desactivado en este grupo.\nUsa \`.prhx on\` para activarlo.\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
     }, { quoted: m })
   }
 
@@ -93,7 +95,6 @@ let handler = async (m, { conn, text, usedPrefix, command, isOwner: isBotOwner }
   }
 }
 
-// === DESCARGA ===
 handler.before = async (m, { conn }) => {
   if (m.isBaileys) return false
 
@@ -117,17 +118,15 @@ handler.before = async (m, { conn }) => {
   }
 
   await m.react('⏳')
-  await conn.sendMessage(m.chat, { text: `📥 Descargando video...\n${videoUrl}` }, { quoted: m })
+  await conn.sendMessage(m.chat, { text: `📥 Descargando video...` }, { quoted: m })
 
   try {
     const res = await fetch(`https://api.delirius.store/download/xnxxdl?url=${encodeURIComponent(videoUrl)}`)
     const json = await res.json()
 
-    if (!json.status || !json.data?.download) throw new Error('No se obtuvo enlace de descarga')
+    if (!json.status || !json.data?.download) throw new Error('No se obtuvo enlace')
 
-    // Nueva estructura: download es un objeto
     const downloadUrl = json.data.download.high || json.data.download.low
-
     if (!downloadUrl) throw new Error('No hay enlace disponible')
 
     const title = json.data.title ? json.data.title.slice(0, 80) : 'xnxx_video'
@@ -137,14 +136,14 @@ handler.before = async (m, { conn }) => {
       document: { url: downloadUrl },
       mimetype: 'video/mp4',
       fileName: fileName,
-      caption: `✅ *Descarga completada*\n\n🎬 ${json.data.title || 'Video'}\n⏱️ ${json.data.duration || ''}`
+      caption: `✅ *Descarga completada*\n\n🎬 ${json.data.title || 'Video'}`
     }, { quoted: m })
 
     await m.react('✅')
   } catch (e) {
     console.error('[PRHX ERROR]', e)
     await m.react('❌')
-    conn.sendMessage(m.chat, { text: `❌ Error al descargar:\n${e.message}` }, { quoted: m })
+    conn.sendMessage(m.chat, { text: '❌ Error al descargar el video.' }, { quoted: m })
   }
 
   return true
