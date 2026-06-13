@@ -59,9 +59,9 @@ let handler = async (m, { conn, text }) => {
   }
 }
 
-handler.help = ['qr <texto>']
+handler.help = ['qrcm <texto>']
 handler.tags = ['tools']
-handler.command = /^(qr|codigoqr|generarqr)$/i
+handler.command = /^(qrcm)$/i
 handler.desc = 'Genera un código QR con el texto que escribas'
 
 export default handler
