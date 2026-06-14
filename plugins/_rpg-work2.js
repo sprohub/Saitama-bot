@@ -16,7 +16,7 @@ let handler = async (m, { conn, text }) => {
     let minutos = Math.floor(tiempoRestante / 60)
     let segundos = tiempoRestante % 60
     return conn.sendMessage(m.chat, {
-      text: `𖣔 「 HINATA WORK 2 」 ˚ʚ♡ɞ˚\n\n💫 » Espera ${minutos}m ${segundos}s`
+      text: `╭━━⬣ SAITAMA WORK 2 ⬣\n│\n│ 💫 » Espera ${minutos}m ${segundos}s\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
     }, { quoted: m })
   }
 
@@ -101,12 +101,13 @@ let handler = async (m, { conn, text }) => {
   let total = user.diamantes !== undefined ? user.diamantes : (user.diamond || 0)
   let name = '@' + who.split('@')[0]
 
-  let texto = `𖣔 「 HINATA WORK 2 」 ˚ʚ♡ɞ˚\n\n`
-  texto += `${emoji} » ${name}\n`
-  texto += `📋 ${mensaje}\n`
-  texto += `💎 ${diamantes > 0 ? '+' : ''}${diamantes} diamantes\n`
-  texto += `✨ +${exp} exp\n`
-  texto += `💰 Total: ${total} 💎`
+  let texto = `╭━━⬣ SAITAMA WORK 2 ⬣\n│\n`
+  texto += `│ ${emoji} » ${name}\n`
+  texto += `│ 📋 ${mensaje}\n`
+  texto += `│ 💎 ${diamantes > 0 ? '+' : ''}${diamantes} diamantes\n`
+  texto += `│ ✨ +${exp} exp\n`
+  texto += `│ 💰 Total: ${total} 💎\n`
+  texto += `╰━━━━━━━━━━━━━━━━━━━━━━⬣`
 
   await conn.sendMessage(m.chat, { text: texto, mentions: [who] }, { quoted: m })
 }
