@@ -48,11 +48,11 @@ let handler = async (m, { conn }) => {
 
   let dato = datos[Math.floor(Math.random() * datos.length)]
 
-  let texto = `╭━━⬣ 💀 *HINATA FACTO* 💀
+  let texto = `╭━━⬣ 💀 *FACTO* 💀
 ┃
 ┃ ${dato}
 ┃
-╰━━━━━━━━━━━━━━━━━━━━━━⬣ SIATAMA
+╰━━━━━━━━━━━━━━━━━━━━━━⬣ SAITAMA
 
 ✦ Facto del día`
 
