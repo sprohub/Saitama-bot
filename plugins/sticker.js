@@ -9,17 +9,21 @@ let handler = async (m, { conn, usedPrefix, command }) => {
   const isVideo = /video/.test(mime)
 
   if (!isImage && !isVideo) {
-    return m.reply(`❌ Responde a una imagen o video con *${usedPrefix}${command}*`)
+    return m.reply(`╭━━⬣
+┃ ❌ Responde a una imagen o video con *${usedPrefix}${command}*
+╰━━━━━━━━━━━━━━━━━━━━━━⬣ SAITAMA`)
   }
 
-  await m.reply('⏳ Creando sticker...')
+  await m.reply(`╭━━⬣
+┃ ⏳ Creando sticker...
+╰━━━━━━━━━━━━━━━━━━━━━━⬣ SAITAMA`)
 
   const mediaMsg = quoted.msg || quoted
   const buffer = await quoted.download()
 
   const stickerBuffer = await sticker(buffer, {
-    packname: '⛓️🩸 DENJI BOT 🩸⛓️',
-    author: '🩸 © JM 🩸',
+    packname: 'SAITAMA BOT',
+    author: 'SAITAMA',
     categories: ['🩸', '⛓️']
   })
 
