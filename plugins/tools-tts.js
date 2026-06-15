@@ -3,7 +3,10 @@ import path from 'path'
 import os from 'os'
 import fetch from 'node-fetch'
 
-const FISH_API_KEY = 0dcca82cdddc49c98853fa288b6ff7ec process.env.FISH_AUDIO_API_KEY
+// ⚠️ NO escribas tu API key en esta línea ni en ninguna otra de este archivo.
+// La key se configura como variable de entorno FISH_AUDIO_API_KEY en Render
+// (panel del servicio -> Environment -> Add Environment Variable).
+const FISH_API_KEY = process.env.FISH_AUDIO_API_KEY
 const MAX_LENGTH = 500
 
 const box = (title, body) => `╭───────────────⬣
