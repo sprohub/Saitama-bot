@@ -3,7 +3,7 @@ import path from 'path'
 import os from 'os'
 import fetch from 'node-fetch'
 
-const FISH_API_KEY =0dcca82cdddc49c98853fa288b6ff7ec process.env.FISH_AUDIO_API_KEY
+const FISH_API_KEY = 0dcca82cdddc49c98853fa288b6ff7ec process.env.FISH_AUDIO_API_KEY
 const MAX_LENGTH = 500
 
 const box = (title, body) => `╭───────────────⬣
