@@ -1,33 +1,36 @@
+import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
-const FISH_API_KEY = '0dcca82cdddc49c98853fa288b6ff7ec'
 const MAX_LENGTH = 200
 
-// Voces de ejemplo de Fish Audio (reemplaza los IDs con los reales de tu cuenta)
+// 5 voces de muestra (puedes agregar más)
 const VOICES = {
-  '1': { id: 'voice_id_1', name: 'Energética Femenina (ES)' },
-  '2': { id: 'voice_id_2', name: 'Profunda Masculina (ES)' },
-  '3': { id: 'voice_id_3', name: 'Narrador Calmado (EN)' },
-  '4': { id: 'voice_id_4', name: 'Anime Femenina (JA)' },
-  '5': { id: 'voice_id_5', name: 'Casual Juvenil (EN)' }
+  '1': { id: 'es-ES-ElviraNeural', name: 'Elvira (Español, Femenina)' },
+  '2': { id: 'es-MX-DaliaNeural', name: 'Dalia (Español MX, Femenina)' },
+  '3': { id: 'en-US-AriaNeural', name: 'Aria (Inglés, Femenina)' },
+  '4': { id: 'en-US-GuyNeural', name: 'Guy (Inglés, Masculino)' },
+  '5': { id: 'ja-JP-NanamiNeural', name: 'Nanami (Japonés, Femenina)' }
 }
 
+// 5 idiomas con voz por defecto
 const LANGS = {
-  es: 'Español',
-  en: 'English',
-  pt: 'Português',
-  fr: 'Français',
-  ja: '日本語'
+  es: { name: 'Español', voice: 'es-ES-ElviraNeural' },
+  en: { name: 'English', voice: 'en-US-AriaNeural' },
+  pt: { name: 'Português', voice: 'pt-BR-FranciscaNeural' },
+  fr: { name: 'Français', voice: 'fr-FR-DeniseNeural' },
+  ja: { name: '日本語', voice: 'ja-JP-NanamiNeural' }
 }
+
+const DEFAULT_VOICE = 'es-ES-ElviraNeural'
 
 const box = (title, body) => `╭───────────────⬣
 │  ${title}
 ╰───────────────⬣
 ${body}`
 
-const handler = async (m, { conn, usedPrefix, command, args, text: rawText }) => {
+const handler = async (m, { conn, usedPrefix, command, text: rawText }) => {
   let text = rawText?.trim()
 
   // .tts lista -> mostrar voces
@@ -47,7 +50,7 @@ ${list}
   // .tts idioma -> mostrar idiomas
   if (text?.toLowerCase() === 'idioma') {
     const list = Object.entries(LANGS)
-      .map(([k, v]) => `│ ${k} - ${v}`)
+      .map(([k, v]) => `│ ${k} - ${v.name}`)
       .join('\n')
     return conn.sendMessage(m.chat, {
       text: box('🌐 Idiomas Disponibles', `
@@ -73,19 +76,18 @@ ${list}
   }
 
   // Detectar voz: "voz:1 hola mundo"
-  let voiceId = null
+  let voice = DEFAULT_VOICE
   const voiceMatch = text.match(/^voz:(\d)\s*(.+)$/is)
   if (voiceMatch && VOICES[voiceMatch[1]]) {
-    voiceId = VOICES[voiceMatch[1]].id
+    voice = VOICES[voiceMatch[1]].id
     text = voiceMatch[2].trim()
-  }
-
-  // Detectar idioma: "en: hello world"
-  let lang = 'es'
-  const langMatch = text.match(/^([a-z]{2}):\s*(.+)$/is)
-  if (langMatch && LANGS[langMatch[1].toLowerCase()]) {
-    lang = langMatch[1].toLowerCase()
-    text = langMatch[2].trim()
+  } else {
+    // Detectar idioma: "en: hello world"
+    const langMatch = text.match(/^([a-z]{2}):\s*(.+)$/is)
+    if (langMatch && LANGS[langMatch[1].toLowerCase()]) {
+      voice = LANGS[langMatch[1].toLowerCase()].voice
+      text = langMatch[2].trim()
+    }
   }
 
   if (text.length > MAX_LENGTH) {
@@ -102,29 +104,18 @@ ${list}
   let mp3Path = null
 
   try {
-    const response = await fetch('https://api.fish.audio/v1/tts', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${FISH_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        text,
-        reference_id: voiceId || undefined,
-        format: 'mp3',
-        language: lang
-      })
-    })
-
-    if (!response.ok) {
-      throw new Error(`Fish API error: ${response.status} ${await response.text()}`)
-    }
-
-    const buffer = Buffer.from(await response.arrayBuffer())
+    const tts = new MsEdgeTTS()
+    await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3)
 
     const tmpDir = os.tmpdir()
     mp3Path = path.join(tmpDir, `tts_${m.sender.split('@')[0]}_${Date.now()}.mp3`)
-    fs.writeFileSync(mp3Path, buffer)
+
+    const { audioStream } = await tts.toStream(text)
+    const chunks = []
+    for await (const chunk of audioStream) {
+      chunks.push(chunk)
+    }
+    fs.writeFileSync(mp3Path, Buffer.concat(chunks))
 
     const audioData = fs.readFileSync(mp3Path)
     await conn.sendMessage(
@@ -150,6 +141,6 @@ ${list}
 handler.help = ['tts <texto>', 'tts idioma:<texto>', 'tts voz:<número> <texto>', 'tts lista', 'tts idioma']
 handler.tags = ['tools']
 handler.command = ['tts', 'voz']
-handler.desc = '🎙️ Convierte texto en audio reproducible en WhatsApp usando Fish Audio 🌸'
+handler.desc = '🎙️ Convierte texto en audio reproducible en WhatsApp usando Edge TTS (gratis) 🌸'
 
 export default handler
