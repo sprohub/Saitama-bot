@@ -24,13 +24,26 @@ const buildList = (title, items) => {
   return `\n│ ${title}\n` + items.map(f => `│   ❀ ${f}`).join('\n') + '\n'
 }
 
+const react = (conn, m, emoji) => conn.sendMessage(m.chat, {
+  react: { text: emoji, key: m.key }
+})
+
 const handler = async (m, { conn }) => {
   const who = m.sender
 
-  await conn.sendMessage(m.chat, { text: '⏳ Buscando actualizaciones para SAITAMA BOT★...' }, { quoted: m })
+  await react(conn, m, '⏳')
+
+  await conn.sendMessage(m.chat, {
+    text: `╭───────────────⬣
+│  ⏳ Buscando actualizaciones...
+│  SAITAMA BOT
+╰───────────────⬣`
+  }, { quoted: m })
 
   exec('git pull', { maxBuffer: 1024 * 1024 * 10 }, async (err, stdout) => {
     if (err) {
+      await react(conn, m, '❌')
+
       const error = err.message
       const errorReplies = {
         'not a git repository': '❌ No es un repositorio git\n\n> Clona el bot con git clone',
@@ -46,6 +59,8 @@ const handler = async (m, { conn }) => {
     }
 
     if (stdout.includes('Already up to date')) {
+      await react(conn, m, '✅')
+
       return conn.sendMessage(m.chat, {
         image: { url: BANNER },
         caption: `╭───────────────⬣
@@ -61,6 +76,8 @@ const handler = async (m, { conn }) => {
         mentions: [who]
       }, { quoted: m })
     }
+
+    await react(conn, m, '✅')
 
     const { creados, eliminados, archivosModificados, lineasAgregadas, lineasEliminadas } = parseGitOutput(stdout)
 
