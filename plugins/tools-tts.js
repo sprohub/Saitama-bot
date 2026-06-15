@@ -1,146 +1,103 @@
-import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import fetch from 'node-fetch'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import { pipeline } from 'stream/promises'
+
+const execAsync = promisify(exec)
 
 const MAX_LENGTH = 200
 
-// 5 voces de muestra (puedes agregar más)
-const VOICES = {
-  '1': { id: 'es-ES-ElviraNeural', name: 'Elvira (Español, Femenina)' },
-  '2': { id: 'es-MX-DaliaNeural', name: 'Dalia (Español MX, Femenina)' },
-  '3': { id: 'en-US-AriaNeural', name: 'Aria (Inglés, Femenina)' },
-  '4': { id: 'en-US-GuyNeural', name: 'Guy (Inglés, Masculino)' },
-  '5': { id: 'ja-JP-NanamiNeural', name: 'Nanami (Japonés, Femenina)' }
-}
-
-// 5 idiomas con voz por defecto
-const LANGS = {
-  es: { name: 'Español', voice: 'es-ES-ElviraNeural' },
-  en: { name: 'English', voice: 'en-US-AriaNeural' },
-  pt: { name: 'Português', voice: 'pt-BR-FranciscaNeural' },
-  fr: { name: 'Français', voice: 'fr-FR-DeniseNeural' },
-  ja: { name: '日本語', voice: 'ja-JP-NanamiNeural' }
-}
-
-const DEFAULT_VOICE = 'es-ES-ElviraNeural'
-
-const box = (title, body) => `╭───────────────⬣
+const box = (title, body) => `╭━━⬣
 │  ${title}
-╰───────────────⬣
-${body}`
+╰━━━━━━━━━━━━━━━━━━━━━━⬣
+${body}
+╭━━━━━━━━━━━━━━━━━━━━━━⬣
+│  ⚡ SAITAMA BOT
+╰━━⬣`
 
-const handler = async (m, { conn, usedPrefix, command, text: rawText }) => {
-  let text = rawText?.trim()
+async function getTTS(text) {
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=es&client=tw-ob`
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res
+}
 
-  // .tts lista -> mostrar voces
-  if (text?.toLowerCase() === 'lista') {
-    const list = Object.entries(VOICES)
-      .map(([k, v]) => `│ ${k}. ${v.name}`)
-      .join('\n')
-    return conn.sendMessage(m.chat, {
-      text: box('🎙️ Voces Disponibles', `
-│ Usa: ${usedPrefix}${command} voz:<número> <texto>
-│
-${list}
-╰───────────────⬣`)
-    }, { quoted: m })
-  }
-
-  // .tts idioma -> mostrar idiomas
-  if (text?.toLowerCase() === 'idioma') {
-    const list = Object.entries(LANGS)
-      .map(([k, v]) => `│ ${k} - ${v.name}`)
-      .join('\n')
-    return conn.sendMessage(m.chat, {
-      text: box('🌐 Idiomas Disponibles', `
-│ Usa: ${usedPrefix}${command} <idioma>:<texto>
-│
-${list}
-╰───────────────⬣`)
-    }, { quoted: m })
-  }
+const handler = async (m, { conn, usedPrefix, command }) => {
+  const text = m.text?.slice((usedPrefix + command).length).trim()
 
   if (!text) {
     return conn.sendMessage(m.chat, {
-      text: box('🎙️ TTS - Texto a Voz', `
-│ Ingresa un texto para convertir a voz.
+      text: box('🎙️ TTS — Texto a Voz', `│
+│  Convierte texto en audio de voz.
 │
-│ ❀ Uso: ${usedPrefix}${command} <texto>
-│ ❀ Idioma: ${usedPrefix}${command} <idioma>:<texto>
-│ ❀ Voz: ${usedPrefix}${command} voz:<número> <texto>
-│ ❀ Lista de voces: ${usedPrefix}${command} lista
-│ ❀ Lista de idiomas: ${usedPrefix}${command} idioma
-╰───────────────⬣`)
+│  ❀ Uso: ${usedPrefix}${command} <texto>
+│  ❀ Máximo ${MAX_LENGTH} caracteres
+│`)
     }, { quoted: m })
-  }
-
-  // Detectar voz: "voz:1 hola mundo"
-  let voice = DEFAULT_VOICE
-  const voiceMatch = text.match(/^voz:(\d)\s*(.+)$/is)
-  if (voiceMatch && VOICES[voiceMatch[1]]) {
-    voice = VOICES[voiceMatch[1]].id
-    text = voiceMatch[2].trim()
-  } else {
-    // Detectar idioma: "en: hello world"
-    const langMatch = text.match(/^([a-z]{2}):\s*(.+)$/is)
-    if (langMatch && LANGS[langMatch[1].toLowerCase()]) {
-      voice = LANGS[langMatch[1].toLowerCase()].voice
-      text = langMatch[2].trim()
-    }
   }
 
   if (text.length > MAX_LENGTH) {
     return conn.sendMessage(m.chat, {
-      text: box('⚠️ Texto muy largo', `
-│ El texto supera el límite de ${MAX_LENGTH} caracteres.
-│ Tu texto tiene ${text.length} caracteres.
+      text: box('⚠️ Texto muy largo', `│
+│  Límite: ${MAX_LENGTH} caracteres
+│  Tu texto: ${text.length} caracteres
 │
-│ Por favor envía un texto más corto.
-╰───────────────⬣`)
+│  Por favor envía un texto más corto.
+│`)
     }, { quoted: m })
   }
 
-  let mp3Path = null
+  await m.react('🎙️')
+
+  const tmpDir = os.tmpdir()
+  const rawPath = path.join(tmpDir, `tts_${Date.now()}.mp3`)
+  const finalPath = path.join(tmpDir, `tts_final_${Date.now()}.mp3`)
 
   try {
-    const tts = new MsEdgeTTS()
-    await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3)
+    const res = await getTTS(text)
+    await pipeline(res.body, fs.createWriteStream(rawPath))
 
-    const tmpDir = os.tmpdir()
-    mp3Path = path.join(tmpDir, `tts_${m.sender.split('@')[0]}_${Date.now()}.mp3`)
-
-    const { audioStream } = await tts.toStream(text)
-    const chunks = []
-    for await (const chunk of audioStream) {
-      chunks.push(chunk)
+    if (!fs.existsSync(rawPath) || fs.statSync(rawPath).size < 100) {
+      throw new Error('Audio inválido o vacío')
     }
-    fs.writeFileSync(mp3Path, Buffer.concat(chunks))
 
-    const audioData = fs.readFileSync(mp3Path)
-    await conn.sendMessage(
-      m.chat,
-      { audio: audioData, mimetype: 'audio/mpeg', ptt: false },
-      { quoted: m }
-    )
-  } catch (e) {
-    console.error(e)
+    await execAsync(`ffmpeg -y -i "${rawPath}" -af "asetrate=44100*0.75,aresample=44100,atempo=1.15,bass=g=10,volume=1.5" "${finalPath}"`)
+
+    const audioData = fs.readFileSync(finalPath)
+
     await conn.sendMessage(m.chat, {
-      text: box('❌ Error', `
-│ Ocurrió un error al generar la voz.
-│ Verifica el idioma, la voz o intenta de nuevo.
-╰───────────────⬣`)
+      audio: audioData,
+      mimetype: 'audio/mpeg',
+      ptt: false
+    }, { quoted: m })
+
+    await m.react('✅')
+
+  } catch (e) {
+    console.error('[TTS ERROR]', e.message)
+    await m.react('❌')
+    await conn.sendMessage(m.chat, {
+      text: box('❌ Error', `│
+│  No se pudo generar el audio.
+│  ${e.message}
+│`)
     }, { quoted: m })
   } finally {
-    if (mp3Path && fs.existsSync(mp3Path)) {
-      try { fs.unlinkSync(mp3Path) } catch { }
-    }
+    try { fs.unlinkSync(rawPath) } catch {}
+    try { fs.unlinkSync(finalPath) } catch {}
   }
 }
 
-handler.help = ['tts <texto>', 'tts idioma:<texto>', 'tts voz:<número> <texto>', 'tts lista', 'tts idioma']
+handler.help = ['tts2 <texto>']
 handler.tags = ['tools']
-handler.command = ['tts', 'voz']
-handler.desc = '🎙️ Convierte texto en audio reproducible en WhatsApp usando Edge TTS (gratis) 🌸'
+handler.command = /^(tts2|voz2)$/i
+handler.desc = '🎙️ Convierte texto a voz usando Google TTS'
 
 export default handler
