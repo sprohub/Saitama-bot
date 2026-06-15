@@ -1,87 +1,92 @@
 import { exec } from 'child_process'
 
+const BANNER = 'https://i.ibb.co/jkhp8BZD/wof.jpg'
+
+const parseGitOutput = (stdout) => {
+  const creados = (stdout.match(/create mode \d+ (.+)/g) || []).map(c => c.split(' ').pop())
+  const eliminados = (stdout.match(/delete mode \d+ (.+)/g) || []).map(c => c.split(' ').pop())
+
+  const changedMatch = stdout.match(/(\d+) files? changed/)
+  const summary = stdout.match(/\d+ files? changed, \d+ insertions?\(\+\), \d+ deletions?\(-\)/)
+  const summaryNums = summary ? summary[0].match(/\d+/g) : null
+
+  return {
+    creados,
+    eliminados,
+    archivosModificados: changedMatch ? changedMatch[1] : null,
+    lineasAgregadas: summaryNums ? summaryNums[1] : null,
+    lineasEliminadas: summaryNums ? summaryNums[2] : null
+  }
+}
+
+const buildList = (title, items) => {
+  if (!items.length) return ''
+  return `\n│ ${title}\n` + items.map(f => `│   ❀ ${f}`).join('\n') + '\n'
+}
+
 const handler = async (m, { conn }) => {
-  let who = m.sender
-  let name = await conn.getName(who)
+  const who = m.sender
 
   await conn.sendMessage(m.chat, { text: '⏳ Buscando actualizaciones para SAITAMA BOT★...' }, { quoted: m })
 
-  exec('git pull', async (err, stdout, stderr) => {
+  exec('git pull', { maxBuffer: 1024 * 1024 * 10 }, async (err, stdout) => {
     if (err) {
-      let error = err.message
-      if (error.includes('not a git repository')) {
-        await conn.sendMessage(m.chat, { text: '❌ No es un repositorio git\n\n> Clona el bot con git clone' }, { quoted: m })
-        return
+      const error = err.message
+      const errorReplies = {
+        'not a git repository': '❌ No es un repositorio git\n\n> Clona el bot con git clone',
+        'Could not resolve host': '❌ Sin conexión a internet\n\n> Verifica tu conexión',
+        'Merge conflict': '⚠️ Conflicto de fusión detectado\n\n> Usa #exec git stash && git pull --force',
+        'Please commit': '⚠️ Tienes cambios locales sin guardar\n\n> Usa #exec git stash && git pull'
       }
-      if (error.includes('Could not resolve host')) {
-        await conn.sendMessage(m.chat, { text: '❌ Sin conexión a internet\n\n> Verifica tu conexión' }, { quoted: m })
-        return
-      }
-      if (error.includes('Merge conflict')) {
-        await conn.sendMessage(m.chat, { text: '⚠️ Conflicto de fusión detectado\n\n> Usa #exec git stash && git pull --force' }, { quoted: m })
-        return
-      }
-      if (error.includes('Please commit')) {
-        await conn.sendMessage(m.chat, { text: '⚠️ Tienes cambios locales sin guardar\n\n> Usa #exec git stash && git pull' }, { quoted: m })
-        return
-      }
-      await conn.sendMessage(m.chat, { text: '❌ Error inesperado:\n' + error }, { quoted: m })
-      return
+
+      const match = Object.keys(errorReplies).find(key => error.includes(key))
+      const texto = match ? errorReplies[match] : `❌ Error inesperado:\n${error}`
+
+      return conn.sendMessage(m.chat, { text: texto }, { quoted: m })
     }
 
     if (stdout.includes('Already up to date')) {
-      await conn.sendMessage(m.chat, {
-        image: { url: 'https://i.ibb.co/jkhp8BZD/wof.jpg' },
-        caption: '╭━━⬣ *SAITAMA BOT* ⬣━━╮\n\n✨ saitama ya está en su mejor versión\n> No hay actualizaciones pendientes\n\n> Solicitado por @' + who.split('@')[0] + '\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣',
+      return conn.sendMessage(m.chat, {
+        image: { url: BANNER },
+        caption: `╭───────────────⬣
+│  ✦ *SAITAMA BOT* ✦
+╰───────────────⬣
+
+✨ Saitama ya está en su mejor versión
+> No hay actualizaciones pendientes
+
+> Solicitado por @${who.split('@')[0]}
+
+╰───────────────⬣`,
         mentions: [who]
       }, { quoted: m })
-      return
     }
 
-    let creados = stdout.match(/create mode \d+ (.+)/g) || []
-    let eliminados = stdout.match(/delete mode \d+ (.+)/g) || []
+    const { creados, eliminados, archivosModificados, lineasAgregadas, lineasEliminadas } = parseGitOutput(stdout)
 
-    let filesCreados = creados.map(c => c.split(' ').pop())
-    let filesEliminados = eliminados.map(c => c.split(' ').pop())
+    let texto = `╭───────────────⬣
+│  ✦ *SAITAMA BOT ACTUALIZADA* ✦
+│   Saitama está full, se ha renovado
+╰───────────────⬣`
 
-    let texto = '╭━━⬣ *SAITAMA BOT ACTUALIZADA* ⬣━━╮\n\n'
-    texto += 'saitama está full se ha renovado\n\n'
+    let body = ''
+    body += buildList('✨ Nuevos archivos:', creados)
+    body += buildList('🗑️ Archivos eliminados:', eliminados)
 
-    if (filesCreados.length > 0) {
-      texto += '✨ *Nuevos archivos:*\n'
-      for (let file of filesCreados) {
-        texto += '  ❀ ' + file + '\n'
-      }
-      texto += '\n'
+    if (archivosModificados) {
+      body += `\n│ 📝 Archivos modificados:\n│   ❀ ${archivosModificados} archivo(s)\n`
     }
 
-    let changedMatch = stdout.match(/(\d+) files? changed/)
-    if (changedMatch) {
-      texto += '📝 *Archivos modificados:*\n'
-      texto += '  ❀ ' + changedMatch[1] + ' archivo(s)\n\n'
+    if (lineasAgregadas !== null) {
+      body += `\n│ 📊 Resumen:\n│   ❀ +${lineasAgregadas} línea(s) agregada(s)\n│   ❀ -${lineasEliminadas} línea(s) eliminada(s)\n`
     }
 
-    if (filesEliminados.length > 0) {
-      texto += '🗑️ *Archivos eliminados:*\n'
-      for (let file of filesEliminados) {
-        texto += '  ❀ ' + file + '\n'
-      }
-      texto += '\n'
-    }
+    if (body) texto += '\n│' + body + '╰───────────────⬣\n'
 
-    let summary = stdout.match(/\d+ files? changed, \d+ insertions?\(\+\), \d+ deletions?\(-\)/)
-    if (summary) {
-      let nums = summary[0].match(/\d+/g)
-      texto += '📊 *Resumen:*\n'
-      texto += '  ❀ ' + nums[1] + ' línea(s) agregada(s)\n'
-      texto += '  ❀ -' + nums[2] + ' línea(s) eliminada(s)\n\n'
-    }
-
-    texto += '> Actualizado por @' + who.split('@')[0] + '\n\n'
-    texto += '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
+    texto += `\n> Actualizado por @${who.split('@')[0]}`
 
     await conn.sendMessage(m.chat, {
-      image: { url: 'https://i.ibb.co/jkhp8BZD/wof.jpg' },
+      image: { url: BANNER },
       caption: texto,
       mentions: [who]
     }, { quoted: m })
