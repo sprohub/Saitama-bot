@@ -1,40 +1,65 @@
+const owners = [
+  {
+    name: 'EL VIGILANTE',
+    phone: '+591 77474230',
+    role: '💎 Desarrollador Principal',
+    extra: '🇭🇳 Creador de SAITAMA BOT. Apasionado por la tecnología y el anime.',
+    github: 'https://github.com/ElvigilanteDv'
+  },
+  {
+    name: 'BRAYANRK',
+    phone: '+57 3223090406',
+    role: '💎 Desarrollador Principal',
+    extra: '🇨🇴 Estudiante de Ingeniería de Software.',
+    github: 'https://github.com/BrayanRK'
+  },
+  {
+    name: 'SPROHUB',
+    phone: '+57 3225396540',
+    role: '🛠️ Colaborador / Desarrollador',
+    extra: null,
+    github: 'https://github.com/sprohub'
+  }
+]
+
+const links = {
+  api: 'https://elvigilante-api.onrender.com',
+  apiGroup: 'https://chat.whatsapp.com/K11rQWn1S8X2XLRUuLoeau',
+  groupOficial: 'https://chat.whatsapp.com/EEppolIlNjGDZrmNyDERRr',
+  groupSaitama: 'https://chat.whatsapp.com/GrnEybt0lVO9PbWfEf88AQ',
+  repo: 'https://github.com/ElvigilanteDv/Saitama-Bot'
+}
+
 let handler = async (m, { conn }) => {
-  let texto = `╭━━⬣ 「 SAITAMA OWNER 」
+  const ownersText = owners.map(o => {
+    let block = `╭─⪼ 👑 *${o.name}*\n│ 📱 ${o.phone}\n│ ${o.role}`
+    if (o.extra) block += `\n│ ${o.extra}`
+    block += `\n│ 🐙 ${o.github}\n╰───────────────⬣`
+    return block
+  }).join('\n\n')
 
-🌐 *API*
-┃ 🔗 https://elvigilante-api.onrender.com
-┃ 💬 Grupo de la API: https://chat.whatsapp.com/K11rQWn1S8X2XLRUuLoeau
+  let texto = `╭───────────────⬣
+│  ✦ *SAITAMA BOT* ✦
+│   Créditos y Soporte
+╰───────────────⬣
 
-👑 *EL VIGILANTE*
-┃ 📱 +591 77474230
-┃ 💎 Desarrollador Principal
-┃ 🇭🇳 Hola soy de Honduras, creador de SAITAMA BOT. Me apasiona la tecnología y el anime. Si tienes sugerencias o problemas, no dudes en contactarnos.
-┃ 🐙 https://github.com/ElvigilanteDv
+╭─⪼ 🌐 *API*
+│ 🔗 ${links.api}
+│ 💬 Grupo: ${links.apiGroup}
+╰───────────────⬣
 
-👑 *BRAYANRK*
-┃ 📱 +57 3223090406
-┃ 💎 Desarrollador Principal
-┃ 🇨🇴 Estudiante de Ingeniería de Software, aprendiendo cada día sobre programación, desarrollo y nuevas tecnologías.
-┃ 🐙 https://github.com/BrayanRK
+${ownersText}
 
-👑 *SPROHUB*
-┃ 📱 +57 3225396540
-┃ 💎 Colaborador / Desarrollador
-┃ 🐙 https://github.com/sprohub
+╭─⪼ 🌸 *COMUNIDAD*
+│ 💬 Grupo oficial: ${links.groupOficial}
+│ 🧪 Pruebas y novedades: ${links.groupSaitama}
+╰───────────────⬣
 
-🌸 *GRUPO OFICIAL*
-┃ 💬 Únete a nuestra comunidad
-┃ 📲 https://chat.whatsapp.com/EEppolIlNjGDZrmNyDERRr
+╭─⪼ 📦 *REPOSITORIO*
+│ 🐙 ${links.repo}
+╰───────────────⬣
 
-🌸 *GRUPO SAITAMA*
-┃ 💬 Pruebas y novedades
-┃ 📲 https://chat.whatsapp.com/GrnEybt0lVO9PbWfEf88AQ
-
-📦 *REPOSITORIO*
-┃ 🐙 https://github.com/ElvigilanteDv/Saitama-Bot
-
-╰━━━━━━━━━━━━━━━━━━━━━━⬣
-⫏⫏ SAITAMA BOT ✿
+> ⫏⫏ SAITAMA BOT ✿
 > Contáctanos si tienes dudas ♡`
 
   await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
