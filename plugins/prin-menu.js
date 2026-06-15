@@ -4,18 +4,18 @@ import fetch from 'node-fetch'
 import { xpRange } from '../lib/levelling.js'
 
 const tags = {
-  main: '⭐ principal➣',
-  group: '👥 grupos➣',
-  tools: '🛠️ tools➣',
-  rpg: '⚔️ rpg➣',
-  game: '🎮 game➣',
-  gacha: '🎰 gacha➣',
-  diversion: '🎪 divercion➣',
-  anime: '🌸 anime➣',
-  serbot: '🤖 serbot➣',
-  owner: '👑 owner➣',
-  downloader: '📥 downloader➣',
-  info: 'ℹ️ info➣'
+  main: '⭐ Principal',
+  group: '👥 Grupos',
+  tools: '🛠️ Tools',
+  rpg: '⚔️ RPG',
+  game: '🎮 Game',
+  gacha: '🎰 Gacha',
+  diversion: '🎪 Diversión',
+  anime: '🌸 Anime',
+  serbot: '🤖 SerBot',
+  owner: '👑 Owner',
+  downloader: '📥 Downloader',
+  info: 'ℹ️ Info'
 }
 
 const bannerCategory = {
@@ -34,27 +34,26 @@ const bannerCategory = {
 }
 
 const defaultMenu = {
-  before: `
-╭━━⬣ *SAITAMA-BOT* ⬣━━╮
+  before: `╭───────────────⬣
+│  ✦ *SAITAMA BOT* ✦
+╰───────────────⬣
 
-〖 %totalreg ᴜꜱᴇʀꜱ 〗 %totalcmd ᴄᴍᴅꜱ ➣
+▢ 👥 Usuarios: %totalreg
+▢ 📦 Comandos: %totalcmd
+▢ ⏱️ Uptime: %uptime
+▢ 👤 Usuario: @%user
 
-> ⏱️ %uptime activa
-> 👤 Solicitado por @%user
-
-╰━━━━━━━━━━━━━━━━━━━━━━⬣
-
-%readmore
-`,
-  header: '\n╭━━⬣ %category ➣ (%count cmd)\n╰━━━━━━━━━━━━━━━━━━━━━━⬣\n',
-  body: '➣ %cmd',
-  desc: '\n> ↆ %desc',
+%readmore`,
+  header: '\n╭─⪼ %category (%count)\n│',
+  body: '\n│ ➳ %cmd',
+  desc: '\n│    ↳ _%desc_',
+  sectionEnd: '\n╰───────────────⬣',
   footer: '',
   after: `
 
-╭━━━━━━━━━━━━━━━━━━━━━━⬣
-   samu★ ➣ SAITAMA-BOT
-╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+╭───────────────⬣
+│  ★ SAITAMA-BOT ★
+╰───────────────⬣`
 }
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
@@ -95,24 +94,25 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       .replace(/%user/g, who.split('@')[0])
 
     if (tagSeleccionada) {
-      textoMenu = textoMenu.replace('SAITAMA-BOT', 'SAITAMA-BOT ➣ ' + tags[tagSeleccionada].replace(/[⭐👥⚔️🎮🎰🤖👑📥ℹ️🎪🌸🛠️]/g, '').trim())
+      textoMenu = textoMenu.replace('SAITAMA BOT', 'SAITAMA BOT ➳ ' + tags[tagSeleccionada].split(' ').slice(1).join(' '))
     }
 
     for (let tag of Object.keys(tags)) {
       if (tagSeleccionada && tag !== tagSeleccionada) continue
 
       const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
-      
+
       const cmds = cmdsFiltrados
-        .map(menu => menu.help.map(h => 
-          defaultMenu.body.replace(/%cmd/g, menu.prefix ? h : `${_p}${h}`) + 
+        .map(menu => menu.help.map(h =>
+          defaultMenu.body.replace(/%cmd/g, menu.prefix ? h : `${_p}${h}`) +
           (menu.desc ? defaultMenu.desc.replace(/%desc/g, menu.desc) : '')
-        ).join('\n')).join('\n')
+        ).join('')).join('')
 
       if (cmds) {
         let count = cmdsFiltrados.length
         textoMenu += defaultMenu.header.replace(/%category/g, tags[tag]).replace(/%count/g, count)
-        textoMenu += cmds + '\n'
+        textoMenu += cmds
+        textoMenu += defaultMenu.sectionEnd
       }
     }
 
