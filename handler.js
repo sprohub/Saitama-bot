@@ -246,6 +246,19 @@ if (opts['swonly'] && m.chat !== 'status@broadcast')  return
 if (typeof m.text !== 'string')
 m.text = ''
 
+// ── Interceptar respuesta de list (botón interactivo) ──
+const listResponse = m.message?.listResponseMessage?.singleSelectReply?.selectedRowId
+  || m.message?.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson
+const rawMsg = m.message || {}
+if (listResponse && typeof listResponse === 'string') {
+  m.text = listResponse
+} else if (rawMsg.interactiveResponseMessage) {
+  try {
+    const parsed = JSON.parse(rawMsg.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson || '{}')
+    if (parsed.id) m.text = parsed.id
+  } catch {}
+}
+
 if (opts['queque'] && m.text && !(isMods || isPrems)) {
 let queque = this.msgqueque, time = 1000 * 5
 const previousID = queque[queque.length - 1]
