@@ -1,18 +1,21 @@
+import fs from 'fs'
+import path, { join } from 'path'
+import fetch from 'node-fetch'
 import { xpRange } from '../lib/levelling.js'
 
 const tags = {
-  main: '⭐ Principal',
-  group: '👥 Grupos',
-  tools: '🛠️ Tools',
-  rpg: '⚔️ RPG',
-  game: '🎮 Game',
-  gacha: '🎰 Gacha',
-  diversion: '🎪 Diversión',
-  anime: '🌸 Anime',
-  serbot: '🤖 SerBot',
-  owner: '👑 Owner',
-  downloader: '📥 Downloader',
-  info: 'ℹ️ Info'
+  main: '⭐ principal➣',
+  group: '👥 grupos➣',
+  tools: '🛠️ tools➣',
+  rpg: '⚔️ rpg➣',
+  game: '🎮 game➣',
+  gacha: '🎰 gacha➣',
+  diversion: '🎪 divercion➣',
+  anime: '🌸 anime➣',
+  serbot: '🤖 serbot➣',
+  owner: '👑 owner➣',
+  downloader: '📥 downloader➣',
+  info: 'ℹ️ info➣'
 }
 
 const bannerCategory = {
@@ -29,31 +32,6 @@ const bannerCategory = {
   diversion: 'https://i.ibb.co/j94w01QV/mascota.jpg',
   anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
 }
-
-const defaultMenu = {
-  before: `╭───────────────⬣
-│  ✦ *SAITAMA BOT* ✦
-╰───────────────⬣
-
-▢ 👥 Usuarios: %totalreg
-▢ 📦 Comandos: %totalcmd
-▢ ⏱️ Uptime: %uptime
-▢ 👤 Usuario: @%user
-
-%readmore`,
-  header: '\n╭─⪼ %category (%count)\n│',
-  body: '\n│ ➳ %cmd',
-  desc: '\n│    ↳ _%desc_',
-  sectionEnd: '\n╰───────────────⬣',
-  after: `
-
-╭───────────────⬣
-│  ★ SAITAMA-BOT ★
-╰───────────────⬣`
-}
-
-const more = String.fromCharCode(8206)
-const readMore = more.repeat(4001)
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
   try {
@@ -73,7 +51,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         desc: p.desc || ''
       }))
 
-    // ── Detectar categoría en comando ──
+    // Detectar tag específica desde el comando (ej: .menurpg)
     let tagSeleccionada = null
     if (command.startsWith('menu') && command.length > 4) {
       let tagBuscada = command.replace('menu', '').toLowerCase()
@@ -87,77 +65,78 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
 
     let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : bannerCategory.main
 
-    // ── Construir texto (lógica original intacta) ──
-    let textoMenu = defaultMenu.before
-      .replace(/%totalreg/g, Object.keys(global.db.data.users).length)
-      .replace(/%totalcmd/g, Object.keys(global.plugins).length)
-      .replace(/%uptime/g, Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's')
-      .replace(/%user/g, who.split('@')[0])
+    const totalUsers = Object.keys(global.db.data.users).length
+    const totalCmds = Object.keys(global.plugins).length
+    const uptime = Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's'
+    const userName = who.split('@')[0]
+
+    // ── Texto del cuerpo del mensaje ──
+    const bodyText = `╭━━⬣ *SAITAMA-BOT* ⬣━━╮
+
+〖 ${totalUsers} ᴜꜱᴇʀꜱ 〗 ${totalCmds} ᴄᴍᴅꜱ ➣
+
+> ⏱️ ${uptime} activa
+> 👤 Solicitado por @${userName}
+
+╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+
+    // ── Construir secciones para el list ──
+    // Si hay tag seleccionada → solo esa sección
+    // Si no → una sección por cada categoría
+    let listSections = []
 
     if (tagSeleccionada) {
-      textoMenu = textoMenu.replace('SAITAMA BOT', 'SAITAMA BOT ➳ ' + tags[tagSeleccionada].split(' ').slice(1).join(' '))
-    }
-
-    for (let tag of Object.keys(tags)) {
-      if (tagSeleccionada && tag !== tagSeleccionada) continue
-
-      const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
-      const cmds = cmdsFiltrados
-        .map(menu => menu.help.map(h =>
-          defaultMenu.body.replace(/%cmd/g, menu.prefix ? h : `${_p}${h}`) +
-          (menu.desc ? defaultMenu.desc.replace(/%desc/g, menu.desc) : '')
-        ).join('')).join('')
-
-      if (cmds) {
-        let count = cmdsFiltrados.length
-        textoMenu += defaultMenu.header.replace(/%category/g, tags[tag]).replace(/%count/g, count)
-        textoMenu += cmds
-        textoMenu += defaultMenu.sectionEnd
+      // Menú de categoría específica
+      const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tagSeleccionada))
+      const rows = cmdsFiltrados.flatMap(menu =>
+        menu.help.map(h => ({
+          title: menu.prefix ? h : `${_p}${h}`,
+          description: menu.desc || '',
+          rowId: menu.prefix ? h : `${_p}${h}`
+        }))
+      )
+      if (rows.length > 0) {
+        listSections.push({ title: tags[tagSeleccionada], rows })
+      }
+    } else {
+      // Menú general → una sección por categoría
+      for (let tag of Object.keys(tags)) {
+        const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
+        const rows = cmdsFiltrados.flatMap(menu =>
+          menu.help.map(h => ({
+            title: menu.prefix ? h : `${_p}${h}`,
+            description: menu.desc || '',
+            rowId: menu.prefix ? h : `${_p}${h}`
+          }))
+        )
+        if (rows.length > 0) {
+          listSections.push({ title: tags[tag], rows })
+        }
       }
     }
 
-    textoMenu += defaultMenu.after
-    let texto = textoMenu.replace(/%readmore/g, readMore)
+    const title = tagSeleccionada
+      ? `SAITAMA ➣ ${tags[tagSeleccionada].replace(/[⭐👥⚔️🎮🎰🤖👑📥ℹ️🎪🌸🛠️]/g, '').trim()}`
+      : '✦ SAITAMA-BOT ✦'
 
-    // ── Enviar imagen + caption ──
-    await conn.sendMessage(m.chat, {
-      image: { url: bannerFinal },
-      caption: texto.trim(),
-      mentions: [who]
-    }, { quoted: m })
+    const footer = 'samu★ ➣ SAITAMA-BOT'
+    const buttonText = '📋 Ver Menú'
 
-    // ── Si es categoría específica, no enviar lista ──
-    if (tagSeleccionada) return
-
-    // ── Construir rows de la lista ──
-    const rows = Object.entries(tags)
-      .filter(([key]) => help.filter(p => p.tags?.includes(key)).length > 0)
-      .map(([key, label]) => {
-        const count = help.filter(p => p.tags?.includes(key)).length
-        return {
-          title: label,
-          description: `${count} comando${count !== 1 ? 's' : ''}`,
-          rowId: `${_p}menu${key}`
-        }
-      })
-
-    // ── Enviar listMessage ──
-    await conn.sendMessage(m.chat, {
-      text: '╭───────────────⬣\n│  📂 *CATEGORÍAS*\n╰───────────────⬣\n\nSelecciona una categoría para ver sus comandos.',
-      footer: '⚡ SAITAMA BOT',
-      title: '✦ SAITAMA BOT ✦',
-      buttonText: 'Seleccionar',
-      sections: [
-        {
-          title: '📂 CATEGORÍAS',
-          rows
-        }
-      ]
-    }, { quoted: m })
+    // Usar sendListB que está en simple.js (imagen + botón lista)
+    await conn.sendListB(
+      m.chat,
+      title,
+      bodyText,
+      buttonText,
+      bannerFinal,
+      listSections,
+      m,
+      { mentions: [who] }
+    )
 
   } catch (e) {
-    console.error('[MENU ERROR]', e)
-    await conn.sendMessage(m.chat, { text: `❌ Error:\n${e.message}` }, { quoted: m })
+    console.log(e)
+    await conn.sendMessage(m.chat, { text: `❌ Error en menú:\n${e}` }, { quoted: m })
   }
 }
 
