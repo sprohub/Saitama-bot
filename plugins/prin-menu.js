@@ -51,7 +51,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         desc: p.desc || ''
       }))
 
-    // Detectar categoría en el comando (ej: .menutools)
+    // Detectar categoría
     let tagSeleccionada = null
     if (command.startsWith('menu') && command.length > 4) {
       const tagBuscada = command.replace('menu', '').toLowerCase()
@@ -101,12 +101,13 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }, { quoted: m })
     }
 
-    // ── MENÚ PRINCIPAL CON LISTA INTERACTIVA ──
-    const captionPrincipal = `╭━━⬣
+    // ── MENÚ PRINCIPAL CON BOTONES ──
+    const totalUsers2 = Object.keys(global.db.data.users).length
+    const caption = `╭━━⬣
 │  ✦ *SAITAMA BOT* ✦
 ╰━━━━━━━━━━━━━━━━━━━━━━⬣
 │
-│  👥 Usuarios: ${totalUsers}
+│  👥 Usuarios: ${totalUsers2}
 │  📦 Comandos: ${totalCmds}
 │  ⏱️ Uptime: ${uptime}
 │  👤 Usuario: @${userNum}
@@ -115,37 +116,47 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
 │  ⚡ SAITAMA BOT
 ╰━━⬣`
 
-    // Construir secciones de la lista
-    const sections = [{
-      title: '📂 CATEGORÍAS',
-      rows: Object.entries(tags).map(([key, label]) => {
-        const count = help.filter(p => p.tags?.includes(key)).length
-        return {
-          title: label,
-          description: `${count} comando${count !== 1 ? 's' : ''} — Usa ${_p}menu${key}`,
-          id: `menu_${key}`
-        }
-      }).filter(r => {
-        // Ocultar categorías vacías
-        const key = r.id.replace('menu_', '')
-        return help.filter(p => p.tags?.includes(key)).length > 0
-      })
-    }]
+    // Máximo 3 botones por mensaje en Baileys
+    // Dividimos las categorías en grupos de 3
+    const categoryEntries = Object.entries(tags).filter(([key]) => {
+      return help.filter(p => p.tags?.includes(key)).length > 0
+    })
 
+    const chunks = []
+    for (let i = 0; i < categoryEntries.length; i += 3) {
+      chunks.push(categoryEntries.slice(i, i + 3))
+    }
+
+    // Primer mensaje: imagen + caption
     await conn.sendMessage(m.chat, {
       image: { url: bannerCategory.main },
-      caption: captionPrincipal,
+      caption,
       mentions: [who]
     }, { quoted: m })
 
-    // Enviar lista interactiva
-    await conn.sendMessage(m.chat, {
-      text: `${readMore}Selecciona una categoría para ver sus comandos:`,
-      footer: '⚡ SAITAMA BOT',
-      title: '✦ MENÚ PRINCIPAL ✦',
-      buttonText: '📂 Ver Categorías',
-      sections
-    }, { quoted: m })
+    // Mensajes con botones (grupos de 3)
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]
+      const buttons = chunk.map(([key, label]) => {
+        const count = help.filter(p => p.tags?.includes(key)).length
+        return {
+          buttonId: `${_p}menu${key}`,
+          buttonText: {
+            displayText: `${label} (${count})`
+          },
+          type: 1
+        }
+      })
+
+      await conn.sendMessage(m.chat, {
+        text: i === 0
+          ? '📂 *Selecciona una categoría:*'
+          : '📂 *Más categorías:*',
+        footer: '⚡ SAITAMA BOT',
+        buttons,
+        headerType: 1
+      }, { quoted: m })
+    }
 
   } catch (e) {
     console.error('[MENU ERROR]', e)
@@ -160,3 +171,5 @@ handler.register = false
 handler.desc = 'Muestra el menú principal'
 
 export default handler
+
+const more2 = String.fromCharCode(8206)
