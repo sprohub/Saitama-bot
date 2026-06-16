@@ -1,6 +1,3 @@
-import fs from 'fs'
-import path, { join } from 'path'
-import fetch from 'node-fetch'
 import { xpRange } from '../lib/levelling.js'
 
 const tags = {
@@ -33,32 +30,12 @@ const bannerCategory = {
   anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
 }
 
-const defaultMenu = {
-  before: `╭───────────────⬣
-│  ✦ *SAITAMA BOT* ✦
-╰───────────────⬣
-
-▢ 👥 Usuarios: %totalreg
-▢ 📦 Comandos: %totalcmd
-▢ ⏱️ Uptime: %uptime
-▢ 👤 Usuario: @%user
-
-%readmore`,
-  header: '\n╭─⪼ %category (%count)\n│',
-  body: '\n│ ➳ %cmd',
-  desc: '\n│    ↳ _%desc_',
-  sectionEnd: '\n╰───────────────⬣',
-  footer: '',
-  after: `
-
-╭───────────────⬣
-│  ★ SAITAMA-BOT ★
-╰───────────────⬣`
-}
+const more = String.fromCharCode(8206)
+const readMore = more.repeat(4001)
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
   try {
-    let who = m.sender
+    const who = m.sender
     let user = global.db.data.users[who]
     if (!user) {
       user = { exp: 0, level: 0 }
@@ -74,10 +51,11 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         desc: p.desc || ''
       }))
 
+    // Detectar categoría en el comando (ej: .menutools)
     let tagSeleccionada = null
     if (command.startsWith('menu') && command.length > 4) {
-      let tagBuscada = command.replace('menu', '').toLowerCase()
-      for (let key of Object.keys(tags)) {
+      const tagBuscada = command.replace('menu', '').toLowerCase()
+      for (const key of Object.keys(tags)) {
         if (key.toLowerCase() === tagBuscada) {
           tagSeleccionada = key
           break
@@ -85,64 +63,100 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }
     }
 
-    let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : bannerCategory.main
+    const totalUsers = Object.keys(global.db.data.users).length
+    const totalCmds = Object.keys(global.plugins).length
+    const uptime = Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's'
+    const userNum = who.split('@')[0]
 
-    let textoMenu = defaultMenu.before
-      .replace(/%totalreg/g, Object.keys(global.db.data.users).length)
-      .replace(/%totalcmd/g, Object.keys(global.plugins).length)
-      .replace(/%uptime/g, Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's')
-      .replace(/%user/g, who.split('@')[0])
-
+    // ── MENÚ DE CATEGORÍA ESPECÍFICA ──
     if (tagSeleccionada) {
-      textoMenu = textoMenu.replace('SAITAMA BOT', 'SAITAMA BOT ➳ ' + tags[tagSeleccionada].split(' ').slice(1).join(' '))
-    }
+      const cmdsFiltrados = help.filter(p => p.tags?.includes(tagSeleccionada))
 
-    for (let tag of Object.keys(tags)) {
-      if (tagSeleccionada && tag !== tagSeleccionada) continue
+      let texto = `╭━━⬣
+│  ${tags[tagSeleccionada]} — SAITAMA BOT
+╰━━━━━━━━━━━━━━━━━━━━━━⬣
+│
+│  👤 Usuario: @${userNum}
+│  📦 Comandos: ${cmdsFiltrados.length}
+│
+╭━━━━━━━━━━━━━━━━━━━━━━⬣
+│  COMANDOS
+╰━━━━━━━━━━━━━━━━━━━━━━⬣\n`
 
-      const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
-
-      const cmds = cmdsFiltrados
-        .map(menu => menu.help.map(h =>
-          defaultMenu.body.replace(/%cmd/g, menu.prefix ? h : `${_p}${h}`) +
-          (menu.desc ? defaultMenu.desc.replace(/%desc/g, menu.desc) : '')
-        ).join('')).join('')
-
-      if (cmds) {
-        let count = cmdsFiltrados.length
-        textoMenu += defaultMenu.header.replace(/%category/g, tags[tag]).replace(/%count/g, count)
-        textoMenu += cmds
-        textoMenu += defaultMenu.sectionEnd
+      for (const p of cmdsFiltrados) {
+        for (const h of p.help) {
+          texto += `│ ➳ ${p.prefix ? h : `${_p}${h}`}\n`
+          if (p.desc) texto += `│    ↳ _${p.desc}_\n`
+        }
       }
+
+      texto += `╭━━━━━━━━━━━━━━━━━━━━━━⬣
+│  ⚡ SAITAMA BOT
+╰━━⬣`
+
+      return await conn.sendMessage(m.chat, {
+        image: { url: bannerCategory[tagSeleccionada] },
+        caption: texto.trim(),
+        mentions: [who]
+      }, { quoted: m })
     }
 
-    textoMenu += defaultMenu.after
+    // ── MENÚ PRINCIPAL CON LISTA INTERACTIVA ──
+    const captionPrincipal = `╭━━⬣
+│  ✦ *SAITAMA BOT* ✦
+╰━━━━━━━━━━━━━━━━━━━━━━⬣
+│
+│  👥 Usuarios: ${totalUsers}
+│  📦 Comandos: ${totalCmds}
+│  ⏱️ Uptime: ${uptime}
+│  👤 Usuario: @${userNum}
+│
+╭━━━━━━━━━━━━━━━━━━━━━━⬣
+│  ⚡ SAITAMA BOT
+╰━━⬣`
 
-    const replace = { readmore: readMore }
-    let texto = textoMenu
-    for (let key of Object.keys(replace)) {
-      texto = texto.replace(new RegExp(`%${key}`, 'g'), replace[key])
-    }
+    // Construir secciones de la lista
+    const sections = [{
+      title: '📂 CATEGORÍAS',
+      rows: Object.entries(tags).map(([key, label]) => {
+        const count = help.filter(p => p.tags?.includes(key)).length
+        return {
+          title: label,
+          description: `${count} comando${count !== 1 ? 's' : ''} — Usa ${_p}menu${key}`,
+          id: `menu_${key}`
+        }
+      }).filter(r => {
+        // Ocultar categorías vacías
+        const key = r.id.replace('menu_', '')
+        return help.filter(p => p.tags?.includes(key)).length > 0
+      })
+    }]
 
     await conn.sendMessage(m.chat, {
-      image: { url: bannerFinal },
-      caption: texto.trim(),
+      image: { url: bannerCategory.main },
+      caption: captionPrincipal,
       mentions: [who]
     }, { quoted: m })
 
+    // Enviar lista interactiva
+    await conn.sendMessage(m.chat, {
+      text: `${readMore}Selecciona una categoría para ver sus comandos:`,
+      footer: '⚡ SAITAMA BOT',
+      title: '✦ MENÚ PRINCIPAL ✦',
+      buttonText: '📂 Ver Categorías',
+      sections
+    }, { quoted: m })
+
   } catch (e) {
-    console.log(e)
-    await conn.sendMessage(m.chat, { text: `❌ Error:\n${e}` }, { quoted: m })
+    console.error('[MENU ERROR]', e)
+    await conn.sendMessage(m.chat, { text: `❌ Error en menú:\n${e.message}` }, { quoted: m })
   }
 }
 
 handler.help = ['menu']
 handler.tags = ['main']
-handler.command = /^(menu|menú|help)(rpg|group|diversion|game|gacha|serbot|owner|downloader|info|main|tools)?$/i
+handler.command = /^(menu|menú|help)(rpg|group|diversion|game|gacha|serbot|owner|downloader|info|main|tools|anime)?$/i
 handler.register = false
-handler.desc = 'Muestra el menú'
+handler.desc = 'Muestra el menú principal'
 
 export default handler
-
-const more = String.fromCharCode(8206)
-const readMore = more.repeat(4001)
