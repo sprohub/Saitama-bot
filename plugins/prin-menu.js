@@ -30,12 +30,34 @@ const bannerCategory = {
   anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
 }
 
+const defaultMenu = {
+  before: `╭───────────────⬣
+│  ✦ *SAITAMA BOT* ✦
+╰───────────────⬣
+
+▢ 👥 Usuarios: %totalreg
+▢ 📦 Comandos: %totalcmd
+▢ ⏱️ Uptime: %uptime
+▢ 👤 Usuario: @%user
+
+%readmore`,
+  header: '\n╭─⪼ %category (%count)\n│',
+  body: '\n│ ➳ %cmd',
+  desc: '\n│    ↳ _%desc_',
+  sectionEnd: '\n╰───────────────⬣',
+  after: `
+
+╭───────────────⬣
+│  ★ SAITAMA-BOT ★
+╰───────────────⬣`
+}
+
 const more = String.fromCharCode(8206)
 const readMore = more.repeat(4001)
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
   try {
-    const who = m.sender
+    let who = m.sender
     let user = global.db.data.users[who]
     if (!user) {
       user = { exp: 0, level: 0 }
@@ -51,11 +73,11 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         desc: p.desc || ''
       }))
 
-    // Detectar categoría
+    // ── Detectar categoría en comando ──
     let tagSeleccionada = null
     if (command.startsWith('menu') && command.length > 4) {
-      const tagBuscada = command.replace('menu', '').toLowerCase()
-      for (const key of Object.keys(tags)) {
+      let tagBuscada = command.replace('menu', '').toLowerCase()
+      for (let key of Object.keys(tags)) {
         if (key.toLowerCase() === tagBuscada) {
           tagSeleccionada = key
           break
@@ -63,104 +85,79 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }
     }
 
-    const totalUsers = Object.keys(global.db.data.users).length
-    const totalCmds = Object.keys(global.plugins).length
-    const uptime = Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's'
-    const userNum = who.split('@')[0]
+    let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : bannerCategory.main
 
-    // ── MENÚ DE CATEGORÍA ESPECÍFICA ──
+    // ── Construir texto (lógica original intacta) ──
+    let textoMenu = defaultMenu.before
+      .replace(/%totalreg/g, Object.keys(global.db.data.users).length)
+      .replace(/%totalcmd/g, Object.keys(global.plugins).length)
+      .replace(/%uptime/g, Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's')
+      .replace(/%user/g, who.split('@')[0])
+
     if (tagSeleccionada) {
-      const cmdsFiltrados = help.filter(p => p.tags?.includes(tagSeleccionada))
+      textoMenu = textoMenu.replace('SAITAMA BOT', 'SAITAMA BOT ➳ ' + tags[tagSeleccionada].split(' ').slice(1).join(' '))
+    }
 
-      let texto = `╭━━⬣
-│  ${tags[tagSeleccionada]} — SAITAMA BOT
-╰━━━━━━━━━━━━━━━━━━━━━━⬣
-│
-│  👤 Usuario: @${userNum}
-│  📦 Comandos: ${cmdsFiltrados.length}
-│
-╭━━━━━━━━━━━━━━━━━━━━━━⬣
-│  COMANDOS
-╰━━━━━━━━━━━━━━━━━━━━━━⬣\n`
+    for (let tag of Object.keys(tags)) {
+      if (tagSeleccionada && tag !== tagSeleccionada) continue
 
-      for (const p of cmdsFiltrados) {
-        for (const h of p.help) {
-          texto += `│ ➳ ${p.prefix ? h : `${_p}${h}`}\n`
-          if (p.desc) texto += `│    ↳ _${p.desc}_\n`
-        }
+      const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
+      const cmds = cmdsFiltrados
+        .map(menu => menu.help.map(h =>
+          defaultMenu.body.replace(/%cmd/g, menu.prefix ? h : `${_p}${h}`) +
+          (menu.desc ? defaultMenu.desc.replace(/%desc/g, menu.desc) : '')
+        ).join('')).join('')
+
+      if (cmds) {
+        let count = cmdsFiltrados.length
+        textoMenu += defaultMenu.header.replace(/%category/g, tags[tag]).replace(/%count/g, count)
+        textoMenu += cmds
+        textoMenu += defaultMenu.sectionEnd
       }
-
-      texto += `╭━━━━━━━━━━━━━━━━━━━━━━⬣
-│  ⚡ SAITAMA BOT
-╰━━⬣`
-
-      return await conn.sendMessage(m.chat, {
-        image: { url: bannerCategory[tagSeleccionada] },
-        caption: texto.trim(),
-        mentions: [who]
-      }, { quoted: m })
     }
 
-    // ── MENÚ PRINCIPAL CON BOTONES ──
-    const totalUsers2 = Object.keys(global.db.data.users).length
-    const caption = `╭━━⬣
-│  ✦ *SAITAMA BOT* ✦
-╰━━━━━━━━━━━━━━━━━━━━━━⬣
-│
-│  👥 Usuarios: ${totalUsers2}
-│  📦 Comandos: ${totalCmds}
-│  ⏱️ Uptime: ${uptime}
-│  👤 Usuario: @${userNum}
-│
-╭━━━━━━━━━━━━━━━━━━━━━━⬣
-│  ⚡ SAITAMA BOT
-╰━━⬣`
+    textoMenu += defaultMenu.after
+    let texto = textoMenu.replace(/%readmore/g, readMore)
 
-    // Máximo 3 botones por mensaje en Baileys
-    // Dividimos las categorías en grupos de 3
-    const categoryEntries = Object.entries(tags).filter(([key]) => {
-      return help.filter(p => p.tags?.includes(key)).length > 0
-    })
-
-    const chunks = []
-    for (let i = 0; i < categoryEntries.length; i += 3) {
-      chunks.push(categoryEntries.slice(i, i + 3))
-    }
-
-    // Primer mensaje: imagen + caption
+    // ── Enviar imagen + caption ──
     await conn.sendMessage(m.chat, {
-      image: { url: bannerCategory.main },
-      caption,
+      image: { url: bannerFinal },
+      caption: texto.trim(),
       mentions: [who]
     }, { quoted: m })
 
-    // Mensajes con botones (grupos de 3)
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i]
-      const buttons = chunk.map(([key, label]) => {
+    // ── Si es categoría específica, no enviar lista ──
+    if (tagSeleccionada) return
+
+    // ── Construir rows de la lista ──
+    const rows = Object.entries(tags)
+      .filter(([key]) => help.filter(p => p.tags?.includes(key)).length > 0)
+      .map(([key, label]) => {
         const count = help.filter(p => p.tags?.includes(key)).length
         return {
-          buttonId: `${_p}menu${key}`,
-          buttonText: {
-            displayText: `${label} (${count})`
-          },
-          type: 1
+          title: label,
+          description: `${count} comando${count !== 1 ? 's' : ''}`,
+          rowId: `${_p}menu${key}`
         }
       })
 
-      await conn.sendMessage(m.chat, {
-        text: i === 0
-          ? '📂 *Selecciona una categoría:*'
-          : '📂 *Más categorías:*',
-        footer: '⚡ SAITAMA BOT',
-        buttons,
-        headerType: 1
-      }, { quoted: m })
-    }
+    // ── Enviar listMessage ──
+    await conn.sendMessage(m.chat, {
+      text: '╭───────────────⬣\n│  📂 *CATEGORÍAS*\n╰───────────────⬣\n\nSelecciona una categoría para ver sus comandos.',
+      footer: '⚡ SAITAMA BOT',
+      title: '✦ SAITAMA BOT ✦',
+      buttonText: 'Seleccionar',
+      sections: [
+        {
+          title: '📂 CATEGORÍAS',
+          rows
+        }
+      ]
+    }, { quoted: m })
 
   } catch (e) {
     console.error('[MENU ERROR]', e)
-    await conn.sendMessage(m.chat, { text: `❌ Error en menú:\n${e.message}` }, { quoted: m })
+    await conn.sendMessage(m.chat, { text: `❌ Error:\n${e.message}` }, { quoted: m })
   }
 }
 
@@ -168,8 +165,6 @@ handler.help = ['menu']
 handler.tags = ['main']
 handler.command = /^(menu|menú|help)(rpg|group|diversion|game|gacha|serbot|owner|downloader|info|main|tools|anime)?$/i
 handler.register = false
-handler.desc = 'Muestra el menú principal'
+handler.desc = 'Muestra el menú'
 
 export default handler
-
-const more2 = String.fromCharCode(8206)
