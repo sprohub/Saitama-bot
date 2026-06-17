@@ -6,7 +6,6 @@ import { pipeline } from 'stream/promises'
 import { spawn } from 'child_process'
 import {
   generateWAMessageFromContent,
-  prepareWAMessageMedia,
   proto
 } from '@whiskeysockets/baileys'
 
@@ -60,15 +59,47 @@ async function downloadVideo(downloadUrl, outputPath) {
 async function normalizeForWhatsApp(inputPath, outputPath) {
   return new Promise((resolve, reject) => {
     const ff = spawn('ffmpeg', [
-      '-y', '-i', inputPath,
+      '-y',
+      '-i', inputPath,
       '-vf', 'scale=640:trunc(ow/a/2)*2',
-      '-c:v', 'libx264', '-b:v', '700k', '-preset', 'fast',
-      '-c:a', 'aac', '-b:a', '96k',
-      '-movflags', '+faststart', '-loglevel', 'error',
+      '-c:v', 'libx264',
+      '-profile:v', 'baseline',
+      '-level', '3.0',
+      '-b:v', '700k',
+      '-maxrate', '1000k',
+      '-bufsize', '2000k',
+      '-preset', 'fast',
+      '-c:a', 'aac',
+      '-b:a', '96k',
+      '-ar', '44100',
+      '-movflags', '+faststart',
+      '-pix_fmt', 'yuv420p',
+      '-threads', '2',
+      '-loglevel', 'error',
       outputPath
     ], { stdio: ['ignore', 'ignore', 'pipe'] })
-    ff.on('error', reject)
-    ff.on('close', code => code === 0 ? resolve() : reject(new Error('FFmpeg error')))
+    
+    let stderr = ''
+    ff.stderr.on('data', chunk => {
+      stderr += chunk.toString()
+    })
+    
+    ff.on('error', (err) => {
+      reject(new Error(`FFmpeg spawn error: ${err.message}`))
+    })
+    
+    ff.on('close', (code) => {
+      if (code === 0 && fs.existsSync(outputPath)) {
+        const stats = fs.statSync(outputPath)
+        if (stats.size > 10000) {
+          resolve()
+        } else {
+          reject(new Error('Archivo de salida demasiado pequeño o vacío'))
+        }
+      } else {
+        reject(new Error(`FFmpeg failed with code ${code}: ${stderr.slice(-500)}`))
+      }
+    })
   })
 }
 
@@ -94,23 +125,56 @@ async function sendXVideo(conn, m, videoUrl, title) {
       caption: `🔞 ${finalTitle}`
     }
 
+    // Si el video es muy grande, enviar como documento
     if (fileSize > VIDEO_AS_DOCUMENT_THRESHOLD) {
-      await conn.sendMessage(m.chat, { document: { url: `file://${rawFile}` }, ...options }, { quoted: m })
+      await conn.sendMessage(m.chat, { 
+        document: { url: `file://${rawFile}` }, 
+        ...options 
+      }, { quoted: m })
     } else {
+      // Intentar enviar como video
       try {
-        await conn.sendMessage(m.chat, { video: { url: `file://${rawFile}` }, ...options }, { quoted: m })
-      } catch {
-        await normalizeForWhatsApp(rawFile, finalFile)
-        const toSend = fs.existsSync(finalFile) ? finalFile : rawFile
-        await conn.sendMessage(m.chat, { video: { url: `file://${toSend}` }, ...options }, { quoted: m })
+        await conn.sendMessage(m.chat, { 
+          video: { url: `file://${rawFile}` }, 
+          ...options 
+        }, { quoted: m })
+      } catch (sendError) {
+        console.log('Error al enviar video crudo, normalizando...', sendError.message)
+        
+        // Normalizar el video para WhatsApp
+        try {
+          await normalizeForWhatsApp(rawFile, finalFile)
+          
+          // Verificar que el archivo normalizado existe y tiene tamaño adecuado
+          if (fs.existsSync(finalFile) && fs.statSync(finalFile).size > 10000) {
+            await conn.sendMessage(m.chat, { 
+              video: { url: `file://${finalFile}` }, 
+              ...options 
+            }, { quoted: m })
+          } else {
+            throw new Error('Archivo normalizado no válido')
+          }
+        } catch (normError) {
+          console.log('Error en normalización, enviando como documento:', normError.message)
+          // Si falla la normalización, enviar el original como documento
+          await conn.sendMessage(m.chat, { 
+            document: { url: `file://${rawFile}` }, 
+            ...options 
+          }, { quoted: m })
+        }
       }
     }
+  } catch (error) {
+    console.error('[SENDXVIDEO ERROR]', error)
+    throw error
   } finally {
+    // Limpiar archivos temporales después de 15 segundos
     setTimeout(() => {
       deleteFileSafe(rawFile)
       deleteFileSafe(finalFile)
     }, 15000)
   }
+  
   return finalTitle
 }
 
