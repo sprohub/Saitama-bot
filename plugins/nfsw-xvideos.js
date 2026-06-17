@@ -77,7 +77,7 @@ async function sendXVideo(conn, m, videoUrl, title) {
   const res = await fetch(`\( {DELIRIUS_API}/download/xvideos?url= \){encodeURIComponent(videoUrl)}`)
   const json = await res.json()
 
-  if (!json.status || !json.data?.download) throw new Error('API no devolvió enlace')
+  if (!json.status || !json.data?.download) throw new Error('API no devolvió enlace de video')
 
   const finalTitle = safeFileName(json.data.title || title)
   const rawFile = path.join(TEMP_DIR, `xv_${Date.now()}.mp4`)
@@ -99,7 +99,7 @@ async function sendXVideo(conn, m, videoUrl, title) {
     } else {
       try {
         await conn.sendMessage(m.chat, { video: { url: `file://${rawFile}` }, ...options }, { quoted: m })
-      } catch (e) {
+      } catch {
         await normalizeForWhatsApp(rawFile, finalFile)
         const toSend = fs.existsSync(finalFile) ? finalFile : rawFile
         await conn.sendMessage(m.chat, { video: { url: `file://${toSend}` }, ...options }, { quoted: m })
@@ -114,39 +114,40 @@ async function sendXVideo(conn, m, videoUrl, title) {
   return finalTitle
 }
 
-// ==================== MAIN HANDLER ====================
+// ==================== HANDLER PRINCIPAL ====================
 
 let handler = async (m, { conn, text, usedPrefix, command }) => {
   const sender = m.sender.split('@')[0]
 
   if (command.toLowerCase() === 'xvideo') {
-    if (!OWNERS.includes(sender)) return conn.sendMessage(m.chat, { text: '❌ Solo owners.' }, { quoted: m })
+    if (!OWNERS.includes(sender)) {
+      return conn.sendMessage(m.chat, { text: '❌ Solo los owners pueden usar este comando.' }, { quoted: m })
+    }
 
     const arg = text?.trim().toLowerCase()
     if (arg === 'on') {
       xvideosEnabled = true
-      return conn.sendMessage(m.chat, { text: '✅ .xvideos activado' }, { quoted: m })
+      return conn.sendMessage(m.chat, { text: '✅ Comando .xvideos activado' }, { quoted: m })
     }
     if (arg === 'off') {
       xvideosEnabled = false
-      return conn.sendMessage(m.chat, { text: '✅ .xvideos desactivado' }, { quoted: m })
+      return conn.sendMessage(m.chat, { text: '✅ Comando .xvideos desactivado' }, { quoted: m })
     }
-    return conn.sendMessage(m.chat, { text: 'Uso: .xvideo on / .xvideo off' }, { quoted: m })
+    return conn.sendMessage(m.chat, { text: 'Uso: .xvideo on\n.xvideo off' }, { quoted: m })
   }
 
   if (!xvideosEnabled) {
-    return conn.sendMessage(m.chat, { text: '❌ Comando .xvideos desactivado.' }, { quoted: m })
+    return conn.sendMessage(m.chat, { text: '❌ El comando `.xvideos` está desactivado.' }, { quoted: m })
   }
 
   const input = text?.trim()
   if (!input) {
-    return conn.sendMessage(m.chat, { text: `🔞 Uso: ${usedPrefix}xvideos <busqueda>\nEj: .xvideos rubias` }, { quoted: m })
+    return conn.sendMessage(m.chat, { text: `🔞 Uso: ${usedPrefix}xvideos <busqueda>\nEjemplo: .xvideos rubias tetonas` }, { quoted: m })
   }
 
   await m.react('🔍')
 
   try {
-    // ←←←←← ESTA ES LA LÍNEA CRÍTICA
     const res = await fetch(`\( {DELIRIUS_API}/search/xvideos?query= \){encodeURIComponent(input)}&page=0`)
     const data = await res.json()
 
@@ -159,12 +160,12 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     }))
 
     const interactiveMessage = proto.Message.InteractiveMessage.create({
-      body: { text: `🔞 *XVIDEOS*\n\n🔎 ${input}\n📋 ${rows.length} resultados` },
+      body: { text: `🔞 *XVIDEOS SEARCH*\n\n🔎 ${input}\n📋 ${rows.length} resultados` },
       nativeFlowMessage: {
         buttons: [{
           name: 'single_select',
           buttonParamsJson: JSON.stringify({
-            title: '🔥 Selecciona video',
+            title: '🔥 Selecciona un video',
             sections: [{ title: 'Resultados', rows }]
           })
         }]
@@ -181,7 +182,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   } catch (e) {
     console.error(e)
     await m.react('❌')
-    conn.sendMessage(m.chat, { text: `❌ ${e.message || 'Error'}` }, { quoted: m })
+    conn.sendMessage(m.chat, { text: `❌ ${e.message || 'Error en la búsqueda'}` }, { quoted: m })
   }
 }
 
@@ -207,15 +208,15 @@ handler.before = async (m, { conn }) => {
     videoUrl = Buffer.from(parts[1], 'base64').toString()
     title = Buffer.from(parts[2], 'base64').toString()
   } catch {
-    return conn.sendMessage(m.chat, { text: '❌ Error procesando' }, { quoted: m })
+    return conn.sendMessage(m.chat, { text: '❌ Error al procesar' }, { quoted: m })
   }
 
   await m.react('⏳')
-  await conn.sendMessage(m.chat, { text: `🔞 Descargando...\n${title}` }, { quoted: m })
+  await conn.sendMessage(m.chat, { text: `🔞 Descargando...\n📹 ${title}` }, { quoted: m })
 
   try {
     const finalTitle = await sendXVideo(conn, m, videoUrl, title)
-    await conn.sendMessage(m.chat, { text: `✅ Listo!\n🔞 ${finalTitle}` }, { quoted: m })
+    await conn.sendMessage(m.chat, { text: `✅ Descarga completada\n🔞 ${finalTitle}` }, { quoted: m })
     await m.react('✅')
   } catch (e) {
     console.error('[XVIDEOS ERROR]', e)
