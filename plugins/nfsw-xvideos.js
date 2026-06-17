@@ -14,8 +14,7 @@ const TEMP_DIR = path.join(process.cwd(), 'tmp')
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true })
 
 const DELIRIUS_API = 'https://api.delirius.store'
-const OWNERS = ['573225814649', '573225396540']
-
+const OWNERS = ['573225814649', '573225396540'].map(num => num + '@s.whatsapp.net')
 let xvideosEnabled = false
 
 const MAX_VIDEO_BYTES = 2000 * 1024 * 1024
@@ -74,7 +73,8 @@ async function normalizeForWhatsApp(inputPath, outputPath) {
 }
 
 async function sendXVideo(conn, m, videoUrl, title) {
-  const res = await fetch(`\( {DELIRIUS_API}/download/xvideos?url= \){encodeURIComponent(videoUrl)}`)
+  const downloadUrl = `${DELIRIUS_API}/download/xvideos?url=${encodeURIComponent(videoUrl)}`
+  const res = await fetch(downloadUrl)
   const json = await res.json()
 
   if (!json.status || !json.data?.download) throw new Error('API no devolvió enlace de video')
@@ -117,11 +117,12 @@ async function sendXVideo(conn, m, videoUrl, title) {
 // ==================== HANDLER PRINCIPAL ====================
 
 let handler = async (m, { conn, text, usedPrefix, command }) => {
-  const sender = m.sender.split('@')[0]
+  const sender = m.sender
 
+  // Comando para activar/desactivar (solo owners)
   if (command.toLowerCase() === 'xvideo') {
     if (!OWNERS.includes(sender)) {
-      return conn.sendMessage(m.chat, { text: '❌ Solo los owners pueden usar este comando.' }, { quoted: m })
+      return conn.sendMessage(m.chat, { text: '❌ Solo los owners pueden activar/desactivar este comando.' }, { quoted: m })
     }
 
     const arg = text?.trim().toLowerCase()
@@ -136,53 +137,57 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     return conn.sendMessage(m.chat, { text: 'Uso: .xvideo on\n.xvideo off' }, { quoted: m })
   }
 
-  if (!xvideosEnabled) {
-    return conn.sendMessage(m.chat, { text: '❌ El comando `.xvideos` está desactivado.' }, { quoted: m })
-  }
+  // Comando principal de búsqueda
+  if (command.toLowerCase() === 'xvideos') {
+    if (!xvideosEnabled) {
+      return conn.sendMessage(m.chat, { text: '❌ El comando `.xvideos` está desactivado.' }, { quoted: m })
+    }
 
-  const input = text?.trim()
-  if (!input) {
-    return conn.sendMessage(m.chat, { text: `🔞 Uso: ${usedPrefix}xvideos <busqueda>\nEjemplo: .xvideos rubias tetonas` }, { quoted: m })
-  }
+    const input = text?.trim()
+    if (!input) {
+      return conn.sendMessage(m.chat, { text: `🔞 Uso: ${usedPrefix}xvideos <busqueda>\nEjemplo: .xvideos rubias tetonas` }, { quoted: m })
+    }
 
-  await m.react('🔍')
+    await m.react('🔍')
 
-  try {
-    const res = await fetch(`\( {DELIRIUS_API}/search/xvideos?query= \){encodeURIComponent(input)}&page=0`)
-    const data = await res.json()
+    try {
+      const searchUrl = `${DELIRIUS_API}/search/xvideos?query=${encodeURIComponent(input)}&page=0`
+      const res = await fetch(searchUrl)
+      const data = await res.json()
 
-    if (!data.status || !data.data?.length) throw new Error('No se encontraron resultados')
+      if (!data.status || !data.data?.length) throw new Error('No se encontraron resultados')
 
-    const rows = data.data.slice(0, 8).map(v => ({
-      title: String(v.title || 'Sin título').slice(0, 55),
-      description: `${v.duration || '?'} • ${v.views || ''}`,
-      id: `xvsel\~\( {Buffer.from(v.url).toString('base64')}\~ \){Buffer.from(String(v.title || 'video')).toString('base64')}`
-    }))
+      const rows = data.data.slice(0, 8).map(v => ({
+        title: String(v.title || 'Sin título').slice(0, 55),
+        description: `${v.duration || '?'} • ${v.views || ''}`,
+        id: `xvsel~${Buffer.from(v.url).toString('base64')}~${Buffer.from(String(v.title || 'video')).toString('base64')}`
+      }))
 
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      body: { text: `🔞 *XVIDEOS SEARCH*\n\n🔎 ${input}\n📋 ${rows.length} resultados` },
-      nativeFlowMessage: {
-        buttons: [{
-          name: 'single_select',
-          buttonParamsJson: JSON.stringify({
-            title: '🔥 Selecciona un video',
-            sections: [{ title: 'Resultados', rows }]
-          })
-        }]
-      }
-    })
+      const interactiveMessage = proto.Message.InteractiveMessage.create({
+        body: { text: `🔞 *XVIDEOS SEARCH*\n\n🔎 ${input}\n📋 ${rows.length} resultados` },
+        nativeFlowMessage: {
+          buttons: [{
+            name: 'single_select',
+            buttonParamsJson: JSON.stringify({
+              title: '🔥 Selecciona un video',
+              sections: [{ title: 'Resultados', rows }]
+            })
+          }]
+        }
+      })
 
-    const msg = generateWAMessageFromContent(m.chat, {
-      viewOnceMessage: { message: { interactiveMessage } }
-    }, { quoted: m })
+      const msg = generateWAMessageFromContent(m.chat, {
+        viewOnceMessage: { message: { interactiveMessage } }
+      }, { quoted: m })
 
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
-    await m.react('✅')
+      await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+      await m.react('✅')
 
-  } catch (e) {
-    console.error(e)
-    await m.react('❌')
-    conn.sendMessage(m.chat, { text: `❌ ${e.message || 'Error en la búsqueda'}` }, { quoted: m })
+    } catch (e) {
+      console.error(e)
+      await m.react('❌')
+      conn.sendMessage(m.chat, { text: `❌ ${e.message || 'Error en la búsqueda'}` }, { quoted: m })
+    }
   }
 }
 
@@ -198,9 +203,9 @@ handler.before = async (m, { conn }) => {
     id = data.id || data.selectedId || data.selectedRowId
   } catch { return false }
 
-  if (!id?.startsWith('xvsel\~')) return false
+  if (!id?.startsWith('xvsel~')) return false
 
-  const parts = id.split('\~')
+  const parts = id.split('~')
   if (parts.length < 3) return true
 
   let videoUrl, title
