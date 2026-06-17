@@ -13,33 +13,32 @@ import {
 const TEMP_DIR = path.join(process.cwd(), 'tmp')
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true })
 
-const REQUEST_TIMEOUT = 120000
-const MAX_VIDEO_BYTES = 1500 * 1024 * 1024
-const VIDEO_AS_DOCUMENT_THRESHOLD = 70 * 1024 * 1024
-
 const DELIRIUS_API = 'https://api.delirius.store'
 const OWNERS = ['573225814649', '573225396540']
 
-// Estado global (puedes moverlo a global.db.data si prefieres persistencia)
-let xvideosEnabled = false
+let xvideosEnabled = false // Cambia a true si quieres que inicie activado
+
+const MAX_VIDEO_BYTES = 1500 * 1024 * 1024
+const VIDEO_AS_DOCUMENT_THRESHOLD = 70 * 1024 * 1024
+const REQUEST_TIMEOUT = 120000
 
 function safeFileName(name) {
   return String(name || 'video').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'video'
 }
 
-function isHttpUrl(v) { return /^https?:\/\//i.test(String(v || '')) }
 function deleteFileSafe(fp) {
   try { if (fp && fs.existsSync(fp)) fs.unlinkSync(fp) } catch {}
 }
 
 async function downloadVideo(downloadUrl, outputPath) {
   const response = await axios.get(downloadUrl, {
-    responseType: 'stream', timeout: REQUEST_TIMEOUT,
+    responseType: 'stream',
+    timeout: REQUEST_TIMEOUT,
     headers: { 'User-Agent': 'Mozilla/5.0' },
     validateStatus: () => true
   })
 
-  if (response.status >= 400) throw new Error('Error al descargar el video')
+  if (response.status >= 400) throw new Error('Error al descargar')
 
   let downloaded = 0
   response.data.on('data', chunk => {
@@ -55,9 +54,8 @@ async function downloadVideo(downloadUrl, outputPath) {
   }
 
   const size = fs.statSync(outputPath).size
-  if (size < 100000) throw new Error('Video inválido o vacío')
-
-  return { size }
+  if (size < 100000) throw new Error('Video inválido')
+  return size
 }
 
 async function normalizeForWhatsApp(inputPath, outputPath) {
@@ -71,13 +69,14 @@ async function normalizeForWhatsApp(inputPath, outputPath) {
       outputPath
     ], { stdio: ['ignore', 'ignore', 'pipe'] })
     ff.on('error', reject)
-    ff.on('close', code => code === 0 ? resolve(true) : reject(new Error('ffmpeg error')))
+    ff.on('close', code => code === 0 ? resolve() : reject(new Error('ffmpeg error')))
   })
 }
 
-async function sendXVideo(conn, m, videoUrl, title) {
-  const res = await fetch(`\( {DELIRIUS_API}/download/xvideos?url= \){encodeURIComponent(videoUrl)}`)
+async function sendXVideo(conn, m, url, title) {
+  const res = await fetch(`\( {DELIRIUS_API}/download/xvideos?url= \){encodeURIComponent(url)}`)
   const json = await res.json()
+
   if (!json.status || !json.data?.download) throw new Error('No se pudo obtener el video')
 
   const finalTitle = safeFileName(json.data.title || title)
@@ -86,13 +85,15 @@ async function sendXVideo(conn, m, videoUrl, title) {
 
   try {
     await downloadVideo(json.data.download, rawFile)
-    const finalName = finalTitle + '.mp4'
 
-    if (fs.statSync(rawFile).size > VIDEO_AS_DOCUMENT_THRESHOLD) {
+    const fileSize = fs.statSync(rawFile).size
+    const fileName = finalTitle + '.mp4'
+
+    if (fileSize > VIDEO_AS_DOCUMENT_THRESHOLD) {
       await conn.sendMessage(m.chat, {
         document: fs.readFileSync(rawFile),
         mimetype: 'video/mp4',
-        fileName: finalName,
+        fileName,
         caption: `🔞 ${finalTitle}`
       }, { quoted: m })
     } else {
@@ -100,16 +101,16 @@ async function sendXVideo(conn, m, videoUrl, title) {
         await conn.sendMessage(m.chat, {
           video: fs.readFileSync(rawFile),
           mimetype: 'video/mp4',
-          fileName: finalName,
+          fileName,
           caption: `🔞 ${finalTitle}`
         }, { quoted: m })
       } catch {
         await normalizeForWhatsApp(rawFile, finalFile)
-        const fileToSend = fs.existsSync(finalFile) ? finalFile : rawFile
+        const toSend = fs.existsSync(finalFile) ? finalFile : rawFile
         await conn.sendMessage(m.chat, {
-          video: fs.readFileSync(fileToSend),
+          video: fs.readFileSync(toSend),
           mimetype: 'video/mp4',
-          fileName: finalName,
+          fileName,
           caption: `🔞 ${finalTitle}`
         }, { quoted: m })
       }
@@ -121,37 +122,38 @@ async function sendXVideo(conn, m, videoUrl, title) {
   return finalTitle
 }
 
-// ==================== HANDLER PRINCIPAL ====================
+// ==================== HANDLER ====================
 
 let handler = async (m, { conn, text, usedPrefix, command }) => {
   const sender = m.sender.split('@')[0]
 
-  // Comando ON / OFF
-  if (command === 'xvideo') {
+  // .xvideo on / off
+  if (command.toLowerCase() === 'xvideo') {
     if (!OWNERS.includes(sender)) {
-      return conn.sendMessage(m.chat, { text: '❌ Solo los owners pueden activar/desactivar este comando.' }, { quoted: m })
+      return conn.sendMessage(m.chat, { text: '❌ Solo los owners pueden usar este comando.' }, { quoted: m })
     }
+
     const arg = text?.trim().toLowerCase()
     if (arg === 'on') {
       xvideosEnabled = true
-      return conn.sendMessage(m.chat, { text: '✅ Comando `.xvideos` activado correctamente.' }, { quoted: m })
+      return conn.sendMessage(m.chat, { text: '✅ XVideos activado correctamente.' }, { quoted: m })
     }
     if (arg === 'off') {
       xvideosEnabled = false
-      return conn.sendMessage(m.chat, { text: '✅ Comando `.xvideos` desactivado correctamente.' }, { quoted: m })
+      return conn.sendMessage(m.chat, { text: '✅ XVideos desactivado correctamente.' }, { quoted: m })
     }
-    return conn.sendMessage(m.chat, { text: 'Uso: .xvideo on / .xvideo off' }, { quoted: m })
+    return conn.sendMessage(m.chat, { text: '*Uso:*\n.xvideo on\n.xvideo off' }, { quoted: m })
   }
 
-  // Comando principal de búsqueda
+  // Comando principal .xvideos
   if (!xvideosEnabled) {
-    return conn.sendMessage(m.chat, { text: '❌ Comando `.xvideos` está desactivado.' }, { quoted: m })
+    return conn.sendMessage(m.chat, { text: '❌ El comando `.xvideos` está desactivado.' }, { quoted: m })
   }
 
   const input = text?.trim()
   if (!input) {
     return conn.sendMessage(m.chat, {
-      text: `╭━━⬣ *XVIDEOS DOWNLOADER* ⬣━━╮\n\n🔞 Usa: *${usedPrefix}xvideos <busqueda>*\n\nEjemplo: .xvideos rubias tetonas\n\nSolo mayores de 18 años.`
+      text: `╭━━⬣ *XVIDEOS SEARCH* ⬣━━╮\n\n🔞 .xvideos <texto>\n\nEjemplo: .xvideos rubias tetonas\n\nSolo mayores de 18 años.`
     }, { quoted: m })
   }
 
@@ -165,20 +167,20 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
     const resultados = data.data.slice(0, 8)
 
-    const rows = resultados.map((v, i) => ({
-      title: String(v.title || 'Sin título').slice(0, 45),
-      description: `⏱️ ${v.duration || '?'} | 👁️ ${v.views || 'N/A'}`,
-      id: `xvsel\~\( {Buffer.from(v.url).toString('base64')}\~ \){Buffer.from(String(v.title || 'video')).toString('base64')}`
+    const rows = resultados.map(v => ({
+      title: String(v.title || 'Sin título').slice(0, 50),
+      description: `⏱️ ${v.duration || '?'} • 👁️ ${v.views || 'N/A'}`,
+      id: `xvsel\~\( {Buffer.from(v.url).toString('base64')}\~ \){Buffer.from(String(v.title)).toString('base64')}`
     }))
 
     const interactiveMessage = proto.Message.InteractiveMessage.create({
-      body: { text: `🔞 *BÚSQUEDA XVIDEOS*\n\n📝 *${input}*\n📋 ${resultados.length} resultados` },
+      body: { text: `🔞 *XVIDEOS - RESULTADOS*\n\n🔎 ${input}\n📋 ${resultados.length} videos encontrados` },
       nativeFlowMessage: {
         buttons: [{
           name: 'single_select',
           buttonParamsJson: JSON.stringify({
-            title: '🔥 RESULTADOS',
-            sections: [{ title: 'Selecciona un video', rows }]
+            title: '🔥 Selecciona un video',
+            sections: [{ title: 'Resultados', rows }]
           })
         }]
       }
@@ -197,8 +199,6 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   }
 }
 
-// ==================== MANEJO DE INTERACCIONES ====================
-
 handler.before = async (m, { conn }) => {
   if (m.isBaileys || !xvideosEnabled) return false
 
@@ -216,28 +216,25 @@ handler.before = async (m, { conn }) => {
   const parts = id.split('\~')
   if (parts.length < 3) return true
 
-  const urlB64 = parts[1]
-  const titleB64 = parts[2]
-
   let videoUrl, title
   try {
-    videoUrl = Buffer.from(urlB64, 'base64').toString()
-    title = Buffer.from(titleB64, 'base64').toString()
+    videoUrl = Buffer.from(parts[1], 'base64').toString()
+    title = Buffer.from(parts[2], 'base64').toString()
   } catch {
-    return conn.sendMessage(m.chat, { text: '❌ Error al procesar el video.' }, { quoted: m })
+    return conn.sendMessage(m.chat, { text: '❌ Error al procesar selección' }, { quoted: m })
   }
 
   await m.react('⏳')
-  await conn.sendMessage(m.chat, { text: `🔞 *Descargando video...*\n📹 ${title}\n⏳ Espera...` }, { quoted: m })
+  await conn.sendMessage(m.chat, { text: `🔞 Descargando...\n📹 ${title}` }, { quoted: m })
 
   try {
     const finalTitle = await sendXVideo(conn, m, videoUrl, title)
-    await conn.sendMessage(m.chat, { text: `✅ *Descarga completada*\n🔞 ${finalTitle}` }, { quoted: m })
+    await conn.sendMessage(m.chat, { text: `✅ Descarga completada\n🔞 ${finalTitle}` }, { quoted: m })
     await m.react('✅')
   } catch (e) {
-    console.error('[XV ERROR]', e)
+    console.error('[XVIDEOS ERROR]', e)
     await m.react('❌')
-    await conn.sendMessage(m.chat, { text: `❌ Error al descargar: ${e.message || 'Intenta más tarde'}` }, { quoted: m })
+    await conn.sendMessage(m.chat, { text: `❌ Error: ${e.message || 'Intenta más tarde'}` }, { quoted: m })
   }
 
   return true
@@ -246,6 +243,5 @@ handler.before = async (m, { conn }) => {
 handler.help = ['xvideos']
 handler.tags = ['nsfw']
 handler.command = /^(xvideos?|xvideo)$/i
-handler.desc = 'Descarga videos de XVideos 🔞 (NSFW)'
 
 export default handler
