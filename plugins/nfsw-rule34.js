@@ -88,20 +88,34 @@ function isValidImageUrl(url) {
   return /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)
 }
 
+// ─── Números autorizados para on/off y add ────────────────────────────────────
+// Formato: número sin + ni espacios, con código de país
+const AUTHORIZED = [
+  '573225814649',
+  '573225396540'
+]
+
+/** Extrae el número limpio del JID (ej: "573225814649@s.whatsapp.net" → "573225814649") */
+function senderNumber(m) {
+  return (m.sender || m.key?.participant || '').replace(/@.+/, '')
+}
+
 // ─── Handler principal ────────────────────────────────────────────────────────
 
 let handler = async (m, { conn, args, isOwner, isAdmin }) => {
-  const chat  = m.chat          // JID del grupo o privado
-  const sub   = (args[0] || '').toLowerCase()
+  const chat      = m.chat
+  const sub       = (args[0] || '').toLowerCase()
+  const senderNum = senderNumber(m)
+  const canManage = isOwner || AUTHORIZED.includes(senderNum)
 
   const images = loadImages()
   const state  = loadState()
 
   // ── .rule34 on ──────────────────────────────────────────────────────────────
   if (sub === 'on') {
-    if (!isOwner && !isAdmin) {
+    if (!canManage) {
       return conn.sendMessage(chat, {
-        text: '╭━━⬣ *SAITAMA-BOT* ⚡\n│\n│ ❌ Solo admins o el owner\n│ pueden activar esto.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━⬣'
+        text: '╭━━⬣ *SAITAMA-BOT* ⚡\n│\n│ ❌ No tienes permiso\n│ para activar esto.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━⬣'
       }, { quoted: m })
     }
 
@@ -123,9 +137,9 @@ let handler = async (m, { conn, args, isOwner, isAdmin }) => {
 
   // ── .rule34 off ─────────────────────────────────────────────────────────────
   if (sub === 'off') {
-    if (!isOwner && !isAdmin) {
+    if (!canManage) {
       return conn.sendMessage(chat, {
-        text: '╭━━⬣ *SAITAMA-BOT* ⚡\n│\n│ ❌ Solo admins o el owner\n│ pueden desactivar esto.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━⬣'
+        text: '╭━━⬣ *SAITAMA-BOT* ⚡\n│\n│ ❌ No tienes permiso\n│ para desactivar esto.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━⬣'
       }, { quoted: m })
     }
 
@@ -144,9 +158,9 @@ let handler = async (m, { conn, args, isOwner, isAdmin }) => {
 
   // ── .rule34 add <url> ────────────────────────────────────────────────────────
   if (sub === 'add') {
-    if (!isOwner) {
+    if (!canManage) {
       return conn.sendMessage(chat, {
-        text: '╭━━⬣ *SAITAMA-BOT* ⚡\n│\n│ ❌ Solo el *owner* puede\n│ agregar imágenes.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━⬣'
+        text: '╭━━⬣ *SAITAMA-BOT* ⚡\n│\n│ ❌ No tienes permiso\n│ para agregar imágenes.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━⬣'
       }, { quoted: m })
     }
 
@@ -228,27 +242,58 @@ let handler = async (m, { conn, args, isOwner, isAdmin }) => {
 
     await m.react('⏳')
 
-    try {
+    // Intenta hasta 3 veces con imágenes distintas por si una falla
+    let intentos = 0
+    let enviado  = false
+
+    while (intentos < 3 && !enviado) {
       const imgUrl = randomImage(images)
+      try {
+        // Descargamos la imagen como buffer para evitar bloqueos del servidor
+        const res = await fetch(imgUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://rule34.us/'
+          }
+        })
 
-      await conn.sendMessage(chat, {
-        image: { url: imgUrl },
-        caption:
-          '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
-          '│\n' +
-          '│ 🔞 *Rule34*\n' +
-          `│ 📦 Pool: ${images.length} imágenes\n` +
-          '│\n' +
-          '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
-      }, { quoted: m })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
-      await m.react('✅')
+        const arrayBuf = await res.arrayBuffer()
+        const imgBuf   = Buffer.from(arrayBuf)
 
-    } catch (e) {
-      console.error('[rule34]', e)
+        // Detectar mime type por los primeros bytes
+        const header = imgBuf.slice(0, 4).toString('hex')
+        let mimetype = 'image/jpeg'
+        if (header.startsWith('89504e47')) mimetype = 'image/png'
+        else if (header.startsWith('47494638')) mimetype = 'image/gif'
+        else if (header.startsWith('52494646')) mimetype = 'image/webp'
+
+        await conn.sendMessage(chat, {
+          image: imgBuf,
+          mimetype,
+          caption:
+            '╭━━⬣ *SAITAMA-BOT* ⚡\n' +
+            '│\n' +
+            '│ 🔞 *Rule34*\n' +
+            `│ 📦 Pool: ${images.length} imágenes\n` +
+            '│\n' +
+            '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
+        }, { quoted: m })
+
+        await m.react('✅')
+        enviado = true
+
+      } catch (e) {
+        console.error(`[rule34] intento ${intentos + 1} falló:`, e.message)
+        intentos++
+      }
+    }
+
+    if (!enviado) {
       await m.react('❌')
       await conn.sendMessage(chat, {
-        text: '╭━━⬣ *SAITAMA-BOT* ⚡\n│\n│ ❌ Error al cargar la imagen.\n│ Intenta de nuevo.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━⬣'
+        text: '╭━━⬣ *SAITAMA-BOT* ⚡\n│\n│ ❌ No se pudo cargar la imagen\n│ después de 3 intentos.\n│ Intenta de nuevo.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━⬣'
       }, { quoted: m })
     }
 
@@ -268,8 +313,7 @@ let handler = async (m, { conn, args, isOwner, isAdmin }) => {
       '│ *.rule34 add <url>* → agregar imagen\n' +
       '│ *.rule34 list*      → ver total\n' +
       '│\n' +
-      '│ ⚠️ _on/off requiere ser admin_\n' +
-      '│ ⚠️ _add requiere ser owner_\n' +
+      '│ ⚠️ _on/off/add requiere ser autorizado_\n' +
       '│\n' +
       '╰━━━━━━━━━━━━━━━━━━━━━━⬣'
   }, { quoted: m })
