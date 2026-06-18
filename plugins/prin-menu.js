@@ -34,44 +34,26 @@ const bannerCategory = {
 }
 
 const defaultMenu = {
-  before:
-`⬣───────────────────────⬣
-│   ✦  *SAITAMA  BOT*  ✦
-⬣───────────────────────⬣
-│
-│  👤  @%user
-│  👥  Usuarios  —  %totalreg
-│  📦  Comandos  —  %totalcmd
-│  ⏱️  Uptime    —  %uptime
-│
-▣───────────────────────⬣
-│  *Ⓟ* = Premium
-│  *Ⓛ* = Límite de uso
-▣───────────────────────⬣
+  before: `╭───────────────⬣
+│  ✦ *SAITAMA BOT* ✦
+╰───────────────⬣
+
+▢ 👥 Usuarios: %totalreg
+▢ 📦 Comandos: %totalcmd
+▢ ⏱️ Uptime: %uptime
+▢ 👤 Usuario: @%user
 
 %readmore`,
-
-  header:
-`
-╭─────『 %category 』
-│`,
-
-  body:
-`│  ⫸ %cmd`,
-
-  desc:
-`│     ↳ _%desc_`,
-
-  sectionEnd:
-`╰──────────────────༓`,
-
+  header: '\n╭─⪼ %category (%count)\n│',
+  body: '\n│ ➳ %cmd',
+  desc: '\n│    ↳ _%desc_',
+  sectionEnd: '\n╰───────────────⬣',
   footer: '',
+  after: `
 
-  after:
-`
-⬣───────────────────────⬣
-│    ✦  *SAITAMA-BOT*  ✦
-⬣───────────────────────⬣`
+╭───────────────⬣
+│  ★ SAITAMA-BOT ★
+╰───────────────⬣`
 }
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
@@ -89,9 +71,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         help: Array.isArray(p.help) ? p.help : [p.help],
         tags: Array.isArray(p.tags) ? p.tags : [p.tags],
         prefix: 'customPrefix' in p,
-        desc: p.desc || '',
-        isPremium: p.isPremium || false,
-        isLimit: p.limit || false
+        desc: p.desc || ''
       }))
 
     let tagSeleccionada = null
@@ -105,23 +85,16 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }
     }
 
-    let bannerFinal = tagSeleccionada
-      ? bannerCategory[tagSeleccionada]
-      : bannerCategory.main
+    let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : bannerCategory.main
 
     let textoMenu = defaultMenu.before
       .replace(/%totalreg/g, Object.keys(global.db.data.users).length)
       .replace(/%totalcmd/g, Object.keys(global.plugins).length)
-      .replace(/%uptime/g,
-        Math.floor(process.uptime() / 60) + 'm ' +
-        Math.floor(process.uptime() % 60) + 's')
+      .replace(/%uptime/g, Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's')
       .replace(/%user/g, who.split('@')[0])
 
     if (tagSeleccionada) {
-      textoMenu = textoMenu.replace(
-        'SAITAMA  BOT',
-        'SAITAMA BOT  ·  ' + tags[tagSeleccionada]
-      )
+      textoMenu = textoMenu.replace('SAITAMA BOT', 'SAITAMA BOT ➳ ' + tags[tagSeleccionada].split(' ').slice(1).join(' '))
     }
 
     for (let tag of Object.keys(tags)) {
@@ -130,33 +103,16 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
 
       const cmds = cmdsFiltrados
-        .map(menu =>
-          menu.help.map(h => {
-            const badges = [
-              menu.isPremium ? '*Ⓟ*' : '',
-              menu.isLimit   ? '*Ⓛ*' : ''
-            ].filter(Boolean).join(' ')
-
-            const cmdLine = defaultMenu.body
-              .replace(/%cmd/g, menu.prefix ? h : `${_p}${h}`)
-              .replace(/%isPremium/g, menu.isPremium ? '*Ⓟ*' : '')
-              .replace(/%islimit/g,   menu.isLimit   ? '*Ⓛ*' : '')
-              .trimEnd()
-
-            const descLine = menu.desc
-              ? defaultMenu.desc.replace(/%desc/g, menu.desc)
-              : ''
-
-            return cmdLine + descLine
-          }).join('')
-        ).join('')
+        .map(menu => menu.help.map(h =>
+          defaultMenu.body.replace(/%cmd/g, menu.prefix ? h : `${_p}${h}`) +
+          (menu.desc ? defaultMenu.desc.replace(/%desc/g, menu.desc) : '')
+        ).join('')).join('')
 
       if (cmds) {
-        textoMenu += defaultMenu.header
-          .replace(/%category/g, tags[tag])
-          .replace(/%count/g, cmdsFiltrados.length)
+        let count = cmdsFiltrados.length
+        textoMenu += defaultMenu.header.replace(/%category/g, tags[tag]).replace(/%count/g, count)
         textoMenu += cmds
-        textoMenu += '\n' + defaultMenu.sectionEnd
+        textoMenu += defaultMenu.sectionEnd
       }
     }
 
