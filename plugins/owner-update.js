@@ -167,18 +167,23 @@ ${archivos}
       mentions: [who]
     }, { quoted: m })
 
-    // ── 7. Reinicio ────────────────────────────────────
+    // ── 7. Aviso de reinicio manual ─────────────────────
+    // NOTA: se quitó el process.exit(0) automático.
+    // El bot corre con "node main.js" sin gestor de procesos (PM2, etc),
+    // así que matar el proceso aquí apagaba el bot por completo
+    // sin que nada lo volviera a levantar.
+    // Los archivos ya están actualizados en disco gracias al git pull.
+    // Para aplicar los cambios en memoria, reinicia manualmente:
+    //   Ctrl + C   →   node main.js
     await conn.sendMessage(m.chat, {
-      text:
-`╭━━⬣ ✦ *SAITAMA BOT* ✦
+      text: marco('⚠️ _Reinicio manual requerido_',
+`│  ⫸ Los archivos ya se actualizaron
+│     ↳ _git pull aplicado con éxito_
 │
-│  🔄 _Reiniciando..._
-│     ↳ _Vuelvo en unos segundos_
-│
-╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+│  ⫸ Para cargar los cambios
+│     ↳ _Detén el bot (Ctrl + C)_
+│     ↳ _y vuelve a iniciarlo_`)
     }, { quoted: m })
-
-    setTimeout(() => process.exit(0), 3000)
 
   } catch (err) {
     await react(conn, m, '❌')
