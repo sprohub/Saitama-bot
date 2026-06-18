@@ -62,10 +62,7 @@ async function getPinterestData(pinUrl) {
   const apiUrl = `${DELIRIUS_API}/download/pinterestdl?url=${encodeURIComponent(pinUrl)}`
   const res = await fetch(apiUrl, { timeout: REQUEST_TIMEOUT })
   const json = await res.json()
-
   if (!json.status) throw new Error(json.message || 'No se pudo obtener el pin')
-
-  // La API puede devolver los datos en distintos niveles
   const data = json.data || json
   return data
 }
@@ -100,7 +97,6 @@ async function sendPinterestVideo(conn, m, videoUrl, caption) {
           caption
         }, { quoted: m })
       } catch {
-        // fallback: enviar como documento si falla como video
         await conn.sendMessage(m.chat, {
           document: fs.readFileSync(tmpFile),
           mimetype: 'video/mp4',
@@ -152,7 +148,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
         imageMessage: media?.imageMessage
       },
       body: {
-        text: `╭━━⬣ *SAITAMA PINTEREST* ⬣━━╮\n\n📌 🖼️ 🎬\n\n💫 » Descarga imágenes y videos de Pinterest\n\n> *Por link:*\n> ${usedPrefix}${command} https://pin.it/xxx\n\n> *Por búsqueda:*\n> ${usedPrefix}${command} paisajes anime\n\n> 💎 Cuesta 1 diamante por descarga\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+        text: `╭━━⬣ *SAITAMA PINTEREST* ⬣━━╮\n\n📌 🖼️ 🎬\n\n💫 » Descarga imágenes y videos de Pinterest\n\n> *Por link:*\n> ${usedPrefix}${command} https://pin.it/xxx\n\n> *Por búsqueda:*\n> ${usedPrefix}${command} paisajes anime\n💎 Cuesta 5 diamantes (1 por imagen)\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
       },
       footer: { text: '⫏ SAITAMA BOT ' },
       nativeFlowMessage: {
@@ -199,7 +195,6 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     try {
       const data = await getPinterestData(input)
 
-      // Detectar si es video o imagen
       const videoUrl = data.video || data.videoUrl || data.video_url || null
       const imageUrl = data.image || data.imageUrl || data.image_url || data.thumbnail || null
       const title    = data.title || data.description || 'Pinterest'
@@ -224,74 +219,73 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     return
   }
 
-  // Es texto → buscar en Pinterest
+  // ─── Es texto → buscar y enviar 5 imágenes una por una ───────────────────
   const diamantes = getDiamantes(user)
-  if (diamantes < 1) {
+  if (diamantes < 5) {
     return conn.sendMessage(m.chat, {
-      text: `╭━━⬣ *SAITAMA PINTEREST* ⬣━━╮\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 1 | Tienes: ${diamantes}\n\n> Usa #work para ganar\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+      text: `╭━━⬣ *SAITAMA PINTEREST* ⬣━━╮\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 5 | Tienes: ${diamantes}\n\n> Usa #work para ganar\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
     }, { quoted: m })
   }
 
   await m.react('🔍')
+  await conn.sendMessage(m.chat, { text: `🔍 *Buscando:* ${input}\n⏳ Enviando 5 imágenes...` }, { quoted: m })
 
   try {
     const resultados = await searchPinterest(input)
 
-    // Filtrar resultados que tengan imagen
-    const validos = resultados.filter(r => r.image || r.imageUrl || r.image_url || r.thumbnail || r.url)
+    const validos = resultados
+      .filter(r => {
+        const imgUrl = r.image || r.imageUrl || r.image_url || r.thumbnail || r.url
+        const isVideo = !!(r.video || r.videoUrl || r.video_url)
+        return imgUrl && !isVideo
+      })
+      .slice(0, 5)
 
-    if (!validos.length) throw new Error('No se encontraron resultados con imagen')
+    if (!validos.length) throw new Error('No se encontraron imágenes válidas')
 
-    let media = null
-    const primerImg = validos[0]?.image || validos[0]?.imageUrl || validos[0]?.thumbnail || validos[0]?.url
-    if (primerImg) {
-      try { media = await prepareWAMessageMedia({ image: { url: primerImg } }, { upload: conn.waUploadToServer }) } catch {}
+    let enviadas = 0
+    let errores  = 0
+
+    for (let i = 0; i < validos.length; i++) {
+      const r      = validos[i]
+      const imgUrl = r.image || r.imageUrl || r.image_url || r.thumbnail || r.url
+      const pinUrl = r.pin   || r.pinUrl   || r.link      || r.url       || imgUrl
+      const desc   = String(r.title || r.description || '').slice(0, 80)
+
+      // Intentar obtener HD desde el pin original
+      let finalUrl = imgUrl
+      if (pinUrl && isPinterestUrl(pinUrl)) {
+        try {
+          const data = await getPinterestData(pinUrl)
+          finalUrl = data.image || data.imageUrl || data.image_url || imgUrl
+        } catch { /* usar imgUrl como fallback */ }
+      }
+
+      restarDiamante(user)
+      const restantes = getDiamantes(user)
+
+      const caption = `📌 *Pinterest* [${i + 1}/5]\n${desc ? `💬 ${desc}\n` : ''}💎 Diamantes restantes: ${restantes}`
+
+      try {
+        await sendPinterestImage(conn, m, finalUrl, caption)
+        enviadas++
+      } catch (e) {
+        devolverDiamante(user, getDiamantes(user) + 1)
+        errores++
+        console.error(`[PINTEREST] Error imagen ${i + 1}:`, e.message)
+      }
+
+      // Pausa entre envíos
+      if (i < validos.length - 1) await new Promise(res => setTimeout(res, 800))
     }
 
-    const rows = validos.slice(0, 8).map((r, i) => {
-      const imgUrl   = r.image || r.imageUrl || r.image_url || r.thumbnail || r.url || ''
-      const pinUrl   = r.pin || r.pinUrl || r.link || r.url || imgUrl
-      const isVideo  = !!(r.video || r.videoUrl || r.video_url)
-      const desc     = String(r.title || r.description || `Resultado ${i + 1}`).slice(0, 40)
-      const id = `ptsdl~${Buffer.from(pinUrl).toString('base64')}~${Buffer.from(imgUrl).toString('base64')}~${isVideo ? '1' : '0'}`
+    if (enviadas === 0) throw new Error('No se pudo enviar ninguna imagen')
 
-      return {
-        header: isVideo ? '🎬 VIDEO' : '🖼️ IMAGEN',
-        title: desc,
-        description: isVideo ? '📹 Contiene video' : '🖼️ Imagen',
-        id
-      }
-    })
-
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: {
-        title: 'SAITAMA BOT - PINTEREST',
-        subtitle: `Resultados: ${input}`,
-        hasMediaAttachment: !!media,
-        imageMessage: media?.imageMessage
-      },
-      body: {
-        text: `╭━━⬣ *RESULTADOS PINTEREST* ⬣━━╮\n\n📌\n\n💫 » Búsqueda: *${input}*\n📋 ${rows.length} resultados encontrados\n\n> Elige el que deseas descargar\n> 💎 1 diamante\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
-      },
-      footer: { text: '⫏⫏ SAITAMA BOT ' },
-      nativeFlowMessage: {
-        buttons: [{
-          name: 'single_select',
-          buttonParamsJson: JSON.stringify({
-            title: '📌 RESULTADOS',
-            sections: [{ title: `📋 ${input.toUpperCase().slice(0, 24)}`, rows }]
-          })
-        }]
-      }
-    })
-
-    const msg = generateWAMessageFromContent(
-      m.chat,
-      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
-      { quoted: m }
-    )
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
     await m.react('✅')
+    await conn.sendMessage(m.chat, {
+      text: `✅ *Listo!* Enviadas ${enviadas}/5 imágenes${errores ? ` (${errores} fallaron)` : ''}`
+    }, { quoted: m })
+
   } catch (e) {
     await m.react('❌')
     await conn.sendMessage(m.chat, { text: `❌ ${e.message}` }, { quoted: m })
@@ -318,13 +312,11 @@ handler.before = async (m, { conn }) => {
 
   if (!id) return false
 
-  // Botón de info
   if (id === 'ptsinfo') {
     await conn.sendMessage(m.chat, { text: '🔍 Escribe el tema así:\n> .pts paisajes anime\n> .pts aesthetic wallpapers' }, { quoted: m })
     return true
   }
 
-  // Selección de resultado
   if (id.startsWith('ptsdl~')) {
     const parts = id.split('~')
     if (parts.length < 4) {
@@ -332,9 +324,9 @@ handler.before = async (m, { conn }) => {
       return true
     }
 
-    const pinB64   = parts[1]
-    const imgB64   = parts[2]
-    const isVideo  = parts[3] === '1'
+    const pinB64  = parts[1]
+    const imgB64  = parts[2]
+    const isVideo = parts[3] === '1'
 
     let pinUrl, imgUrl
     try {
@@ -370,23 +362,19 @@ handler.before = async (m, { conn }) => {
 
     try {
       if (isVideo && pinUrl) {
-        // Intentar obtener el video real del pin
         try {
           const data = await getPinterestData(pinUrl)
           const videoUrl = data.video || data.videoUrl || data.video_url || null
           if (videoUrl) {
             await sendPinterestVideo(conn, m, videoUrl, caption)
           } else {
-            // fallback: enviar imagen si no hay video
             const fallbackImg = data.image || data.imageUrl || imgUrl
             await sendPinterestImage(conn, m, fallbackImg, caption)
           }
         } catch {
-          // fallback directo con la imagen del resultado
           await sendPinterestImage(conn, m, imgUrl, caption)
         }
       } else {
-        // Es imagen: intentar obtener mejor resolución desde pin
         if (pinUrl && isPinterestUrl(pinUrl)) {
           try {
             const data = await getPinterestData(pinUrl)
@@ -417,6 +405,6 @@ handler.before = async (m, { conn }) => {
 handler.help    = ['pts', 'pinterest']
 handler.tags    = ['tools']
 handler.command = /^(pts|pinterest|pin)$/i
-handler.desc    = 'Descarga imágenes y videos de Pinterest 💎1'
+handler.desc    = 'Descarga imágenes y videos de Pinterest 💎5'
 
 export default handler
