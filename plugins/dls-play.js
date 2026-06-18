@@ -52,16 +52,6 @@ async function readStreamToText(stream) {
   })
 }
 
-function getDiamantes(user) { return user?.diamantes ?? user?.diamond ?? 0 }
-function restarDiamante(user) {
-  if (user.diamantes !== undefined) user.diamantes = (user.diamantes || 0) - 1
-  else user.diamond = (user.diamond || 0) - 1
-}
-function devolverDiamante(user, anterior) {
-  if (user.diamantes !== undefined) user.diamantes = anterior
-  else user.diamond = anterior
-}
-
 async function downloadVideo(downloadUrl, outputPath) {
   const response = await axios.get(downloadUrl, {
     responseType: 'stream', timeout: REQUEST_TIMEOUT,
@@ -167,9 +157,6 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   _processing.add(msgKey)
   setTimeout(() => _processing.delete(msgKey), 15000)
 
-  let user = global.db.data.users[m.sender]
-  if (!user) { global.db.data.users[m.sender] = { diamantes: 0, diamond: 0 }; user = global.db.data.users[m.sender] }
-
   const input = text?.trim()
 
   if (!input) {
@@ -178,7 +165,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: 'Descarga música y videos', hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
-      body: { text: `╭━━⬣ *SAITAMA YOUTUBE* ⬣━━╮\n\n🎬 🎵\n\n💫 » Descarga audio o video de YouTube\n\n> ${usedPrefix}${command} <nombre o link>\n> Ejemplo: ${usedPrefix}${command} Naruto Opening 1\n> 💎 Cuesta 1 diamante por descarga\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` },
+      body: { text: `╭━━⬣ *SAITAMA YOUTUBE* ⬣━━╮\n\n🎬 🎵\n\n💫 » Descarga audio o video de YouTube\n\n> ${usedPrefix}${command} <nombre o link>\n> Ejemplo: ${usedPrefix}${command} Naruto Opening 1\n> ✅ ¡Completamente gratis!\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` },
       footer: { text: '⫏ SAITAMA BOT ' },
       nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '🎬 YOUTUBE', sections: [{ title: '¿Qué deseas hacer?', rows: [{ header: '🔍 BUSCAR', title: 'Buscar música o video', description: 'Escribe el nombre después del comando', id: 'ytinfo' }] }] }) }] }
     })
@@ -188,13 +175,6 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
   if (isHttpUrl(input) && !extractYouTubeUrl(input)) {
     return conn.sendMessage(m.chat, { text: '❌ Envía un link válido de YouTube.' }, { quoted: m })
-  }
-
-  const diamantes = getDiamantes(user)
-  if (diamantes < 1) {
-    return conn.sendMessage(m.chat, {
-      text: `╭━━⬣ *SAITAMA YOUTUBE* ⬣━━╮\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 1 | Tienes: ${diamantes}\n\n> Usa #work para ganar\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
-    }, { quoted: m })
   }
 
   await m.react('🔍')
@@ -226,7 +206,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: `Resultados: ${input}`, hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
-      body: { text: `╭━━⬣ *RESULTADOS* ⬣━━╮\n\n🔍\n\n💫 » Búsqueda: *${input}*\n📋 ${resultados.length} resultados encontrados\n\n> Elige el que quieras descargar\n> 💎 1 diamante\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` },
+      body: { text: `╭━━⬣ *RESULTADOS* ⬣━━╮\n\n🔍\n\n💫 » Búsqueda: *${input}*\n📋 ${resultados.length} resultados encontrados\n\n> Elige el que quieras descargar\n> ✅ ¡Gratis!\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` },
       footer: { text: '⫏⫏ SAITAMA BOT ' },
       nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '🎵 RESULTADOS', sections: [{ title: `📋 ${input.toUpperCase().slice(0, 24)}`, rows }] }) }] }
     })
@@ -246,11 +226,11 @@ async function _mostrarSelectorFormato(conn, m, urlB64, titleB64, title, thumbna
   }
   const interactiveMessage = proto.Message.InteractiveMessage.create({
     header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: String(title || '').slice(0, 60), hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
-    body: { text: `╭━━⬣ *SAITAMA YOUTUBE* ⬣━━╮\n\n🎬 🎵\n\n💫 » *${String(title || '').slice(0, 60)}*\n\n> ¿Cómo deseas descargarlo?\n> 💎 1 diamante\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` },
+    body: { text: `╭━━⬣ *SAITAMA YOUTUBE* ⬣━━╮\n\n🎬 🎵\n\n💫 » *${String(title || '').slice(0, 60)}*\n\n> ¿Cómo deseas descargarlo?\n> ✅ ¡Completamente gratis!\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` },
     footer: { text: '⫏⫏ SAITAMA BOT ✿' },
     nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '📥 FORMATO', sections: [{ title: '¿Qué deseas descargar?', rows: [
-      { header: '🎵 AUDIO', title: 'Descargar música (MP3)', description: '🎧 Alta calidad | 💎 1 diamante', id: `ytdl~audio~${urlB64}~${titleB64}` },
-      { header: '🎬 VIDEO', title: 'Descargar video (MP4)', description: `📹 ${VIDEO_QUALITY} | 💎 1 diamante`, id: `ytdl~video~${urlB64}~${titleB64}` }
+      { header: '🎵 AUDIO', title: 'Descargar música (MP3)', description: '🎧 Alta calidad | ✅ Gratis', id: `ytdl~audio~${urlB64}~${titleB64}` },
+      { header: '🎬 VIDEO', title: 'Descargar video (MP4)', description: `📹 ${VIDEO_QUALITY} | ✅ Gratis`, id: `ytdl~video~${urlB64}~${titleB64}` }
     ] }] }) }] }
   })
   const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
@@ -312,25 +292,11 @@ handler.before = async (m, { conn }) => {
       return true
     }
 
-    let user = global.db.data.users[m.sender]
-    if (!user) { global.db.data.users[m.sender] = { diamantes: 0, diamond: 0 }; user = global.db.data.users[m.sender] }
-
-    const diamantes = getDiamantes(user)
-    if (diamantes < 1) {
-      await conn.sendMessage(m.chat, {
-        text: `╭━━⬣ *SAITAMA YOUTUBE* ⬣━━╮\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 1 | Tienes: ${diamantes}\n\n> Usa #work para ganar\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
-      }, { quoted: m })
-      return true
-    }
-
-    restarDiamante(user)
-    const restantes = getDiamantes(user)
-
     await m.react('⏳')
     await conn.sendMessage(m.chat, {
       text: tipo === 'audio'
-        ? `🎵 *Descargando audio...*\n🎧 ${title}\n💎 -1 diamante\n⏳ Espera un momento...`
-        : `🎬 *Descargando video...*\n📹 ${title} (${VIDEO_QUALITY})\n💎 -1 diamante\n⏳ Espera un momento...`
+        ? `🎵 *Descargando audio...*\n🎧 ${title}\n⏳ Espera un momento...`
+        : `🎬 *Descargando video...*\n📹 ${title} (${VIDEO_QUALITY})\n⏳ Espera un momento...`
     }, { quoted: m })
 
     try {
@@ -339,17 +305,16 @@ handler.before = async (m, { conn }) => {
       else finalTitle = await sendVideo(conn, m, videoUrl, title)
 
       await conn.sendMessage(m.chat, {
-        text: `✅ *Descarga completada*\n\n${tipo === 'audio' ? '🎵' : '🎬'} » ${finalTitle || title}\n💎 » Diamantes restantes: ${restantes}`
+        text: `✅ *Descarga completada*\n\n${tipo === 'audio' ? '🎵' : '🎬'} » ${finalTitle || title}`
       }, { quoted: m })
       await m.react('✅')
     } catch (e) {
-      devolverDiamante(user, diamantes)
       console.error('[YT ERROR]', e.message)
       await m.react('❌')
       const rawMsg = String(e?.message || '').toLowerCase()
       const humanMsg = (rawMsg.includes('502') || rawMsg.includes('503') || rawMsg.includes('bad gateway'))
-        ? '⚠️ El servidor está saturado.\n🔁 Intenta más tarde.\n💎 Diamante devuelto.'
-        : `❌ ${e.message || 'Error al descargar.'}\n💎 Diamante devuelto.`
+        ? '⚠️ El servidor está saturado.\n🔁 Intenta más tarde.'
+        : `❌ ${e.message || 'Error al descargar.'}`
       await conn.sendMessage(m.chat, { text: humanMsg }, { quoted: m })
     }
     return true
@@ -361,6 +326,6 @@ handler.before = async (m, { conn }) => {
 handler.help    = ['yt', 'play', 'video']
 handler.tags    = ['downloader']
 handler.command = /^(yt|ytmp3|ytmp4|video|mp3|song|play|musica|cancion|youtube)$/i
-handler.desc    = 'Descarga audio o video de YouTube 💎1'
+handler.desc    = 'Descarga audio o video de YouTube gratis'
 
 export default handler
