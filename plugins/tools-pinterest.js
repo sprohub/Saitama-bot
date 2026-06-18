@@ -27,16 +27,6 @@ function deleteFileSafe(fp) {
   try { if (fp && fs.existsSync(fp)) fs.unlinkSync(fp) } catch {}
 }
 
-function getDiamantes(user) { return user?.diamantes ?? user?.diamond ?? 0 }
-function restarDiamante(user) {
-  if (user.diamantes !== undefined) user.diamantes = (user.diamantes || 0) - 1
-  else user.diamond = (user.diamond || 0) - 1
-}
-function devolverDiamante(user, anterior) {
-  if (user.diamantes !== undefined) user.diamantes = anterior
-  else user.diamond = anterior
-}
-
 async function downloadFile(url, outputPath) {
   const response = await axios.get(url, {
     responseType: 'stream', timeout: REQUEST_TIMEOUT,
@@ -125,9 +115,6 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   _processing.add(msgKey)
   setTimeout(() => _processing.delete(msgKey), 15000)
 
-  let user = global.db.data.users[m.sender]
-  if (!user) { global.db.data.users[m.sender] = { diamantes: 0, diamond: 0 }; user = global.db.data.users[m.sender] }
-
   const input = text?.trim()
 
   // Sin argumento → menú
@@ -148,7 +135,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
         imageMessage: media?.imageMessage
       },
       body: {
-        text: `╭━━⬣ *SAITAMA PINTEREST* ⬣━━╮\n\n📌 🖼️ 🎬\n\n💫 » Descarga imágenes y videos de Pinterest\n\n> *Por link:*\n> ${usedPrefix}${command} https://pin.it/xxx\n\n> *Por búsqueda:*\n> ${usedPrefix}${command} paisajes anime\n💎 Cuesta 5 diamantes (1 por imagen)\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
+        text: `╭━━⬣ *SAITAMA PINTEREST* ⬣━━╮\n\n📌 🖼️ 🎬\n\n💫 » Descarga imágenes y videos de Pinterest\n\n> *Por link:*\n> ${usedPrefix}${command} https://pin.it/xxx\n\n> *Por búsqueda:*\n> ${usedPrefix}${command} paisajes anime\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
       },
       footer: { text: '⫏ SAITAMA BOT ' },
       nativeFlowMessage: {
@@ -173,21 +160,11 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     return conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
   }
 
-  // Es un link de Pinterest → descargar directo
+  // Es un link de Pinterest → descargar directo (gratis)
   if (isHttpUrl(input)) {
     if (!isPinterestUrl(input)) {
       return conn.sendMessage(m.chat, { text: '❌ Envía un link válido de Pinterest.\n> Ejemplo: https://pin.it/xxx' }, { quoted: m })
     }
-
-    const diamantes = getDiamantes(user)
-    if (diamantes < 1) {
-      return conn.sendMessage(m.chat, {
-        text: `╭━━⬣ *SAITAMA PINTEREST* ⬣━━╮\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 1 | Tienes: ${diamantes}\n\n> Usa #work para ganar\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
-      }, { quoted: m })
-    }
-
-    restarDiamante(user)
-    const restantes = getDiamantes(user)
 
     await m.react('⏳')
     await conn.sendMessage(m.chat, { text: '📌 *Obteniendo pin...*\n⏳ Espera un momento...' }, { quoted: m })
@@ -197,9 +174,9 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
       const videoUrl = data.video || data.videoUrl || data.video_url || null
       const imageUrl = data.image || data.imageUrl || data.image_url || data.thumbnail || null
-      const title    = data.title || data.description || 'Pinterest'
+      const title    = data.title || data.description || ''
 
-      const caption = `📌 *Pinterest*\n${title ? `💬 ${String(title).slice(0, 100)}` : ''}\n💎 Diamantes restantes: ${restantes}`
+      const caption = title ? `💬 ${String(title).slice(0, 100)}` : ''
 
       if (videoUrl) {
         await conn.sendMessage(m.chat, { text: '🎬 *Descargando video...*' }, { quoted: m })
@@ -212,23 +189,15 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
       await m.react('✅')
     } catch (e) {
-      devolverDiamante(user, getDiamantes(user) + 1)
       await m.react('❌')
-      await conn.sendMessage(m.chat, { text: `❌ ${e.message || 'Error al descargar.'}\n💎 Diamante devuelto.` }, { quoted: m })
+      await conn.sendMessage(m.chat, { text: `❌ ${e.message || 'Error al descargar.'}` }, { quoted: m })
     }
     return
   }
 
-  // ─── Es texto → buscar y enviar 5 imágenes una por una ───────────────────
-  const diamantes = getDiamantes(user)
-  if (diamantes < 5) {
-    return conn.sendMessage(m.chat, {
-      text: `╭━━⬣ *SAITAMA PINTEREST* ⬣━━╮\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 5 | Tienes: ${diamantes}\n\n> Usa #work para ganar\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
-    }, { quoted: m })
-  }
-
+  // ─── Es texto → buscar y enviar 5 imágenes una por una (gratis) ──────────
   await m.react('🔍')
-  await conn.sendMessage(m.chat, { text: `🔍 *Buscando:* ${input}\n⏳ Enviando 5 imágenes...` }, { quoted: m })
+  await conn.sendMessage(m.chat, { text: `🔍 *Buscando:* ${input}\n⏳ Enviando imágenes...` }, { quoted: m })
 
   try {
     const resultados = await searchPinterest(input)
@@ -245,12 +214,12 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
     let enviadas = 0
     let errores  = 0
+    const total = validos.length
 
     for (let i = 0; i < validos.length; i++) {
       const r      = validos[i]
       const imgUrl = r.image || r.imageUrl || r.image_url || r.thumbnail || r.url
       const pinUrl = r.pin   || r.pinUrl   || r.link      || r.url       || imgUrl
-      const desc   = String(r.title || r.description || '').slice(0, 80)
 
       // Intentar obtener HD desde el pin original
       let finalUrl = imgUrl
@@ -258,24 +227,20 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
         try {
           const data = await getPinterestData(pinUrl)
           finalUrl = data.image || data.imageUrl || data.image_url || imgUrl
-        } catch { /* usar imgUrl como fallback */ }
+        } catch {}
       }
 
-      restarDiamante(user)
-      const restantes = getDiamantes(user)
-
-      const caption = `📌 *Pinterest* [${i + 1}/5]\n${desc ? `💬 ${desc}\n` : ''}💎 Diamantes restantes: ${restantes}`
+      // Caption solo con el contador
+      const caption = `[${i + 1}/${total}]`
 
       try {
         await sendPinterestImage(conn, m, finalUrl, caption)
         enviadas++
       } catch (e) {
-        devolverDiamante(user, getDiamantes(user) + 1)
         errores++
         console.error(`[PINTEREST] Error imagen ${i + 1}:`, e.message)
       }
 
-      // Pausa entre envíos
       if (i < validos.length - 1) await new Promise(res => setTimeout(res, 800))
     }
 
@@ -283,7 +248,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
     await m.react('✅')
     await conn.sendMessage(m.chat, {
-      text: `✅ *Listo!* Enviadas ${enviadas}/5 imágenes${errores ? ` (${errores} fallaron)` : ''}`
+      text: `✅ *Listo!* ${enviadas}/${total} imágenes enviadas${errores ? ` (${errores} fallaron)` : ''}`
     }, { quoted: m })
 
   } catch (e) {
@@ -292,7 +257,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   }
 }
 
-// ─── HANDLER BEFORE (respuesta a botones) ───────────────────────────────────
+// ─── HANDLER BEFORE (botón de info del menú) ─────────────────────────────────
 handler.before = async (m, { conn }) => {
   if (m.isBaileys) return false
 
@@ -317,94 +282,12 @@ handler.before = async (m, { conn }) => {
     return true
   }
 
-  if (id.startsWith('ptsdl~')) {
-    const parts = id.split('~')
-    if (parts.length < 4) {
-      await conn.sendMessage(m.chat, { text: '❌ Error al procesar la selección.' }, { quoted: m })
-      return true
-    }
-
-    const pinB64  = parts[1]
-    const imgB64  = parts[2]
-    const isVideo = parts[3] === '1'
-
-    let pinUrl, imgUrl
-    try {
-      pinUrl = Buffer.from(pinB64, 'base64').toString()
-      imgUrl = Buffer.from(imgB64, 'base64').toString()
-    } catch {
-      await conn.sendMessage(m.chat, { text: '❌ Error al procesar la selección.' }, { quoted: m })
-      return true
-    }
-
-    let user = global.db.data.users[m.sender]
-    if (!user) { global.db.data.users[m.sender] = { diamantes: 0, diamond: 0 }; user = global.db.data.users[m.sender] }
-
-    const diamantes = getDiamantes(user)
-    if (diamantes < 1) {
-      await conn.sendMessage(m.chat, {
-        text: `╭━━⬣ *SAITAMA PINTEREST* ⬣━━╮\n\n💫 » No tienes suficientes diamantes\n💎 Necesitas: 1 | Tienes: ${diamantes}\n\n> Usa #work para ganar\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
-      }, { quoted: m })
-      return true
-    }
-
-    restarDiamante(user)
-    const restantes = getDiamantes(user)
-
-    await m.react('⏳')
-    await conn.sendMessage(m.chat, {
-      text: isVideo
-        ? `🎬 *Descargando video de Pinterest...*\n💎 -1 diamante | ⏳ Espera...`
-        : `🖼️ *Descargando imagen de Pinterest...*\n💎 -1 diamante | ⏳ Espera...`
-    }, { quoted: m })
-
-    const caption = `📌 *Pinterest*\n💎 Diamantes restantes: ${restantes}`
-
-    try {
-      if (isVideo && pinUrl) {
-        try {
-          const data = await getPinterestData(pinUrl)
-          const videoUrl = data.video || data.videoUrl || data.video_url || null
-          if (videoUrl) {
-            await sendPinterestVideo(conn, m, videoUrl, caption)
-          } else {
-            const fallbackImg = data.image || data.imageUrl || imgUrl
-            await sendPinterestImage(conn, m, fallbackImg, caption)
-          }
-        } catch {
-          await sendPinterestImage(conn, m, imgUrl, caption)
-        }
-      } else {
-        if (pinUrl && isPinterestUrl(pinUrl)) {
-          try {
-            const data = await getPinterestData(pinUrl)
-            const hdImg = data.image || data.imageUrl || data.image_url || imgUrl
-            await sendPinterestImage(conn, m, hdImg, caption)
-          } catch {
-            await sendPinterestImage(conn, m, imgUrl, caption)
-          }
-        } else {
-          await sendPinterestImage(conn, m, imgUrl, caption)
-        }
-      }
-
-      await m.react('✅')
-    } catch (e) {
-      devolverDiamante(user, diamantes)
-      await m.react('❌')
-      console.error('[PINTEREST ERROR]', e.message)
-      await conn.sendMessage(m.chat, { text: `❌ ${e.message || 'Error al descargar.'}\n💎 Diamante devuelto.` }, { quoted: m })
-    }
-
-    return true
-  }
-
   return false
 }
 
 handler.help    = ['pts', 'pinterest']
 handler.tags    = ['tools']
 handler.command = /^(pts|pinterest|pin)$/i
-handler.desc    = 'Descarga imágenes y videos de Pinterest 💎5'
+handler.desc    = 'Descarga imágenes y videos de Pinterest'
 
 export default handler
