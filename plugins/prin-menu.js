@@ -38,6 +38,9 @@ const bannerCategory = {
   anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
 }
 
+// Icono genérico por comando (puedes personalizar por tag si quieres iconos distintos por categoría)
+const cmdIcon = '🔹'
+
 // Texto principal del body (se muestra encima del botón de lista)
 function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
   let titulo = tagSeleccionada
@@ -45,17 +48,19 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
     : 'SAITAMA BOT'
 
   return (
-    `╭━━━━━━━━━━━━━━━⬣\n` +
-    `🌸 ✦ *${titulo}* ✦ 🌸\n` +
-    `⬣━━━━━━━━━━━━━━━╯\n\n` +
-    `🍀 👥 Usuarios: *${totalreg}*\n` +
-    `⚡ 📦 Comandos: *${totalcmd}*\n` +
-    `🚀 ⏱️ Uptime: *${uptime}*\n` +
-    `💮 👤 Usuario: @${user}\n\n` +
-    `╭───────────────⬣\n` +
-    `│ 🦆 *¡Hola!* Elige una categoría\n` +
-    `│ 🌸 y explora todos los comandos\n` +
-    `╰───────────────⬣\n\n` +
+    `╭━━━━━━━━━━━━━━━━━━━━━━⬣\n` +
+    `   🌸 ✦ *${titulo}* ✦ 🌸\n` +
+    `╰━━━━━━━━━━━━━━━━━━━━━━⬣\n\n` +
+    `┌─⬣ 📊 *ESTADÍSTICAS*\n` +
+    `│ 👥 Usuarios  : *${totalreg}*\n` +
+    `│ 📦 Comandos  : *${totalcmd}*\n` +
+    `│ ⏱️ Uptime    : *${uptime}*\n` +
+    `│ 👤 Usuario   : @${user}\n` +
+    `└────────────────⬣\n\n` +
+    `╭━━━━━━━━━━━━━━━━━━━━━━⬣\n` +
+    `   🦆 *¡Hola!* Elige una categoría\n` +
+    `   🌸 y explora todos los comandos\n` +
+    `╰━━━━━━━━━━━━━━━━━━━━━━⬣\n\n` +
     `> ⚡ Toca el botón de abajo ⬇️`
   )
 }
@@ -71,16 +76,19 @@ function buildSections(help, usedPrefix, tagSeleccionada) {
     if (!cmdsFiltrados.length) continue
 
     const rows = cmdsFiltrados.flatMap(menu =>
-      menu.help.map(h => ({
-        header: tags[tag],
-        title: menu.prefix ? h : `${usedPrefix}${h}`,
-        description: menu.desc ? menu.desc.slice(0, 72) : 'Sin descripción',
-        id: `menu_cmd~${tag}~${menu.prefix ? h : `${usedPrefix}${h}`}`
-      }))
+      menu.help.map(h => {
+        const cmdFinal = menu.prefix ? h : `${usedPrefix}${h}`
+        return {
+          // Sin header repetido por fila: el nombre de categoría ya está en el título de la sección
+          title: `${cmdIcon} ${cmdFinal}`,
+          description: menu.desc ? menu.desc.slice(0, 72) : 'Sin descripción',
+          id: `menu_cmd~${tag}~${cmdFinal}`
+        }
+      })
     )
 
     sections.push({
-      title: `${tags[tag]} (${cmdsFiltrados.length})`,
+      title: `${tags[tag]} • ${cmdsFiltrados.length} comandos`,
       rows: rows.slice(0, 10) // WhatsApp permite max 10 rows por sección
     })
   }
@@ -140,7 +148,11 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
     // Si no hay secciones (categoría vacía)
     if (!sections.length) {
       return conn.sendMessage(m.chat, {
-        text: `🦆 *Ups...* No se encontraron comandos para esa categoría. 🌸`
+        text:
+          `╭━━━━━━━━━━━━━━━━━━━━━━⬣\n` +
+          `   🦆 *Ups...*\n` +
+          `╰━━━━━━━━━━━━━━━━━━━━━━⬣\n\n` +
+          `🌸 No se encontraron comandos para esa categoría.`
       }, { quoted: m })
     }
 
@@ -153,7 +165,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
     // Botón principal: si hay una sola categoría, su sección; si es menú general, todas
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: {
-        title: 'SAITAMA BOT',
+        title: '🌸 SAITAMA BOT 🌸',
         subtitle: subtitleText,
         hasMediaAttachment: !!media,
         imageMessage: media?.imageMessage
@@ -162,7 +174,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         text: bodyText
       },
       footer: {
-        text: '🌸 SAITAMA BOT 🍀 ⚡ v1.0'
+        text: '🦆 SAITAMA BOT • v1.0 ⚡'
       },
       nativeFlowMessage: {
         buttons: [
@@ -198,7 +210,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
   }
 }
 
-// Responder cuando el usuario selecciona un comando del menú
+// Al seleccionar un comando del menú, solo se envía el texto ".comando" al chat
 handler.before = async (m, { conn, usedPrefix }) => {
   if (m.isBaileys) return false
 
@@ -215,12 +227,11 @@ handler.before = async (m, { conn, usedPrefix }) => {
 
   const parts = id.split('~')
   // parts[0] = 'menu_cmd', parts[1] = tag, parts[2] = cmd
-  const tag = parts[1] || ''
   const cmd = parts[2] || ''
 
-  await conn.sendMessage(m.chat, {
-    text: `╭━━━━━━━━━━━━━━━⬣\n🌸 ${tags[tag] || '📌'} • *${cmd}*\n⬣━━━━━━━━━━━━━━━╯\n\n⚡ Usa *${cmd}* para ejecutar este comando.\n💮 ¡Buena suerte! 🍀`
-  }, { quoted: m })
+  if (cmd) {
+    await conn.sendMessage(m.chat, { text: cmd }, { quoted: m })
+  }
 
   return true
 }
