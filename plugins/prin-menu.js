@@ -33,50 +33,45 @@ const bannerCategory = {
   anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//   ESTÉTICA EMO/DARK MENU SYSTEM
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const defaultMenu = {
-  before: `
-✦ ────────────────────── ✦
-  　　𝕾𝖆𝖎𝖙𝖆𝖒𝖆 𝕭𝖔𝖙
-✦ ────────────────────── ✦
-
-　🖤 *𝘕𝘢𝘥𝘪𝘦 𝘱𝘶𝘦𝘥𝘦 𝘤𝘰𝘯𝘵𝘪𝘨𝘰...*
-　　　　　　　*𝘯𝘪 𝘵ú.*
-
-╔══════════════════════╗
-║  👤  @%user
-║  👥  Usuarios  ›  %totalreg
-║  📦  Comandos  ›  %totalcmd
-║  ⏱️  Uptime    ›  %uptime
-╚══════════════════════╝
+  before:
+`⬣───────────────────────⬣
+│   ✦  *SAITAMA  BOT*  ✦
+⬣───────────────────────⬣
+│
+│  👤  @%user
+│  👥  Usuarios  —  %totalreg
+│  📦  Comandos  —  %totalcmd
+│  ⏱️  Uptime    —  %uptime
+│
+▣───────────────────────⬣
+│  *Ⓟ* = Premium
+│  *Ⓛ* = Límite de uso
+▣───────────────────────⬣
 
 %readmore`,
 
-  header: `
-┌─────────────────────┐
-  %category  ·  %count cmds
-└─────────────────────┘`,
+  header:
+`
+╭─────『 %category 』
+│`,
 
-  body: `
-  ▸ %cmd`,
+  body:
+`│  ⫸ %cmd`,
 
-  desc: `
-    ↳ *%desc*`,
+  desc:
+`│     ↳ _%desc_`,
 
-  sectionEnd: `
-  ─ · ─ · ─ · ─ · ─ · ─`,
+  sectionEnd:
+`╰──────────────────༓`,
 
   footer: '',
 
-  after: `
-
-✦ ────────────────────── ✦
-　　　*𝕾𝔸𝕀𝕿𝔸𝕄𝔸-𝔹𝕆𝕋*
-✦ ────────────────────── ✦
-　　𝘙𝘦𝘱𝘰𝘳𝘵𝘢 𝘦𝘳𝘳𝘰𝘳𝘦𝘴 𝘢𝘭 𝘥𝘦𝘷
+  after:
 `
+⬣───────────────────────⬣
+│    ✦  *SAITAMA-BOT*  ✦
+⬣───────────────────────⬣`
 }
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
@@ -94,7 +89,9 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         help: Array.isArray(p.help) ? p.help : [p.help],
         tags: Array.isArray(p.tags) ? p.tags : [p.tags],
         prefix: 'customPrefix' in p,
-        desc: p.desc || ''
+        desc: p.desc || '',
+        isPremium: p.isPremium || false,
+        isLimit: p.limit || false
       }))
 
     let tagSeleccionada = null
@@ -108,16 +105,23 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }
     }
 
-    let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : bannerCategory.main
+    let bannerFinal = tagSeleccionada
+      ? bannerCategory[tagSeleccionada]
+      : bannerCategory.main
 
     let textoMenu = defaultMenu.before
       .replace(/%totalreg/g, Object.keys(global.db.data.users).length)
       .replace(/%totalcmd/g, Object.keys(global.plugins).length)
-      .replace(/%uptime/g, Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's')
+      .replace(/%uptime/g,
+        Math.floor(process.uptime() / 60) + 'm ' +
+        Math.floor(process.uptime() % 60) + 's')
       .replace(/%user/g, who.split('@')[0])
 
     if (tagSeleccionada) {
-      textoMenu = textoMenu.replace('𝕾𝖆𝖎𝖙𝖆𝖒𝖆 𝕭𝖔𝖙', '𝕾𝖆𝖎𝖙𝖆𝖒𝖆 𝕭𝖔𝖙  ·  ' + tags[tagSeleccionada])
+      textoMenu = textoMenu.replace(
+        'SAITAMA  BOT',
+        'SAITAMA BOT  ·  ' + tags[tagSeleccionada]
+      )
     }
 
     for (let tag of Object.keys(tags)) {
@@ -126,18 +130,33 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
 
       const cmds = cmdsFiltrados
-        .map(menu => menu.help.map(h =>
-          defaultMenu.body.replace(/%cmd/g, menu.prefix ? h : `${_p}${h}`) +
-          (menu.desc ? defaultMenu.desc.replace(/%desc/g, menu.desc) : '')
-        ).join('')).join('')
+        .map(menu =>
+          menu.help.map(h => {
+            const badges = [
+              menu.isPremium ? '*Ⓟ*' : '',
+              menu.isLimit   ? '*Ⓛ*' : ''
+            ].filter(Boolean).join(' ')
+
+            const cmdLine = defaultMenu.body
+              .replace(/%cmd/g, menu.prefix ? h : `${_p}${h}`)
+              .replace(/%isPremium/g, menu.isPremium ? '*Ⓟ*' : '')
+              .replace(/%islimit/g,   menu.isLimit   ? '*Ⓛ*' : '')
+              .trimEnd()
+
+            const descLine = menu.desc
+              ? defaultMenu.desc.replace(/%desc/g, menu.desc)
+              : ''
+
+            return cmdLine + descLine
+          }).join('')
+        ).join('')
 
       if (cmds) {
-        let count = cmdsFiltrados.length
         textoMenu += defaultMenu.header
           .replace(/%category/g, tags[tag])
-          .replace(/%count/g, count)
+          .replace(/%count/g, cmdsFiltrados.length)
         textoMenu += cmds
-        textoMenu += defaultMenu.sectionEnd
+        textoMenu += '\n' + defaultMenu.sectionEnd
       }
     }
 
