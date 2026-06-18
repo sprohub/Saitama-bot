@@ -1,6 +1,11 @@
 import fs from 'fs'
 import path, { join } from 'path'
 import fetch from 'node-fetch'
+import {
+  generateWAMessageFromContent,
+  prepareWAMessageMedia,
+  proto
+} from '@whiskeysockets/baileys'
 import { xpRange } from '../lib/levelling.js'
 
 const tags = {
@@ -33,27 +38,50 @@ const bannerCategory = {
   anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
 }
 
-const defaultMenu = {
-  before: `╭───────────────⬣
-│  ✦ *SAITAMA BOT* ✦
-╰───────────────⬣
+// Texto principal del body (se muestra encima del botón de lista)
+function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
+  let titulo = tagSeleccionada
+    ? `SAITAMA BOT ➳ ${tags[tagSeleccionada].split(' ').slice(1).join(' ')}`
+    : 'SAITAMA BOT'
 
-▢ 👥 Usuarios: %totalreg
-▢ 📦 Comandos: %totalcmd
-▢ ⏱️ Uptime: %uptime
-▢ 👤 Usuario: @%user
+  return (
+    `╭───────────────⬣\n` +
+    `│  ✦ *${titulo}* ✦\n` +
+    `╰───────────────⬣\n\n` +
+    `▢ 👥 Usuarios: ${totalreg}\n` +
+    `▢ 📦 Comandos: ${totalcmd}\n` +
+    `▢ ⏱️ Uptime: ${uptime}\n` +
+    `▢ 👤 Usuario: @${user}\n\n` +
+    `> Elige una categoría del menú ⬇️`
+  )
+}
 
-%readmore`,
-  header: '\n╭─⪼ %category (%count)\n│',
-  body: '\n│ ➳ %cmd',
-  desc: '\n│    ↳ _%desc_',
-  sectionEnd: '\n╰───────────────⬣',
-  footer: '',
-  after: `
+// Construye las secciones para el single_select según la categoría
+function buildSections(help, usedPrefix, tagSeleccionada) {
+  const sections = []
 
-╭───────────────⬣
-│  ★ SAITAMA-BOT ★
-╰───────────────⬣`
+  for (let tag of Object.keys(tags)) {
+    if (tagSeleccionada && tag !== tagSeleccionada) continue
+
+    const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
+    if (!cmdsFiltrados.length) continue
+
+    const rows = cmdsFiltrados.flatMap(menu =>
+      menu.help.map(h => ({
+        header: tags[tag],
+        title: menu.prefix ? h : `${usedPrefix}${h}`,
+        description: menu.desc ? menu.desc.slice(0, 72) : 'Sin descripción',
+        id: `menu_cmd~${tag}~${menu.prefix ? h : `${usedPrefix}${h}`}`
+      }))
+    )
+
+    sections.push({
+      title: `${tags[tag]} (${cmdsFiltrados.length})`,
+      rows: rows.slice(0, 10) // WhatsApp permite max 10 rows por sección
+    })
+  }
+
+  return sections
 }
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
@@ -74,6 +102,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         desc: p.desc || ''
       }))
 
+    // Detectar subcategoría (ej: menudownloader, menurpg...)
     let tagSeleccionada = null
     if (command.startsWith('menu') && command.length > 4) {
       let tagBuscada = command.replace('menu', '').toLowerCase()
@@ -85,50 +114,79 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }
     }
 
-    let bannerFinal = tagSeleccionada ? bannerCategory[tagSeleccionada] : bannerCategory.main
+    const bannerUrl = tagSeleccionada ? bannerCategory[tagSeleccionada] : bannerCategory.main
 
-    let textoMenu = defaultMenu.before
-      .replace(/%totalreg/g, Object.keys(global.db.data.users).length)
-      .replace(/%totalcmd/g, Object.keys(global.plugins).length)
-      .replace(/%uptime/g, Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's')
-      .replace(/%user/g, who.split('@')[0])
+    const totalreg = Object.keys(global.db.data.users).length
+    const totalcmd = Object.keys(global.plugins).length
+    const uptime = Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's'
+    const userTag = who.split('@')[0]
 
-    if (tagSeleccionada) {
-      textoMenu = textoMenu.replace('SAITAMA BOT', 'SAITAMA BOT ➳ ' + tags[tagSeleccionada].split(' ').slice(1).join(' '))
+    // Preparar imagen del header
+    let media = null
+    try {
+      media = await prepareWAMessageMedia(
+        { image: { url: bannerUrl } },
+        { upload: conn.waUploadToServer }
+      )
+    } catch {}
+
+    // Construir secciones del menú
+    const sections = buildSections(help, _p, tagSeleccionada)
+
+    // Si no hay secciones (categoría vacía)
+    if (!sections.length) {
+      return conn.sendMessage(m.chat, {
+        text: `❌ No se encontraron comandos para esa categoría.`
+      }, { quoted: m })
     }
 
-    for (let tag of Object.keys(tags)) {
-      if (tagSeleccionada && tag !== tagSeleccionada) continue
+    const bodyText = buildBodyText({ totalreg, totalcmd, uptime, user: userTag, tagSeleccionada })
 
-      const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
+    const subtitleText = tagSeleccionada
+      ? `Categoría: ${tags[tagSeleccionada]}`
+      : `${totalcmd} comandos disponibles`
 
-      const cmds = cmdsFiltrados
-        .map(menu => menu.help.map(h =>
-          defaultMenu.body.replace(/%cmd/g, menu.prefix ? h : `${_p}${h}`) +
-          (menu.desc ? defaultMenu.desc.replace(/%desc/g, menu.desc) : '')
-        ).join('')).join('')
-
-      if (cmds) {
-        let count = cmdsFiltrados.length
-        textoMenu += defaultMenu.header.replace(/%category/g, tags[tag]).replace(/%count/g, count)
-        textoMenu += cmds
-        textoMenu += defaultMenu.sectionEnd
+    // Botón principal: si hay una sola categoría, su sección; si es menú general, todas
+    const interactiveMessage = proto.Message.InteractiveMessage.create({
+      header: {
+        title: 'SAITAMA BOT',
+        subtitle: subtitleText,
+        hasMediaAttachment: !!media,
+        imageMessage: media?.imageMessage
+      },
+      body: {
+        text: bodyText
+      },
+      footer: {
+        text: '⫏ SAITAMA BOT ✿'
+      },
+      nativeFlowMessage: {
+        buttons: [
+          {
+            name: 'single_select',
+            buttonParamsJson: JSON.stringify({
+              title: '📋 VER MENÚ',
+              sections
+            })
+          }
+        ]
       }
-    }
+    })
 
-    textoMenu += defaultMenu.after
+    const msg = generateWAMessageFromContent(
+      m.chat,
+      {
+        viewOnceMessage: {
+          message: {
+            messageContextInfo: {},
+            interactiveMessage
+          }
+        }
+      },
+      { quoted: m }
+    )
 
-    const replace = { readmore: readMore }
-    let texto = textoMenu
-    for (let key of Object.keys(replace)) {
-      texto = texto.replace(new RegExp(`%${key}`, 'g'), replace[key])
-    }
-
-    await conn.sendMessage(m.chat, {
-      image: { url: bannerFinal },
-      caption: texto.trim(),
-      mentions: [who]
-    }, { quoted: m })
+    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
 
   } catch (e) {
     console.log(e)
@@ -136,13 +194,37 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
   }
 }
 
+// Responder cuando el usuario selecciona un comando del menú
+handler.before = async (m, { conn, usedPrefix }) => {
+  if (m.isBaileys) return false
+
+  const nativeFlow = m.message?.interactiveResponseMessage?.nativeFlowResponseMessage
+  if (!nativeFlow) return false
+
+  let id
+  try {
+    const data = JSON.parse(nativeFlow.paramsJson || '{}')
+    id = data.id || data.selectedId || data.selectedRowId || null
+  } catch { return false }
+
+  if (!id || !id.startsWith('menu_cmd~')) return false
+
+  const parts = id.split('~')
+  // parts[0] = 'menu_cmd', parts[1] = tag, parts[2] = cmd
+  const tag = parts[1] || ''
+  const cmd = parts[2] || ''
+
+  await conn.sendMessage(m.chat, {
+    text: `╭───────────────⬣\n│ ${tags[tag] || '📌'} *${cmd}*\n╰───────────────⬣\n\n> Usa *${cmd}* para ejecutar este comando.`
+  }, { quoted: m })
+
+  return true
+}
+
 handler.help = ['menu']
 handler.tags = ['main']
-handler.command = /^(menu|menú|help)(rpg|group|diversion|game|gacha|serbot|owner|downloader|info|main|tools)?$/i
+handler.command = /^(menu|menú|help)(rpg|group|diversion|game|gacha|serbot|owner|downloader|info|main|tools|anime)?$/i
 handler.register = false
 handler.desc = 'Muestra el menú'
 
 export default handler
-
-const more = String.fromCharCode(8206)
-const readMore = more.repeat(4001)
