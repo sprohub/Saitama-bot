@@ -3,8 +3,7 @@ import fetch from 'node-fetch'
 
 let handler = async (m, { conn, text }) => {
   let who = m.sender
-  let owners = ['59177474230@s.whatsapp.net', '573223090406@s.whatsapp.net',
-'573225396540@s.whatsapp.net']
+  let owners = ['573225396540@s.whatsapp.net', '573225814649@s.whatsapp.net']
 
   if (!owners.includes(who)) {
     return conn.sendMessage(m.chat, {
