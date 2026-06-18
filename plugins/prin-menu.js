@@ -33,27 +33,50 @@ const bannerCategory = {
   anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//   ESTÉTICA EMO/DARK MENU SYSTEM
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const defaultMenu = {
-  before: `╭───────────────⬣
-│  ✦ *SAITAMA BOT* ✦
-╰───────────────⬣
+  before: `
+✦ ────────────────────── ✦
+  　　𝕾𝖆𝖎𝖙𝖆𝖒𝖆 𝕭𝖔𝖙
+✦ ────────────────────── ✦
 
-▢ 👥 Usuarios: %totalreg
-▢ 📦 Comandos: %totalcmd
-▢ ⏱️ Uptime: %uptime
-▢ 👤 Usuario: @%user
+　🖤 *𝘕𝘢𝘥𝘪𝘦 𝘱𝘶𝘦𝘥𝘦 𝘤𝘰𝘯𝘵𝘪𝘨𝘰...*
+　　　　　　　*𝘯𝘪 𝘵ú.*
+
+╔══════════════════════╗
+║  👤  @%user
+║  👥  Usuarios  ›  %totalreg
+║  📦  Comandos  ›  %totalcmd
+║  ⏱️  Uptime    ›  %uptime
+╚══════════════════════╝
 
 %readmore`,
-  header: '\n╭─⪼ %category (%count)\n│',
-  body: '\n│ ➳ %cmd',
-  desc: '\n│    ↳ _%desc_',
-  sectionEnd: '\n╰───────────────⬣',
+
+  header: `
+┌─────────────────────┐
+  %category  ·  %count cmds
+└─────────────────────┘`,
+
+  body: `
+  ▸ %cmd`,
+
+  desc: `
+    ↳ *%desc*`,
+
+  sectionEnd: `
+  ─ · ─ · ─ · ─ · ─ · ─`,
+
   footer: '',
+
   after: `
 
-╭───────────────⬣
-│  ★ SAITAMA-BOT ★
-╰───────────────⬣`
+✦ ────────────────────── ✦
+　　　*𝕾𝔸𝕀𝕿𝔸𝕄𝔸-𝔹𝕆𝕋*
+✦ ────────────────────── ✦
+　　𝘙𝘦𝘱𝘰𝘳𝘵𝘢 𝘦𝘳𝘳𝘰𝘳𝘦𝘴 𝘢𝘭 𝘥𝘦𝘷
+`
 }
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
@@ -94,7 +117,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       .replace(/%user/g, who.split('@')[0])
 
     if (tagSeleccionada) {
-      textoMenu = textoMenu.replace('SAITAMA BOT', 'SAITAMA BOT ➳ ' + tags[tagSeleccionada].split(' ').slice(1).join(' '))
+      textoMenu = textoMenu.replace('𝕾𝖆𝖎𝖙𝖆𝖒𝖆 𝕭𝖔𝖙', '𝕾𝖆𝖎𝖙𝖆𝖒𝖆 𝕭𝖔𝖙  ·  ' + tags[tagSeleccionada])
     }
 
     for (let tag of Object.keys(tags)) {
@@ -110,7 +133,9 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
 
       if (cmds) {
         let count = cmdsFiltrados.length
-        textoMenu += defaultMenu.header.replace(/%category/g, tags[tag]).replace(/%count/g, count)
+        textoMenu += defaultMenu.header
+          .replace(/%category/g, tags[tag])
+          .replace(/%count/g, count)
         textoMenu += cmds
         textoMenu += defaultMenu.sectionEnd
       }
