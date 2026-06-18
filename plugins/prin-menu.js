@@ -45,14 +45,18 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
     : 'SAITAMA BOT'
 
   return (
+    `╭━━━━━━━━━━━━━━━⬣\n` +
+    `🌸 ✦ *${titulo}* ✦ 🌸\n` +
+    `⬣━━━━━━━━━━━━━━━╯\n\n` +
+    `🍀 👥 Usuarios: *${totalreg}*\n` +
+    `⚡ 📦 Comandos: *${totalcmd}*\n` +
+    `🚀 ⏱️ Uptime: *${uptime}*\n` +
+    `💮 👤 Usuario: @${user}\n\n` +
     `╭───────────────⬣\n` +
-    `│  ✦ *${titulo}* ✦\n` +
+    `│ 🦆 *¡Hola!* Elige una categoría\n` +
+    `│ 🌸 y explora todos los comandos\n` +
     `╰───────────────⬣\n\n` +
-    `▢ 👥 Usuarios: ${totalreg}\n` +
-    `▢ 📦 Comandos: ${totalcmd}\n` +
-    `▢ ⏱️ Uptime: ${uptime}\n` +
-    `▢ 👤 Usuario: @${user}\n\n` +
-    `> Elige una categoría del menú ⬇️`
+    `> ⚡ Toca el botón de abajo ⬇️`
   )
 }
 
@@ -136,15 +140,15 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
     // Si no hay secciones (categoría vacía)
     if (!sections.length) {
       return conn.sendMessage(m.chat, {
-        text: `❌ No se encontraron comandos para esa categoría.`
+        text: `🦆 *Ups...* No se encontraron comandos para esa categoría. 🌸`
       }, { quoted: m })
     }
 
     const bodyText = buildBodyText({ totalreg, totalcmd, uptime, user: userTag, tagSeleccionada })
 
     const subtitleText = tagSeleccionada
-      ? `Categoría: ${tags[tagSeleccionada]}`
-      : `${totalcmd} comandos disponibles`
+      ? `🌸 Categoría: ${tags[tagSeleccionada]} 💮`
+      : `⚡ ${totalcmd} comandos • 🍀 ${totalreg} usuarios`
 
     // Botón principal: si hay una sola categoría, su sección; si es menú general, todas
     const interactiveMessage = proto.Message.InteractiveMessage.create({
@@ -158,14 +162,14 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         text: bodyText
       },
       footer: {
-        text: '⫏ SAITAMA BOT ✿'
+        text: '🌸 SAITAMA BOT 🍀 ⚡ v1.0'
       },
       nativeFlowMessage: {
         buttons: [
           {
             name: 'single_select',
             buttonParamsJson: JSON.stringify({
-              title: '📋 VER MENÚ',
+              title: '🚀 VER MENÚ COMPLETO',
               sections
             })
           }
@@ -215,7 +219,7 @@ handler.before = async (m, { conn, usedPrefix }) => {
   const cmd = parts[2] || ''
 
   await conn.sendMessage(m.chat, {
-    text: `╭───────────────⬣\n│ ${tags[tag] || '📌'} *${cmd}*\n╰───────────────⬣\n\n> Usa *${cmd}* para ejecutar este comando.`
+    text: `╭━━━━━━━━━━━━━━━⬣\n🌸 ${tags[tag] || '📌'} • *${cmd}*\n⬣━━━━━━━━━━━━━━━╯\n\n⚡ Usa *${cmd}* para ejecutar este comando.\n💮 ¡Buena suerte! 🍀`
   }, { quoted: m })
 
   return true
