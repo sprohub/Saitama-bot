@@ -4,8 +4,8 @@ import { fileURLToPath } from 'url'
 
 global.owner = [
   ['59177474230', 'El Vigilante', true],
-  ['573223090406', 'BrayanRK', true],
-  ['51923657619', 'Nightvibe dev', true]  
+  ['573225396540', 'sprohub', true],
+  ['573225814649', 'Saitama', true]  
 ]
 
 global.mods = []
