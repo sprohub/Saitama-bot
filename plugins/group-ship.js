@@ -1,18 +1,18 @@
 let handler = async (m, { conn }) => {
-  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '💕 「 HINATA SHIP 」 💕\n\n🔥 » Solo para grupos' }, { quoted: m })
+  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '⚔️ 「 SAITAMA SHIP 」 ⚔️\n\n💫 » Solo para grupos' }, { quoted: m })
 
   let user1 = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : null
   let user2 = m.mentionedJid && m.mentionedJid[1] ? m.mentionedJid[1] : null
 
   if (!user1 || !user2) {
     return conn.sendMessage(m.chat, {
-      text: '💕 「 HINATA SHIP 」 💕\n\n🔥 » Menciona a dos personas\n\n> #ship @user1 @user2'
+      text: '⚔️ 「 SAITAMA SHIP 」 ⚔️\n\n💫 » Menciona a dos personas\n\n> #ship @user1 @user2'
     }, { quoted: m })
   }
 
   if (user1 === user2) {
     return conn.sendMessage(m.chat, {
-      text: '💕 「 HINATA SHIP 」 💕\n\n🔥 » No se puede ship a la misma persona\n🤡 » Eso es narcisismo'
+      text: '⚔️ 「 SAITAMA SHIP 」 ⚔️\n\n💫 » No se puede ship a la misma persona\n🤡 » Eso es narcisismo'
     }, { quoted: m })
   }
 
@@ -26,7 +26,7 @@ let handler = async (m, { conn }) => {
   if (porcentaje >= 90) {
     emoji = '💘'
     frase = 'Almas gemelas'
-    extra = '¡Esto es amor verdadero! Se casan mañana 💒'
+    extra = '¡Un golpe de amor de un solo puñetazo! Se casan mañana 💒'
   } else if (porcentaje >= 70) {
     emoji = '💖'
     frase = 'Amor fuerte'
@@ -46,7 +46,7 @@ let handler = async (m, { conn }) => {
   } else {
     emoji = '🖤'
     frase = 'Imposible'
-    extra = 'Ni con milagro funcionan, huye de ahí 🏃'
+    extra = 'Ni Saitama con un puñetazo arregla esto, huye de ahí 🏃'
   }
 
   let barra = ''
@@ -55,12 +55,13 @@ let handler = async (m, { conn }) => {
     barra += i < completado ? '❤️' : '🖤'
   }
 
-  let texto = '💕 「 HINATA SHIP 」 💕\n\n'
-  texto += name1 + ' + ' + name2 + '\n\n'
-  texto += emoji + ' » ' + porcentaje + '%\n'
-  texto += '📊 » ' + barra + '\n'
-  texto += '🔥 » ' + frase + '\n'
-  texto += '📝 » ' + extra
+  let texto = '╭─⪼ ⚔️ 「 SAITAMA SHIP 」 ⚔️\n│\n'
+  texto += '├ ' + name1 + ' + ' + name2 + '\n│\n'
+  texto += '├ ' + emoji + ' » ' + porcentaje + '%\n'
+  texto += '├ 📊 » ' + barra + '\n'
+  texto += '├ 💫 » ' + frase + '\n'
+  texto += '├ 📝 » ' + extra + '\n'
+  texto += '╰───────────────⬣'
 
   await conn.sendMessage(m.chat, { text: texto, mentions: [user1, user2] }, { quoted: m })
 }
