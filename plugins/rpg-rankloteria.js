@@ -8,23 +8,29 @@ let handler = async (m, { conn }) => {
   if (fs.existsSync(lotoPath)) {
     loteria = JSON.parse(fs.readFileSync(lotoPath, 'utf8'))
   } else {
-    return conn.sendMessage(m.chat, { text: '🎫 」\n\n💫 » No hay lotería activa' }, { quoted: m })
+    return conn.sendMessage(m.chat, {
+      text: '╭─⪼ *SAITAMA-BOT*\n│ RANK LOTERÍA\n╰───────────────⬣\n\n» No hay lotería activa'
+    }, { quoted: m })
   }
 
   let sorted = Object.entries(loteria.boletos).sort((a, b) => b[1] - a[1]).slice(0, 10)
 
   if (sorted.length === 0) {
-    return conn.sendMessage(m.chat, { text: '🎫 「 RANK LOTERÍA 」 🎫\n\n💫 » Sin boletos vendidos' }, { quoted: m })
+    return conn.sendMessage(m.chat, {
+      text: '╭─⪼ *SAITAMA-BOT*\n│ RANK LOTERÍA\n╰───────────────⬣\n\n» Sin boletos vendidos'
+    }, { quoted: m })
   }
 
   let vendidos = Object.values(loteria.boletos).reduce((a, b) => a + b, 0)
-  let texto = '🎫 「 RANK LOTERÍA 」 🎫\n\n💫 » ' + vendidos + '/200 | 💰 ' + loteria.totalRecaudado + ' 💎\n\n'
-  let medallas = ['🥇', '🥈', '🥉', '4│', '5│', '6│', '7│', '8│', '9│', '🔟']
+  let texto = '╭─⪼ *SAITAMA-BOT*\n│ RANK LOTERÍA\n╰───────────────⬣\n\n'
+  texto += '» ' + vendidos + '/200 boletos | Premio: ' + loteria.totalRecaudado + '\n\n'
+
+  let puestos = ['1°', '2°', '3°', '4°', '5°', '6°', '7°', '8°', '9°', '10°']
 
   for (let i = 0; i < sorted.length; i++) {
     let [id, cantidad] = sorted[i]
     let prob = ((cantidad / 200) * 100).toFixed(2)
-    texto += medallas[i] + ' » @' + id.split('@')[0] + '\n   🎟️ ' + cantidad + ' | 📊 ' + prob + '%\n\n'
+    texto += puestos[i] + ' » @' + id.split('@')[0] + '\n   Boletos: ' + cantidad + ' | Prob: ' + prob + '%\n\n'
   }
 
   let mentions = sorted.map(([id]) => id)
