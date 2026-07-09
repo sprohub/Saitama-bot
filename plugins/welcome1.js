@@ -7,6 +7,15 @@ import { getReglasText } from './reglas.js'
 const settingsPath = path.resolve('./json/settings.json')
 const defaultImage = 'https://files.catbox.moe/avx0u1.jpg'
 
+// === DUEÑOS DEL BOT ===
+// Solo estos números (o el propio bot) pueden activar/desactivar welcome y reglas
+const OWNERS = ['573225396540', '573225814649']
+
+function isOwner(m) {
+  const number = m.sender?.split('@')[0]
+  return m.fromMe || OWNERS.includes(number)
+}
+
 // === UTILS JSON ===
 function readSettings() {
   try {
@@ -31,7 +40,8 @@ function getChatConfig(botNumber, chatId) {
       antilink: false,
       welcome: false,
       antiarabe: false,
-      modoadmin: false
+      modoadmin: false,
+      reglas: false
     }
     saveSettings(settings)
   }
@@ -43,11 +53,16 @@ const handler = async (m, { conn, command, args, isAdmin }) => {
 
   const type = (args[0] || '').toLowerCase()
   const enable = command === 'on'
-  const validTypes = ['antilink', 'welcome', 'antiarabe', 'modoadmin']
+  const validTypes = ['antilink', 'welcome', 'antiarabe', 'modoadmin', 'reglas']
   if (!validTypes.includes(type)) {
     return m.reply(
-      `*_🟢 ON:_*\n\n_.on antilink_\n_.on welcome_\n_.on antiarabe_\n_.on modoadmin_\n\n\n*_🔴 OFF:_*\n\n_.off antilink_\n_.off welcome_\n_.off antiarabe_\n_.off modoadmin_`
+      `*_🟢 ON:_*\n\n_.on antilink_\n_.on welcome_\n_.on antiarabe_\n_.on modoadmin_\n_.on reglas_\n\n\n*_🔴 OFF:_*\n\n_.off antilink_\n_.off welcome_\n_.off antiarabe_\n_.off modoadmin_\n_.off reglas_`
     )
+  }
+
+  // 🔐 welcome y reglas solo los puede tocar el dueño del bot
+  if ((type === 'welcome' || type === 'reglas') && !isOwner(m)) {
+    return m.reply('❌ Solo el dueño del bot puede activar o desactivar esto.')
   }
 
   const botNumber = conn.user?.jid || 'bot'
@@ -62,7 +77,7 @@ handler.command = ['on', 'off']
 handler.group = true
 handler.admin = true
 handler.tags = ['group']
-handler.help = ['on welcome', 'off welcome']
+handler.help = ['on welcome', 'off welcome', 'on reglas', 'off reglas']
 
 // === MIDDLEWARE ===
 handler.before = async (m, { conn }) => {
@@ -115,7 +130,7 @@ handler.before = async (m, { conn }) => {
   }
 
 //welcome
-if (chat.welcome && [27, 28, 32].includes(m.messageStubType)) {
+if ((chat.welcome || chat.reglas) && [27, 28, 32].includes(m.messageStubType)) {
   const groupMetadata = await conn.groupMetadata(m.chat)
   const groupSize = groupMetadata.participants.length
   const userId = m.messageStubParameters?.[0] || m.sender
@@ -128,37 +143,41 @@ if (chat.welcome && [27, 28, 32].includes(m.messageStubType)) {
   }
 
   if (m.messageStubType === 27) {
-    let texto
-    if (chat.sWelcome) {
-      texto = chat.sWelcome
-        .replace(/@user/g, userMention)
-        .replace(/@group/g, groupMetadata.subject)
-        .replace(/@members/g, groupSize)
-    } else {
-      texto = '💥 「 SAITAMA BOT 」 🔥\n\n'
-      texto += '桜 » *BIENVENID PE CAUSA@*\n'
-      texto += '風 » ' + userMention + '\n'
-      texto += '花 » ' + groupMetadata.subject + '\n'
-      texto += '桜 » Miembros: ' + groupSize + '\n\n'
-      texto += '✧･ﾟ: *✧･ﾟ:* *:･ﾟ✧*:･ﾟ✧\n\n'
-      texto += '> Gracias por unirte ⭐'
+    if (chat.welcome) {
+      let texto
+      if (chat.sWelcome) {
+        texto = chat.sWelcome
+          .replace(/@user/g, userMention)
+          .replace(/@group/g, groupMetadata.subject)
+          .replace(/@members/g, groupSize)
+      } else {
+        texto = '💥 「 SAITAMA BOT 」 🔥\n\n'
+        texto += '桜 » *BIENVENID PE CAUSA@*\n'
+        texto += '風 » ' + userMention + '\n'
+        texto += '花 » ' + groupMetadata.subject + '\n'
+        texto += '桜 » Miembros: ' + groupSize + '\n\n'
+        texto += '✧･ﾟ: *✧･ﾟ:* *:･ﾟ✧*:･ﾟ✧\n\n'
+        texto += '> Gracias por unirte ⭐'
+      }
+
+      await conn.sendMessage(m.chat, {
+        image: { url: profilePic },
+        caption: texto,
+        mentions: [userId]
+      })
     }
 
-    await conn.sendMessage(m.chat, {
-      image: { url: profilePic },
-      caption: texto,
-      mentions: [userId]
-    })
-
-    // 📋 Enviar las reglas justo después del mensaje de bienvenida
-    const reglasTexto = getReglasText(botNumber, m.chat, groupMetadata.subject)
-    await conn.sendMessage(m.chat, {
-      text: reglasTexto,
-      mentions: [userId]
-    })
+    // 📋 Reglas: ahora es independiente de welcome (toggle propio: chat.reglas)
+    if (chat.reglas) {
+      const reglasTexto = getReglasText(botNumber, m.chat, groupMetadata.subject)
+      await conn.sendMessage(m.chat, {
+        text: reglasTexto,
+        mentions: [userId]
+      })
+    }
   }
 
-  if ([28, 32].includes(m.messageStubType)) {
+  if ([28, 32].includes(m.messageStubType) && chat.welcome) {
     let texto
     if (chat.sBye) {
       texto = chat.sBye
