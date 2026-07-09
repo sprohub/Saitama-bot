@@ -29,6 +29,15 @@ async function getTTS(text) {
   return res
 }
 
+async function ensureFfmpeg() {
+  try {
+    await execAsync('ffmpeg -version')
+    return true
+  } catch {
+    return false
+  }
+}
+
 const handler = async (m, { conn, usedPrefix, command }) => {
   const text = m.text?.slice((usedPrefix + command).length).trim()
 
@@ -50,6 +59,20 @@ const handler = async (m, { conn, usedPrefix, command }) => {
 │  Tu texto: ${text.length} caracteres
 │
 │  Por favor envía un texto más corto.
+│`)
+    }, { quoted: m })
+  }
+
+  // Verifica ffmpeg ANTES de descargar nada, para fallar rápido
+  const ffmpegAvailable = await ensureFfmpeg()
+  if (!ffmpegAvailable) {
+    await m.react('❌')
+    return conn.sendMessage(m.chat, {
+      text: box('❌ ffmpeg no encontrado', `│
+│  El servidor no tiene ffmpeg instalado.
+│  Este comando no puede funcionar sin él.
+│
+│  Admin: instala con "pkg install ffmpeg"
 │`)
     }, { quoted: m })
   }
