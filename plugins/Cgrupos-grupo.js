@@ -21,10 +21,8 @@ const handler = async (m, { conn }) => {
     return m.reply('El bot no está en ningún grupo todavía.')
   }
 
-  await conn.sendMessage(m.chat, {
-    text: `📋 *Grupos donde estoy* (${groupList.length})`
-  }, { quoted: m })
-
+  // Recolectamos el link de cada grupo (solo pedimos info, no enviamos nada aún)
+  const groupsInfo = []
   for (const group of groupList) {
     let link = null
     try {
@@ -33,39 +31,48 @@ const handler = async (m, { conn }) => {
     } catch {
       // el bot no es admin en ese grupo, no puede sacar el link
     }
+    groupsInfo.push({
+      subject: group.subject,
+      members: group.participants.length,
+      link
+    })
+  }
 
-    const caption =
-      `👥 *${group.subject}*\n` +
-      `🆔 ${group.id}\n` +
-      `👤 Miembros: ${group.participants.length}\n` +
-      `🔗 ${link || 'No disponible (el bot no es admin ahí)'}`
+  // Texto único con todos los grupos
+  const listText = groupsInfo
+    .map((g, i) =>
+      `${i + 1}. *${g.subject}*\n` +
+      `   👤 Miembros: ${g.members}\n` +
+      `   🔗 ${g.link || 'No disponible (el bot no es admin ahí)'}`
+    )
+    .join('\n\n')
 
-    if (link) {
-      try {
-        // Botón nativo tipo "cta_url" (abre el link directo).
-        // Este formato aplica en la mayoría de forks de Baileys que soportan
-        // interactiveButtons. Si tu framework no lo soporta, ajusta el nombre
-        // de la propiedad o revisa la documentación de tu conn.sendMessage.
-        await conn.sendMessage(m.chat, {
-          text: caption,
-          footer: 'Toca el botón para abrir el grupo',
-          interactiveButtons: [
-            {
-              name: 'cta_url',
-              buttonParamsJson: JSON.stringify({
-                display_text: '🔗 Abrir grupo',
-                url: link,
-                merchant_url: link
-              })
-            }
-          ]
-        }, { quoted: m })
-        continue
-      } catch {
-        // Si el botón falla, cae al mensaje de texto normal de abajo
-      }
-    }
+  const caption = `📋 *Grupos donde estoy* (${groupsInfo.length})\n\n${listText}`
 
+  // Un botón por cada grupo que sí tenga link, todos en el mismo mensaje.
+  // Nota: WhatsApp suele limitar cuántos botones se muestran/renderizan
+  // bien en un solo mensaje (usualmente 3, a veces un poco más con
+  // nativeFlow). Si tienes muchos grupos, algunos botones podrían no
+  // aparecer aunque el texto sí liste todos.
+  const buttons = groupsInfo
+    .filter(g => g.link)
+    .map(g => ({
+      name: 'cta_url',
+      buttonParamsJson: JSON.stringify({
+        display_text: g.subject.length > 20 ? g.subject.slice(0, 20) + '…' : g.subject,
+        url: g.link,
+        merchant_url: g.link
+      })
+    }))
+
+  try {
+    await conn.sendMessage(m.chat, {
+      text: caption,
+      footer: 'Toca un botón para abrir el grupo',
+      interactiveButtons: buttons
+    }, { quoted: m })
+  } catch {
+    // Fallback si el framework no soporta botones: solo el texto con todos los links
     await conn.sendMessage(m.chat, { text: caption }, { quoted: m })
   }
 }
