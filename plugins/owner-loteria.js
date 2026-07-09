@@ -3,7 +3,7 @@ import path from 'path'
 
 let handler = async (m, { conn }) => {
   let who = m.sender
-  let owners = ['573225814649@s.whatsapp.net', '573136407645@s.whatsapp.net']
+  let owners = ['573225814649@s.whatsapp.net', '57313 6407645@s.whatsapp.net']
 
   if (!owners.includes(who)) {
     return conn.sendMessage(m.chat, {
@@ -67,7 +67,11 @@ let handler = async (m, { conn }) => {
   loteria.activa = false
   fs.writeFileSync(lotoPath, JSON.stringify(loteria, null, 2))
 
-  await conn.sendMessage(m.chat, { text: texto, mentions: [ganador] }, { quoted: m })
+  await conn.sendMessage(m.chat, {
+    image: { url: 'https://i.ibb.co/xSZ4SF4w/sortearloteria-js.png' },
+    caption: texto,
+    mentions: [ganador]
+  }, { quoted: m })
 }
 
 handler.help = ['sortearloteria']
