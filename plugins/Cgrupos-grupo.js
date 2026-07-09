@@ -2,7 +2,7 @@
 // Muestra todos los grupos donde está el bot, con su link de invitación
 // en un botón. Solo lo pueden usar los dueños del bot (info sensible).
 
-const OWNERS = ['573225396540', '573225814649']
+const OWNERS = ['573225396540', '573225814649, 573223090406']
 
 function isOwner(m) {
   const number = m.sender?.split('@')[0]
