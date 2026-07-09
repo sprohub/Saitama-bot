@@ -17,7 +17,13 @@ const REQUEST_TIMEOUT = 120000
 const MAX_VIDEO_BYTES = 1500 * 1024 * 1024
 const VIDEO_AS_DOCUMENT_THRESHOLD = 70 * 1024 * 1024
 const DELIRIUS_API = 'https://api.delirius.store'
-const VIDEO_QUALITY = '360p'
+const VIDEO_QUALITY = '480p'
+
+// ─── APIs de descarga de video (fallback) ──────────────────────────────────
+const DV_API_URL = process.env.DV_API_URL
+const DV_API_KEY = process.env.DV_API_KEY
+const RYZE_API   = 'https://ryzecodes.xyz/api/scrapers/36/run'
+const RYZE_KEY   = 'ryzk0cdn'
 
 const _processing = new Set()
 
@@ -36,13 +42,6 @@ function normalizeMp4Name(name) {
 function deleteFileSafe(fp) {
   try { if (fp && fs.existsSync(fp)) fs.unlinkSync(fp) } catch {}
 }
-function parseContentDisposition(h) {
-  const t = String(h || '')
-  const u = t.match(/filename\*=UTF-8''([^;]+)/i)
-  if (u?.[1]) { try { return decodeURIComponent(u[1]).replace(/["']/g, '').trim() } catch {} }
-  const n = t.match(/filename="?([^"]+)"?/i)
-  return n?.[1]?.trim() || ''
-}
 async function readStreamToText(stream) {
   return new Promise((res, rej) => {
     let d = ''
@@ -50,30 +49,6 @@ async function readStreamToText(stream) {
     stream.on('end', () => res(d))
     stream.on('error', rej)
   })
-}
-
-async function downloadVideo(downloadUrl, outputPath) {
-  const response = await axios.get(downloadUrl, {
-    responseType: 'stream', timeout: REQUEST_TIMEOUT,
-    headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' },
-    validateStatus: () => true, maxRedirects: 10,
-  })
-  if (response.status >= 400) {
-    const err = await readStreamToText(response.data).catch(() => '')
-    throw new Error(err || 'Error al descargar el video')
-  }
-  let downloaded = 0
-  response.data.on('data', chunk => {
-    downloaded += chunk.length
-    if (downloaded > MAX_VIDEO_BYTES) response.data.destroy(new Error('Video demasiado grande'))
-  })
-  try { await pipeline(response.data, fs.createWriteStream(outputPath)) }
-  catch (e) { deleteFileSafe(outputPath); throw e }
-  if (!fs.existsSync(outputPath)) throw new Error('No se pudo guardar el video')
-  const size = fs.statSync(outputPath).size
-  if (!size || size < 150000) { deleteFileSafe(outputPath); throw new Error('Video inválido o vacío') }
-  const fromHeader = parseContentDisposition(response.headers?.['content-disposition'])
-  return { size, fileName: normalizeMp4Name(fromHeader || 'video.mp4') }
 }
 
 async function normalizeForWhatsApp(inputPath, outputPath) {
@@ -91,6 +66,98 @@ async function normalizeForWhatsApp(inputPath, outputPath) {
   })
 }
 
+// ─── API 1: DV API ──────────────────────────────────────────────────────────
+async function getVideoDV(videoUrl) {
+  if (!DV_API_URL) throw new Error('DV_API_URL no configurada')
+  const res = await axios.get(`${DV_API_URL}/ytmp4`, {
+    params: { url: videoUrl, quality: VIDEO_QUALITY, apikey: DV_API_KEY },
+    timeout: 60000, validateStatus: () => true,
+    headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json', 'x-api-key': DV_API_KEY },
+  })
+  const d = res.data
+  if (res.status >= 400 || d?.ok === false) throw new Error(d?.detail || d?.message || `HTTP ${res.status}`)
+  const dlUrl = d?.download_url_full || d?.stream_url_full || d?.download_url || d?.stream_url || d?.url || ''
+  if (!dlUrl) throw new Error('DV API no devolvió link')
+  return dlUrl.startsWith('/') ? `${DV_API_URL}${dlUrl}` : dlUrl
+}
+
+// ─── API 2: Ryze ────────────────────────────────────────────────────────────
+async function getVideoRyze(videoUrl) {
+  const res = await axios.post(RYZE_API, {
+    input: { url: videoUrl, format: '480p', attempts: 6, interval_ms: 1100 }
+  }, {
+    headers: { 'Content-Type': 'application/json', 'X-API-Key': RYZE_KEY },
+    timeout: 120000,
+  })
+  const result = res.data?.result
+  if (!res.data?.success || !result?.success) throw new Error(res.data?.error || result?.error || 'Ryze sin resultado')
+  const dlUrl = result.file_url || result.download_urls?.[0] || null
+  if (!dlUrl) throw new Error('Ryze no devolvió link')
+  return dlUrl
+}
+
+// ─── API 3: Delirius (respaldo final) ───────────────────────────────────────
+async function getVideoDelirius(videoUrl) {
+  const res = await fetch(`${DELIRIUS_API}/download/ytmp4?url=${encodeURIComponent(videoUrl)}&format=${VIDEO_QUALITY}`)
+  const json = await res.json()
+  if (!json.status || !json.data?.download) throw new Error('Delirius no devolvió link')
+  return { dlUrl: json.data.download, title: json.data.title || null }
+}
+
+// ─── Descarga con fallback entre las 3 APIs ─────────────────────────────────
+async function downloadVideoWithFallback(videoUrl, outputPath) {
+  const apis = [
+    { name: 'DV API',   fn: async () => ({ dlUrl: await getVideoDV(videoUrl) }) },
+    { name: 'Ryze',     fn: async () => ({ dlUrl: await getVideoRyze(videoUrl) }) },
+    { name: 'Delirius', fn: () => getVideoDelirius(videoUrl) },
+  ]
+
+  let lastError = null
+
+  for (const api of apis) {
+    try {
+      console.log(`[VIDEO] Intentando con ${api.name}...`)
+      const { dlUrl, title } = await api.fn()
+
+      const response = await axios.get(dlUrl, {
+        responseType: 'stream', timeout: REQUEST_TIMEOUT,
+        headers: { 'User-Agent': 'Mozilla/5.0', Accept: '*/*', ...(api.name === 'DV API' && DV_API_KEY ? { 'x-api-key': DV_API_KEY } : {}) },
+        validateStatus: () => true, maxRedirects: 10,
+      })
+
+      if (response.status >= 400) {
+        const errText = await readStreamToText(response.data).catch(() => '')
+        throw new Error(errText || `HTTP ${response.status}`)
+      }
+
+      let downloaded = 0
+      response.data.on('data', chunk => {
+        downloaded += chunk.length
+        if (downloaded > MAX_VIDEO_BYTES) response.data.destroy(new Error('Video demasiado grande'))
+      })
+
+      try { await pipeline(response.data, fs.createWriteStream(outputPath)) }
+      catch (e) { deleteFileSafe(outputPath); throw e }
+
+      if (!fs.existsSync(outputPath)) throw new Error('No se guardó el archivo')
+      const size = fs.statSync(outputPath).size
+      if (!size || size < 150000) { deleteFileSafe(outputPath); throw new Error('Video inválido o vacío') }
+      if (size > MAX_VIDEO_BYTES) { deleteFileSafe(outputPath); throw new Error('Video demasiado grande') }
+
+      console.log(`[VIDEO] ✅ Descargado con ${api.name}`)
+      return { size, api: api.name, title }
+
+    } catch (e) {
+      console.error(`[VIDEO] ❌ ${api.name} falló:`, e.message)
+      deleteFileSafe(outputPath)
+      lastError = e
+    }
+  }
+
+  throw new Error(`Todas las APIs fallaron. Último error: ${lastError?.message}`)
+}
+
+// ─── Audio (se mantiene igual, vía Delirius) ────────────────────────────────
 async function sendAudio(conn, m, videoUrl, title) {
   const res = await fetch(`${DELIRIUS_API}/download/ytmp3?url=${encodeURIComponent(videoUrl)}`)
   const json = await res.json()
@@ -114,17 +181,16 @@ async function sendAudio(conn, m, videoUrl, title) {
   return finalTitle
 }
 
+// ─── Video: ahora con fallback DV API -> Ryze -> Delirius ───────────────────
 async function sendVideo(conn, m, videoUrl, title) {
-  const res = await fetch(`${DELIRIUS_API}/download/ytmp4?url=${encodeURIComponent(videoUrl)}&format=${VIDEO_QUALITY}`)
-  const json = await res.json()
-  if (!json.status || !json.data?.download) throw new Error('No se pudo obtener el video.')
-  const finalTitle = safeFileName(json.data.title || title)
   const rawFile = path.join(TEMP_DIR, `yt_${Date.now()}.mp4`)
   const finalFile = path.join(TEMP_DIR, `yt_final_${Date.now()}.mp4`)
   try {
-    const videoInfo = await downloadVideo(json.data.download, rawFile)
-    const finalName = normalizeMp4Name(videoInfo.fileName || finalTitle)
-    if (videoInfo.size > VIDEO_AS_DOCUMENT_THRESHOLD) {
+    const { size, title: apiTitle } = await downloadVideoWithFallback(videoUrl, rawFile)
+    const finalTitle = safeFileName(apiTitle || title)
+    const finalName = normalizeMp4Name(finalTitle)
+
+    if (size > VIDEO_AS_DOCUMENT_THRESHOLD) {
       await conn.sendMessage(m.chat, {
         document: fs.readFileSync(rawFile), mimetype: 'video/mp4',
         fileName: finalName, caption: `🎬 ${finalTitle}`
@@ -144,13 +210,14 @@ async function sendVideo(conn, m, videoUrl, title) {
         }, { quoted: m })
       }
     }
+    return finalTitle
   } finally {
     deleteFileSafe(rawFile)
     deleteFileSafe(finalFile)
   }
-  return finalTitle
 }
 
+// ─── Handler principal (búsqueda + menú interactivo, igual que archivo 1) ───
 let handler = async (m, { conn, text, usedPrefix, command }) => {
   const msgKey = `main_${m.id || m.key?.id}`
   if (_processing.has(msgKey)) return
@@ -326,6 +393,6 @@ handler.before = async (m, { conn }) => {
 handler.help    = ['yt', 'play', 'video']
 handler.tags    = ['downloader']
 handler.command = /^(yt|ytmp3|ytmp4|video|mp3|song|play|musica|cancion|youtube)$/i
-handler.desc    = 'Descarga audio o video de YouTube gratis'
+handler.desc    = 'Descarga audio o video de YouTube gratis (con fallback multi-API)'
 
 export default handler
