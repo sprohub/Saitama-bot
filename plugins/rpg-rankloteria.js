@@ -34,7 +34,11 @@ let handler = async (m, { conn }) => {
   }
 
   let mentions = sorted.map(([id]) => id)
-  await conn.sendMessage(m.chat, { text: texto, mentions }, { quoted: m })
+  await conn.sendMessage(m.chat, {
+    image: { url: 'https://i.ibb.co/QFQqmtLt/rankloteria-js.png' },
+    caption: texto,
+    mentions
+  }, { quoted: m })
 }
 
 handler.help = ['rankloteria']
