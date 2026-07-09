@@ -1,18 +1,18 @@
 let handler = async (m, { conn }) => {
-  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '💕 「 HINATA SHIP 」 💕\n\n💫 » Solo para grupos' }, { quoted: m })
+  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '💕 「 HINATA SHIP 」 💕\n\n🔥 » Solo para grupos' }, { quoted: m })
 
   let user1 = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : null
   let user2 = m.mentionedJid && m.mentionedJid[1] ? m.mentionedJid[1] : null
 
   if (!user1 || !user2) {
     return conn.sendMessage(m.chat, {
-      text: '💕 「 HINATA SHIP 」 💕\n\n💫 » Menciona a dos personas\n\n> #ship @user1 @user2'
+      text: '💕 「 HINATA SHIP 」 💕\n\n🔥 » Menciona a dos personas\n\n> #ship @user1 @user2'
     }, { quoted: m })
   }
 
   if (user1 === user2) {
     return conn.sendMessage(m.chat, {
-      text: '💕 「 HINATA SHIP 」 💕\n\n💫 » No se puede ship a la misma persona\n🤡 » Eso es narcisismo'
+      text: '💕 「 HINATA SHIP 」 💕\n\n🔥 » No se puede ship a la misma persona\n🤡 » Eso es narcisismo'
     }, { quoted: m })
   }
 
@@ -59,7 +59,7 @@ let handler = async (m, { conn }) => {
   texto += name1 + ' + ' + name2 + '\n\n'
   texto += emoji + ' » ' + porcentaje + '%\n'
   texto += '📊 » ' + barra + '\n'
-  texto += '💫 » ' + frase + '\n'
+  texto += '🔥 » ' + frase + '\n'
   texto += '📝 » ' + extra
 
   await conn.sendMessage(m.chat, { text: texto, mentions: [user1, user2] }, { quoted: m })
