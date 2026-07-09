@@ -28,7 +28,10 @@ let handler = async (m, { conn }) => {
   texto += '» Tu probabilidad: ' + probabilidad + '%\n\n'
   texto += '> #loteria comprar <cantidad>\n> #rankloteria'
 
-  await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
+  await conn.sendMessage(m.chat, {
+    image: { url: 'https://i.ibb.co/prZNrZRh/infoloteria-js.png' },
+    caption: texto
+  }, { quoted: m })
 }
 
 handler.help = ['infoloteria']
