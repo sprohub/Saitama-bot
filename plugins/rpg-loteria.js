@@ -31,7 +31,10 @@ let handler = async (m, { conn, args }) => {
     texto += '» Probabilidad: ' + probabilidad + '%\n\n'
     texto += '> #loteria comprar <cantidad>\n> 1000 por boleto'
 
-    return conn.sendMessage(m.chat, { text: texto }, { quoted: m })
+    return conn.sendMessage(m.chat, {
+      image: { url: 'https://i.ibb.co/Xrsqwz2g/loteria-js.png' },
+      caption: texto
+    }, { quoted: m })
   }
 
   if (args[0] === 'comprar') {
@@ -80,7 +83,10 @@ let handler = async (m, { conn, args }) => {
     let texto = '╭─⪼ *SAITAMA-BOT*\n│ LOTERÍA\n╰───────────────⬣\n\n'
     texto += '» +' + cantidad + ' boletos\n» -' + total + ' diamantes\n» Tus boletos: ' + misBoletos + '\n» Probabilidad: ' + probabilidad + '%\n» Premio: ' + loteria.totalRecaudado
 
-    return conn.sendMessage(m.chat, { text: texto }, { quoted: m })
+    return conn.sendMessage(m.chat, {
+      image: { url: 'https://i.ibb.co/NXqw2kN/comprarexitosa.png' },
+      caption: texto
+    }, { quoted: m })
   }
 }
 
