@@ -53,7 +53,7 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
     `│ 📦 ${totalcmd} cmds  👥 ${totalreg} users\n` +
     `│ ⏱️ ${uptime}\n` +
     `╰───────────────⬣\n` +
-    `> ⚡ Toca el botón para ver comandos ⬇️`
+    `>  Toca el botón para ver comandos ⬇️`
   )
 }
 
@@ -165,14 +165,14 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         text: bodyText
       },
       footer: {
-        text: '🦆 SAITAMA BOT • v1.0 ⚡'
+        text: ' SAITAMA BOT • ⚡'
       },
       nativeFlowMessage: {
         buttons: [
           {
             name: 'single_select',
             buttonParamsJson: JSON.stringify({
-              title: '🚀 VER MENÚ',
+              title: '🔥VER MENÚ',
               sections
             })
           }
