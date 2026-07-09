@@ -24,7 +24,7 @@ const tags = {
 }
 
 const bannerCategory = {
-  main: 'https://i.ibb.co/TB7cZfFG/SAITAMAmenu.jpg',
+  main: 'https://i.ibb.co/8DsHnhn9/8f759145-d6d9-4980-8b65-bc5a27d63c00.png',
   group: 'https://i.ibb.co/C38P3Wqg/ultra.jpg',
   tools: 'https://i.ibb.co/jkhp8BZD/wof.jpg',
   rpg: 'https://i.ibb.co/V040CGfq/enojado.jpg',
@@ -41,27 +41,19 @@ const bannerCategory = {
 // Icono genérico por comando (puedes personalizar por tag si quieres iconos distintos por categoría)
 const cmdIcon = '🔹'
 
-// Texto principal del body (se muestra encima del botón de lista)
+// Texto principal del body (se muestra encima del botón de lista) — versión compacta
 function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
   let titulo = tagSeleccionada
-    ? `SAITAMA BOT ➳ ${tags[tagSeleccionada].split(' ').slice(1).join(' ')}`
+    ? tags[tagSeleccionada].split(' ').slice(1).join(' ')
     : 'SAITAMA BOT'
 
   return (
-    `╭━━━━━━━━━━━━━━━━━━━━━━⬣\n` +
-    `   🌸 ✦ *${titulo}* ✦ 🌸\n` +
-    `╰━━━━━━━━━━━━━━━━━━━━━━⬣\n\n` +
-    `┌─⬣ 📊 *ESTADÍSTICAS*\n` +
-    `│ 👥 Usuarios  : *${totalreg}*\n` +
-    `│ 📦 Comandos  : *${totalcmd}*\n` +
-    `│ ⏱️ Uptime    : *${uptime}*\n` +
-    `│ 👤 Usuario   : @${user}\n` +
-    `└────────────────⬣\n\n` +
-    `╭━━━━━━━━━━━━━━━━━━━━━━⬣\n` +
-    `   🦆 *¡Hola!* Elige una categoría\n` +
-    `   🌸 y explora todos los comandos\n` +
-    `╰━━━━━━━━━━━━━━━━━━━━━━⬣\n\n` +
-    `> ⚡ Toca el botón de abajo ⬇️`
+    `╭─⪼ *${titulo}*\n` +
+    `│ 👤 @${user}\n` +
+    `│ 📦 ${totalcmd} cmds  👥 ${totalreg} users\n` +
+    `│ ⏱️ ${uptime}\n` +
+    `╰───────────────⬣\n` +
+    `> ⚡ Toca el botón para ver comandos ⬇️`
   )
 }
 
@@ -88,7 +80,7 @@ function buildSections(help, usedPrefix, tagSeleccionada) {
     )
 
     sections.push({
-      title: `${tags[tag]} • ${cmdsFiltrados.length} comandos`,
+      title: `${tags[tag]} • ${cmdsFiltrados.length}`,
       rows: rows.slice(0, 10) // WhatsApp permite max 10 rows por sección
     })
   }
@@ -149,18 +141,17 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
     if (!sections.length) {
       return conn.sendMessage(m.chat, {
         text:
-          `╭━━━━━━━━━━━━━━━━━━━━━━⬣\n` +
-          `   🦆 *Ups...*\n` +
-          `╰━━━━━━━━━━━━━━━━━━━━━━⬣\n\n` +
-          `🌸 No se encontraron comandos para esa categoría.`
+          `╭─⪼ *Ups...*\n` +
+          `│ 🌸 No se encontraron comandos.\n` +
+          `╰───────────────⬣`
       }, { quoted: m })
     }
 
     const bodyText = buildBodyText({ totalreg, totalcmd, uptime, user: userTag, tagSeleccionada })
 
     const subtitleText = tagSeleccionada
-      ? `🌸 Categoría: ${tags[tagSeleccionada]} 💮`
-      : `⚡ ${totalcmd} comandos • 🍀 ${totalreg} usuarios`
+      ? tags[tagSeleccionada]
+      : `⚡ ${totalcmd} cmds • 🍀 ${totalreg} users`
 
     // Botón principal: si hay una sola categoría, su sección; si es menú general, todas
     const interactiveMessage = proto.Message.InteractiveMessage.create({
@@ -181,7 +172,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
           {
             name: 'single_select',
             buttonParamsJson: JSON.stringify({
-              title: '🚀 VER MENÚ COMPLETO',
+              title: '🚀 VER MENÚ',
               sections
             })
           }
