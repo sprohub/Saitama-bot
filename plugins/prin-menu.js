@@ -53,7 +53,7 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
     `│ 📦 ${totalcmd} cmds  👥 ${totalreg} users\n` +
     `│ ⏱️ ${uptime}\n` +
     `╰───────────────⬣\n` +
-    `>  Toca el botón para ver comandos ⬇️`
+    `> ⚡ Toca el botón para ver comandos ⬇️`
   )
 }
 
@@ -73,14 +73,14 @@ function buildSections(help, usedPrefix, tagSeleccionada) {
         return {
           // Sin header repetido por fila: el nombre de categoría ya está en el título de la sección
           title: `${cmdIcon} ${cmdFinal}`,
-          description: menu.desc ? menu.desc.slice(0, 72) : 'Sin descripción',
+          description: menu.desc ? `✦ ${menu.desc.slice(0, 68)}` : '✦ Sin descripción',
           id: `menu_cmd~${tag}~${cmdFinal}`
         }
       })
     )
 
     sections.push({
-      title: `${tags[tag]} • ${cmdsFiltrados.length}`,
+      title: `「 ${tags[tag]} 」· ${cmdsFiltrados.length}`,
       rows: rows.slice(0, 10) // WhatsApp permite max 10 rows por sección
     })
   }
@@ -165,14 +165,14 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         text: bodyText
       },
       footer: {
-        text: ' SAITAMA BOT • ⚡'
+        text: '🦆 SAITAMA BOT • v1.0 ⚡'
       },
       nativeFlowMessage: {
         buttons: [
           {
             name: 'single_select',
             buttonParamsJson: JSON.stringify({
-              title: '🔥VER MENÚ',
+              title: '🚀 VER MENÚ',
               sections
             })
           }
@@ -201,27 +201,75 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
   }
 }
 
+// Quita wrappers (ephemeral / viewOnce / etc) para llegar al contenido real del mensaje
+function unwrapMessage(message) {
+  const wrappers = [
+    'ephemeralMessage',
+    'viewOnceMessage',
+    'viewOnceMessageV2',
+    'viewOnceMessageV2Extension',
+    'documentWithCaptionMessage'
+  ]
+  let msg = message
+  let guard = 0
+  while (msg && guard < 5) {
+    const key = wrappers.find(w => msg[w])
+    if (!key) break
+    msg = msg[key].message
+    guard++
+  }
+  return msg
+}
+
+// Extrae el id seleccionado sin importar el formato exacto de respuesta que mande WhatsApp
+function extractSelectedId(content) {
+  // Formato nativeFlow (single_select moderno)
+  const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
+  if (nativeFlow?.paramsJson) {
+    try {
+      const data = JSON.parse(nativeFlow.paramsJson)
+      const id = data.id || data.selectedId || data.selectedRowId
+      if (id) return id
+    } catch (e) {
+      console.log('[menu] error parseando nativeFlow.paramsJson:', e, nativeFlow.paramsJson)
+    }
+  }
+
+  // Formato listResponseMessage (clientes/versiones más viejas)
+  const listReply = content?.listResponseMessage?.singleSelectReply
+  if (listReply?.selectedRowId) return listReply.selectedRowId
+
+  // Formato buttonsResponseMessage (por si acaso)
+  const btnReply = content?.buttonsResponseMessage
+  if (btnReply?.selectedButtonId) return btnReply.selectedButtonId
+
+  return null
+}
+
 // Al seleccionar un comando del menú, solo se envía el texto ".comando" al chat
 handler.before = async (m, { conn, usedPrefix }) => {
   if (m.isBaileys) return false
 
-  const nativeFlow = m.message?.interactiveResponseMessage?.nativeFlowResponseMessage
-  if (!nativeFlow) return false
+  const content = unwrapMessage(m.message)
+  if (!content) return false
 
-  let id
-  try {
-    const data = JSON.parse(nativeFlow.paramsJson || '{}')
-    id = data.id || data.selectedId || data.selectedRowId || null
-  } catch { return false }
+  const id = extractSelectedId(content)
+  if (!id) return false // no era una respuesta de nuestro menú, seguir flujo normal
 
-  if (!id || !id.startsWith('menu_cmd~')) return false
+  if (!id.startsWith('menu_cmd~')) return false
 
   const parts = id.split('~')
   // parts[0] = 'menu_cmd', parts[1] = tag, parts[2] = cmd
   const cmd = parts[2] || ''
 
+  console.log('[menu] comando seleccionado:', cmd)
+
   if (cmd) {
-    await conn.sendMessage(m.chat, { text: cmd }, { quoted: m })
+    try {
+      await conn.sendMessage(m.chat, { text: cmd }, { quoted: m })
+    } catch (e) {
+      console.log('[menu] error enviando comando seleccionado:', e)
+    }
   }
 
   return true
