@@ -26,7 +26,7 @@ async function obtenerUltimoVideo() {
 
   const idMatch = data.match(/<yt:videoId>(.*?)<\/yt:videoId>/)
   const titleMatch = data.match(/<title>(.*?)<\/title>/g) // el [1] es el primer video (el [0] es el título del canal)
-  const linkMatch = data.match(/<link rel="alternate" href="(.*?)"\/>/g)
+  const thumbMatch = data.match(/<media:thumbnail url="(.*?)"/)
 
   if (!idMatch) return null
 
@@ -35,8 +35,10 @@ async function obtenerUltimoVideo() {
     ? titleMatch[1].replace(/<\/?title>/g, '')
     : 'Nuevo video'
   const link = `https://www.youtube.com/watch?v=${videoId}`
+  // Miniatura en alta resolución (maxresdefault); si no existe, YouTube sirve la de menor calidad automáticamente
+  const thumbnail = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`
 
-  return { videoId, titulo, link }
+  return { videoId, titulo, link, thumbnail }
 }
 
 async function revisarCanal(conn) {
@@ -64,7 +66,7 @@ async function revisarCanal(conn) {
 
       for (const jid of chats) {
         try {
-          await conn.sendMessage(jid, { text: texto })
+          await conn.sendMessage(jid, { image: { url: ultimo.thumbnail }, caption: texto })
           await new Promise(r => setTimeout(r, 1500)) // pausa para no floodear/banear
         } catch (e) {
           console.log('Error enviando a', jid, e)
@@ -97,7 +99,7 @@ handler = async (m, { conn }) => {
   texto += `│ 📌 » ${video.titulo}\n`
   texto += `│ 🔗 » ${video.link}\n`
   texto += `╰───────────────⬣`
-  await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
+  await conn.sendMessage(m.chat, { image: { url: video.thumbnail }, caption: texto }, { quoted: m })
 }
 handler.command = /^(ultimovideo)$/i
 handler.help = ['ultimovideo']
