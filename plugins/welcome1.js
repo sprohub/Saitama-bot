@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { join } from 'path'
 import { xpRange } from '../lib/levelling.js'
+import { getReglasText } from './reglas.js'
 
 const settingsPath = path.resolve('./json/settings.json')
 const defaultImage = 'https://files.catbox.moe/avx0u1.jpg'
@@ -146,6 +147,13 @@ if (chat.welcome && [27, 28, 32].includes(m.messageStubType)) {
     await conn.sendMessage(m.chat, {
       image: { url: profilePic },
       caption: texto,
+      mentions: [userId]
+    })
+
+    // 📋 Enviar las reglas justo después del mensaje de bienvenida
+    const reglasTexto = getReglasText(botNumber, m.chat, groupMetadata.subject)
+    await conn.sendMessage(m.chat, {
+      text: reglasTexto,
       mentions: [userId]
     })
   }
