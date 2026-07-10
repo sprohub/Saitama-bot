@@ -9,15 +9,15 @@ import {
 import { xpRange } from '../lib/levelling.js'
 
 const tags = {
-  main: '⭐ Principal',
-  group: '👥 Grupos',
+  main: '🌿 Principal',
+  group: '🐒 Grupos',
   tools: '🛠️ Tools',
-  rpg: '⚔️ RPG',
+  rpg: '🐆 RPG',
   game: '🎮 Game',
   gacha: '🎰 Gacha',
-  diversion: '🎪 Diversión',
-  anime: '🌸 Anime',
-  serbot: '🤖 SerBot',
+  diversion: '🦜 Diversión',
+  anime: '🍃 Anime',
+  serbot: '🐍 SerBot',
   owner: '👑 Owner',
   downloader: '📥 Downloader',
   info: 'ℹ️ Info'
@@ -38,22 +38,23 @@ const bannerCategory = {
   anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
 }
 
-// Icono genérico por comando (puedes personalizar por tag si quieres iconos distintos por categoría)
-const cmdIcon = '🔹'
+// Icono genérico por comando
+const cmdIcon = '🍃'
 
-// Texto principal del body (se muestra encima del botón de lista) — versión compacta
+// Texto principal del body — tema selva, limpio y ordenado
 function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
   let titulo = tagSeleccionada
     ? tags[tagSeleccionada].split(' ').slice(1).join(' ')
-    : 'SAITAMA BOT'
+    : 'MENÚ PRINCIPAL'
 
   return (
-    `╭─⪼ *${titulo}*\n` +
+    `╭─🌴・・・・・・・・・・・╮\n` +
+    `│ 🐾 *${titulo}*\n` +
     `│ 👤 @${user}\n` +
-    `│ 📦 ${totalcmd} cmds  👥 ${totalreg} users\n` +
+    `│ 📦 ${totalcmd} cmds  🐒 ${totalreg} users\n` +
     `│ ⏱️ ${uptime}\n` +
-    `╰───────────────⬣\n` +
-    `> ⚡ Toca el botón para ver comandos ⬇️`
+    `╰・・・・・・・・・・・🌴─╯\n` +
+    `🍃 Toca el botón para ver comandos 🍃`
   )
 }
 
@@ -71,9 +72,8 @@ function buildSections(help, usedPrefix, tagSeleccionada) {
       menu.help.map(h => {
         const cmdFinal = menu.prefix ? h : `${usedPrefix}${h}`
         return {
-          // Sin header repetido por fila: el nombre de categoría ya está en el título de la sección
           title: `${cmdIcon} ${cmdFinal}`,
-          description: menu.desc ? `✦ ${menu.desc.slice(0, 68)}` : '✦ Sin descripción',
+          description: menu.desc ? `🐆 ${menu.desc.slice(0, 68)}` : '🐆 Sin descripción',
           id: `menu_cmd~${tag}~${cmdFinal}`
         }
       })
@@ -141,9 +141,10 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
     if (!sections.length) {
       return conn.sendMessage(m.chat, {
         text:
-          `╭─⪼ *Ups...*\n` +
-          `│ 🌸 No se encontraron comandos.\n` +
-          `╰───────────────⬣`
+          `╭─🌴・・・・・・・╮\n` +
+          `│ 🐒 *Ups...*\n` +
+          `│ 🍃 No se encontraron comandos.\n` +
+          `╰・・・・・・・🌴─╯`
       }, { quoted: m })
     }
 
@@ -151,12 +152,12 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
 
     const subtitleText = tagSeleccionada
       ? tags[tagSeleccionada]
-      : `⚡ ${totalcmd} cmds • 🍀 ${totalreg} users`
+      : `🌿 ${totalcmd} cmds • 🐒 ${totalreg} users`
 
     // Botón principal: si hay una sola categoría, su sección; si es menú general, todas
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: {
-        title: '🌸 SAITAMA BOT 🌸',
+        title: '🌴 SAITAMA BOT 🌴',
         subtitle: subtitleText,
         hasMediaAttachment: !!media,
         imageMessage: media?.imageMessage
@@ -165,14 +166,14 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         text: bodyText
       },
       footer: {
-        text: '🦆 SAITAMA BOT • v1.0 ⚡'
+        text: '🐆 SAITAMA BOT • v1.0 🌿'
       },
       nativeFlowMessage: {
         buttons: [
           {
             name: 'single_select',
             buttonParamsJson: JSON.stringify({
-              title: '🚀 VER MENÚ',
+              title: '🌿 VER MENÚ',
               sections
             })
           }
@@ -223,7 +224,6 @@ function unwrapMessage(message) {
 
 // Extrae el id seleccionado sin importar el formato exacto de respuesta que mande WhatsApp
 function extractSelectedId(content) {
-  // Formato nativeFlow (single_select moderno)
   const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
   if (nativeFlow?.paramsJson) {
     try {
@@ -235,11 +235,9 @@ function extractSelectedId(content) {
     }
   }
 
-  // Formato listResponseMessage (clientes/versiones más viejas)
   const listReply = content?.listResponseMessage?.singleSelectReply
   if (listReply?.selectedRowId) return listReply.selectedRowId
 
-  // Formato buttonsResponseMessage (por si acaso)
   const btnReply = content?.buttonsResponseMessage
   if (btnReply?.selectedButtonId) return btnReply.selectedButtonId
 
@@ -254,12 +252,11 @@ handler.before = async (m, { conn, usedPrefix }) => {
   if (!content) return false
 
   const id = extractSelectedId(content)
-  if (!id) return false // no era una respuesta de nuestro menú, seguir flujo normal
+  if (!id) return false
 
   if (!id.startsWith('menu_cmd~')) return false
 
   const parts = id.split('~')
-  // parts[0] = 'menu_cmd', parts[1] = tag, parts[2] = cmd
   const cmd = parts[2] || ''
 
   console.log('[menu] comando seleccionado:', cmd)
