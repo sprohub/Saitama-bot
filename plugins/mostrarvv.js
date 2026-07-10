@@ -1,9 +1,8 @@
 import { downloadMediaMessage, normalizeMessageContent } from "@whiskeysockets/baileys";
 
-function deleteFileSafe() {} // no usamos archivo temporal para imagen/video, se envía por buffer
+const SAITAMA_REVEAL_IMG = "https://i.ibb.co/QvRLcvJ8/69c6d8b5-e937-48b6-a772-40f669441678.png";
 
 let handler = async (m, { conn }) => {
-  // 1. Verificar que hay un mensaje citado
   const quoted = m.quoted ? m.quoted : m;
   const mtype = quoted.mtype || quoted.type || "";
 
@@ -15,22 +14,44 @@ let handler = async (m, { conn }) => {
   if (!m.quoted || !isMedia) {
     return conn.sendMessage(
       m.chat,
-      { text: "❌ Responde a una foto o video de *ver una sola vez* con *.vv*" },
+      {
+        text:
+`╭─⪼ 🌿 *SAITAMA BOT* 🌿
+│
+│ ❌ Responde a una foto o video
+│ de *ver una sola vez* citándolo
+│ con *.mostrar* o *.mst*
+│
+╰───────────────⬣`,
+      },
       { quoted: m }
     );
   }
 
   try {
-    await conn.sendMessage(m.chat, { text: "👀 Recuperando archivo de ver una sola vez..." }, { quoted: m });
+    await conn.sendMessage(
+      m.chat,
+      {
+        image: { url: SAITAMA_REVEAL_IMG },
+        caption:
+`╭─⪼ 🌱 *SAITAMA BOT* 🌱
+│
+│ 👀 Intentando revelar el
+│ contenido de ver una sola vez...
+│
+│ 🍃 Espera un momento
+│
+╰───────────────⬣`,
+      },
+      { quoted: m }
+    );
 
     let buffer;
 
-    // 2. Intento A: método propio del framework (m.quoted.download())
     if (typeof quoted.download === "function") {
       buffer = await quoted.download();
     }
 
-    // 3. Intento B (fallback): descarga cruda vía Baileys si no hay .download()
     if (!buffer) {
       const ctx = m.message?.extendedTextMessage?.contextInfo;
       if (!ctx?.quotedMessage || !ctx?.stanzaId || !ctx?.participant) {
@@ -60,32 +81,51 @@ let handler = async (m, { conn }) => {
       throw new Error("No pude descargar el archivo multimedia.");
     }
 
-    // 4. Enviar según el tipo
+    const caption =
+`╭─⪼ 🌿 *SAITAMA BOT* 🌿
+│
+│ ✅ Contenido revelado
+│ con éxito
+│
+│ 🍃 Ver una sola vez → superado
+│
+╰───────────────⬣`;
+
     if (mtype === "imageMessage") {
       await conn.sendMessage(
         m.chat,
-        { image: buffer, caption: "✅ Imagen recuperada de ver una sola vez" },
+        { image: buffer, caption },
         { quoted: m }
       );
     } else {
       await conn.sendMessage(
         m.chat,
-        { video: buffer, mimetype: "video/mp4", caption: "✅ Video recuperado de ver una sola vez" },
+        { video: buffer, mimetype: "video/mp4", caption },
         { quoted: m }
       );
     }
   } catch (e) {
-    console.error("[VV ERROR]", e);
+    console.error("[MOSTRAR ERROR]", e);
     await conn.sendMessage(
       m.chat,
-      { text: `❌ ${e?.message || "No pude recuperar el archivo de ver una sola vez."}` },
+      {
+        text:
+`╭─⪼ 🍂 *SAITAMA BOT* 🍂
+│
+│ ❌ No pude recuperar el
+│ contenido de ver una sola vez
+│
+│ 🌱 ${e?.message || "Intenta de nuevo más tarde."}
+│
+╰───────────────⬣`,
+      },
       { quoted: m }
     );
   }
 };
 
-handler.help = ['vv'];
+handler.help = ['mostrar', 'mst'];
 handler.tags = ['tools'];
-handler.command = /^(vv|ver|viewonce|revelar)$/i;
+handler.command = /^(mostrar|mst)$/i;
 
 export default handler;
