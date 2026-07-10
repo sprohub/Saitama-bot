@@ -181,9 +181,11 @@ async function resolverChannelId(handleOrName) {
 
   for (const url of urls) {
     try {
-      const { data } = await axios.get(url, {
+      const { data, status } = await axios.get(url, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
+        validateStatus: () => true
       })
+      if (status !== 200 || !data) continue
 
       const match = data.match(/"channelId":"(UC[a-zA-Z0-9_-]{22})"/)
       if (match) return match[1]
@@ -198,24 +200,47 @@ async function resolverChannelId(handleOrName) {
   return null
 }
 
+// ✅ Ahora nunca lanza excepción: si algo falla, devuelve null
 async function obtenerUltimoVideo(channelId = CHANNEL_ID) {
+  if (!channelId) return null
   const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`
-  const { data } = await axios.get(url)
 
-  const idMatch = data.match(/<yt:videoId>(.*?)<\/yt:videoId>/)
-  const titleMatch = data.match(/<title>(.*?)<\/title>/g)
-  const thumbMatch = data.match(/<media:thumbnail url="(.*?)"/)
+  let data
+  try {
+    const res = await axios.get(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      timeout: REQUEST_TIMEOUT,
+      validateStatus: () => true
+    })
+    if (res.status !== 200 || !res.data) {
+      console.log(`[youtube-notify] Feed no disponible (status ${res.status}) para channel_id=${channelId}`)
+      return null
+    }
+    data = res.data
+  } catch (e) {
+    console.log('[youtube-notify] Error obteniendo el feed:', e.message)
+    return null
+  }
 
-  if (!idMatch) return null
+  try {
+    const idMatch = data.match(/<yt:videoId>(.*?)<\/yt:videoId>/)
+    if (!idMatch) return null
 
-  const videoId = idMatch[1]
-  const titulo = titleMatch && titleMatch[1]
-    ? titleMatch[1].replace(/<\/?title>/g, '')
-    : 'Nuevo video'
-  const link = `https://www.youtube.com/watch?v=${videoId}`
-  const thumbnail = thumbMatch ? thumbMatch[1] : `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`
+    const titleMatches = [...data.matchAll(/<title>(.*?)<\/title>/g)]
+    // titleMatches[0] = título del canal, titleMatches[1] = título del último video
+    const titulo = titleMatches[1]?.[1] ? titleMatches[1][1] : 'Nuevo video'
 
-  return { videoId, titulo, link, thumbnail }
+    const thumbMatch = data.match(/<media:thumbnail url="(.*?)"/)
+
+    const videoId = idMatch[1]
+    const link = `https://www.youtube.com/watch?v=${videoId}`
+    const thumbnail = thumbMatch ? thumbMatch[1] : `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`
+
+    return { videoId, titulo, link, thumbnail }
+  } catch (e) {
+    console.log('[youtube-notify] Error parseando el feed:', e.message)
+    return null
+  }
 }
 
 // ---------- Selector de formato (botones, igual que play.js) ----------
@@ -282,23 +307,30 @@ if (global.conn) {
 // 📌 Handler: .ultimovideo  → usa el canal por defecto (CHANNEL_ID)
 //    .ultimovideo @canal → resuelve el handle y muestra su último video
 let handler = async (m, { conn, text }) => {
-  let channelId = CHANNEL_ID
-  let etiquetaCanal = ''
+  try {
+    let channelId = CHANNEL_ID
+    let etiquetaCanal = ''
 
-  if (text && text.trim()) {
-    await m.reply('🔎 Buscando canal, un momento...')
-    const resuelto = await resolverChannelId(text)
-    if (!resuelto) {
-      return m.reply('❌ No pude encontrar ese canal. Verifica el @nombre e intenta de nuevo.')
+    if (text && text.trim()) {
+      await m.reply('🔎 Buscando canal, un momento...')
+      const resuelto = await resolverChannelId(text)
+      if (!resuelto) {
+        return m.reply('❌ No pude encontrar ese canal. Verifica el @nombre e intenta de nuevo.')
+      }
+      channelId = resuelto
+      etiquetaCanal = text.trim()
     }
-    channelId = resuelto
-    etiquetaCanal = text.trim()
+
+    const video = await obtenerUltimoVideo(channelId)
+    if (!video) {
+      return m.reply('❌ No se pudo obtener el último video. El canal no existe, no tiene videos, o el Channel ID configurado es inválido.')
+    }
+
+    await _mostrarSelectorFormato(conn, m, video, etiquetaCanal)
+  } catch (e) {
+    console.error('[ULTIMOVIDEO HANDLER ERROR]', e)
+    return m.reply('❌ Ocurrió un error inesperado al procesar el comando. Intenta de nuevo más tarde.')
   }
-
-  const video = await obtenerUltimoVideo(channelId)
-  if (!video) return m.reply('No se pudo obtener el último video.')
-
-  await _mostrarSelectorFormato(conn, m, video, etiquetaCanal)
 }
 handler.command = /^(ultimovideo)$/i
 handler.help = ['ultimovideo [@canal]']
