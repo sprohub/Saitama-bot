@@ -307,7 +307,7 @@ async function handleLogin() {
     `> `
   ));
 
-  loginMethod = loginMethod.toLowerCase().trim();
+loginMethod = loginMethod.toLowerCase().trim();
 
   if (loginMethod === 'code') {
     let phoneNumber = await question(chalk.cyan('📱 Ingresa el número de WhatsApp (con código país, ej: 51910227479):\n> '));
@@ -512,18 +512,42 @@ const pluginFolder = global.__dirname(join(__dirname, './plugins/index'));
 const pluginFilter = (filename) => /\.js$/.test(filename);
 global.plugins = {};
 
+// 🔎 Recorre recursivamente la carpeta de plugins (incluye subcarpetas)
+function walkPluginFiles(dir, base = dir) {
+  let results = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results = results.concat(walkPluginFiles(fullPath, base));
+    } else if (pluginFilter(entry.name)) {
+      const relPath = path.relative(base, fullPath).split(path.sep).join('/');
+      results.push({ relPath, fullPath });
+    }
+  }
+  return results;
+}
+
+// 🔎 Devuelve la carpeta raíz de plugins y todas sus subcarpetas
+function getPluginFolders(dir, acc = []) {
+  acc.push(dir);
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) getPluginFolders(join(dir, entry.name), acc);
+  }
+  return acc;
+}
+
 async function filesInit() {
-  console.log(chalk.blue('📂 [SAITAMA] Cargando plugins...'));
+  console.log(chalk.blue('📂 [SAITAMA] Cargando plugins (incluyendo subcarpetas)...'));
   let loaded = 0;
-  for (const filename of readdirSync(pluginFolder).filter(pluginFilter)) {
+  for (const { relPath, fullPath } of walkPluginFiles(pluginFolder)) {
     try {
-      const file = global.__filename(join(pluginFolder, filename));
+      const file = global.__filename(fullPath);
       const module = await import(file);
-      global.plugins[filename] = module.default || module;
+      global.plugins[relPath] = module.default || module;
       loaded++;
     } catch (e) {
-      conn.logger.error(`Error al cargar el plugin '${filename}': ${e}`);
-      delete global.plugins[filename];
+      conn.logger.error(`Error al cargar el plugin '${relPath}': ${e}`);
+      delete global.plugins[relPath];
     }
   }
   console.log(chalk.green(`✅ [SAITAMA] ${loaded} plugins cargados correctamente`));
@@ -531,37 +555,46 @@ async function filesInit() {
 
 await filesInit();
 
-global.reload = async (_ev, filename) => {
-  if (pluginFilter(filename)) {
-    const dir = global.__filename(join(pluginFolder, filename), true);
-    if (filename in global.plugins) {
-      if (existsSync(dir)) conn.logger.info(`🔄 Plugin actualizado - '${filename}'`);
-      else {
-        conn.logger.warn(`🗑️ Plugin eliminado - '${filename}'`);
-        return delete global.plugins[filename];
-      }
-    } else conn.logger.info(`✨ Nuevo plugin - '${filename}'`);
+global.reload = async (folder, _ev, filename) => {
+  if (!filename || !pluginFilter(filename)) return;
 
-    const err = syntaxerror(readFileSync(dir), filename, {
-      sourceType: 'module',
-      allowAwaitOutsideFunction: true,
-    });
-    if (err) conn.logger.error(`❌ Error de sintaxis en '${filename}':\n${format(err)}`);
+  const relFolder = path.relative(pluginFolder, folder).split(path.sep).join('/');
+  const relPath = relFolder ? `${relFolder}/${filename}` : filename;
+  const dir = global.__filename(join(folder, filename), true);
+
+  if (relPath in global.plugins) {
+    if (existsSync(dir)) conn.logger.info(`🔄 Plugin actualizado - '${relPath}'`);
     else {
-      try {
-        const module = await import(`${global.__filename(dir)}?update=${Date.now()}`);
-        global.plugins[filename] = module.default || module;
-      } catch (e) {
-        conn.logger.error(`❌ Error al cargar plugin '${filename}':\n${format(e)}`);
-      } finally {
-        global.plugins = Object.fromEntries(Object.entries(global.plugins).sort(([a], [b]) => a.localeCompare(b)));
-      }
+      conn.logger.warn(`🗑️ Plugin eliminado - '${relPath}'`);
+      return delete global.plugins[relPath];
+    }
+  } else conn.logger.info(`✨ Nuevo plugin - '${relPath}'`);
+
+  if (!existsSync(dir)) return;
+
+  const err = syntaxerror(readFileSync(dir), relPath, {
+    sourceType: 'module',
+    allowAwaitOutsideFunction: true,
+  });
+  if (err) conn.logger.error(`❌ Error de sintaxis en '${relPath}':\n${format(err)}`);
+  else {
+    try {
+      const module = await import(`${global.__filename(dir)}?update=${Date.now()}`);
+      global.plugins[relPath] = module.default || module;
+    } catch (e) {
+      conn.logger.error(`❌ Error al cargar plugin '${relPath}':\n${format(e)}`);
+    } finally {
+      global.plugins = Object.fromEntries(Object.entries(global.plugins).sort(([a], [b]) => a.localeCompare(b)));
     }
   }
 };
 Object.freeze(global.reload);
 
-watch(pluginFolder, global.reload);
+// 👀 Observa la carpeta raíz y todas las subcarpetas de plugins existentes al iniciar
+for (const folder of getPluginFolders(pluginFolder)) {
+  watch(folder, (ev, filename) => global.reload(folder, ev, filename));
+}
+
 await global.reloadHandler();
 
 console.log(chalk.bold.magenta('\n' + '⭐'.repeat(30)));
