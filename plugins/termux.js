@@ -30,7 +30,7 @@ async function getReleaseData() {
 
   const releaseData = await axios.get(
     "https://api.github.com/repos/termux/termux-app/releases/latest",
-    { headers }
+    { headers, timeout: 20000 }
   );
 
   // 3. Guardar en caché
