@@ -129,35 +129,83 @@ handler.before = async (m, { conn }) => {
     }
   }
 
-//welcome
-if ((chat.welcome || chat.reglas) && [27, 28, 32].includes(m.messageStubType)) {
-  const groupMetadata = await conn.groupMetadata(m.chat)
-  const groupSize = groupMetadata.participants.length
-  const userId = m.messageStubParameters?.[0] || m.sender
-  const userMention = '@' + userId.split('@')[0]
-  let profilePic
-  try {
-    profilePic = await conn.profilePictureUrl(m.chat, 'image')
-  } catch {
-    profilePic = 'https://files.catbox.moe/r60c8l.jpg'
-  }
+  // 👋 BIENVENIDA / DESPEDIDA / REGLAS
+  if ((chat.welcome || chat.reglas) && [27, 28, 32].includes(m.messageStubType)) {
+    const groupMetadata = await conn.groupMetadata(m.chat)
+    const groupSize = groupMetadata.participants.length
+    const userId = m.messageStubParameters?.[0] || m.sender
+    const userMention = '@' + userId.split('@')[0]
+    let profilePic
+    try {
+      profilePic = await conn.profilePictureUrl(m.chat, 'image')
+    } catch {
+      profilePic = 'https://files.catbox.moe/r60c8l.jpg'
+    }
 
-  if (m.messageStubType === 27) {
-    if (chat.welcome) {
+    // ✅ ENTRA AL GRUPO
+    if (m.messageStubType === 27) {
+      if (chat.welcome) {
+        let texto
+        if (chat.sWelcome) {
+          texto = chat.sWelcome
+            .replace(/@user/g, userMention)
+            .replace(/@group/g, groupMetadata.subject)
+            .replace(/@members/g, groupSize)
+        } else {
+          texto = `╭━━⬣ *SAITAMA* ⬣\n`
+          texto += `┃\n`
+          texto += `┃ 👊 *¡BIENVENIDO!*\n`
+          texto += `┃\n`
+          texto += `┃ 👤 ${userMention}\n`
+          texto += `┃ 🏠 *Grupo:* ${groupMetadata.subject}\n`
+          texto += `┃ 👥 *Miembros:* ${groupSize}\n`
+          texto += `┃\n`
+          texto += `┃ 「Un nuevo discípulo...」\n`
+          texto += `┃ Se ha unido al dojo.\n`
+          texto += `┃ Entrena duro 💪\n`
+          texto += `┃\n`
+          texto += `╰━━━━━━━━━━━━━━━━━━━━━━⬣ *SAITAMA*`
+        }
+
+        await conn.sendMessage(m.chat, {
+          image: { url: profilePic },
+          caption: texto,
+          mentions: [userId]
+        })
+      }
+
+      // 📋 Reglas: independiente de welcome (toggle propio: chat.reglas)
+      if (chat.reglas) {
+        const reglasTexto = getReglasText(botNumber, m.chat, groupMetadata.subject)
+        await conn.sendMessage(m.chat, {
+          text: reglasTexto,
+          mentions: [userId]
+        })
+      }
+    }
+
+    // ❌ SALE DEL GRUPO
+    if ([28, 32].includes(m.messageStubType) && chat.welcome) {
       let texto
-      if (chat.sWelcome) {
-        texto = chat.sWelcome
+      if (chat.sBye) {
+        texto = chat.sBye
           .replace(/@user/g, userMention)
           .replace(/@group/g, groupMetadata.subject)
           .replace(/@members/g, groupSize)
       } else {
-        texto = '💥 「 SAITAMA BOT 」 🔥\n\n'
-        texto += '桜 » *BIENVENID PE CAUSA@*\n'
-        texto += '風 » ' + userMention + '\n'
-        texto += '花 » ' + groupMetadata.subject + '\n'
-        texto += '桜 » Miembros: ' + groupSize + '\n\n'
-        texto += '✧･ﾟ: *✧･ﾟ:* *:･ﾟ✧*:･ﾟ✧\n\n'
-        texto += '> Gracias por unirte ⭐'
+        texto = `╭━━⬣ *SAITAMA* ⬣\n`
+        texto += `┃\n`
+        texto += `┃ 💨 *¡HASTA LUEGO!*\n`
+        texto += `┃\n`
+        texto += `┃ 👤 ${userMention}\n`
+        texto += `┃ 🏠 *Grupo:* ${groupMetadata.subject}\n`
+        texto += `┃ 👥 *Miembros restantes:* ${groupSize}\n`
+        texto += `┃\n`
+        texto += `┃ 「Ni siquiera lo sentí...」\n`
+        texto += `┃ Un miembro ha abandonado\n`
+        texto += `┃ el dojo. Buena suerte 👊\n`
+        texto += `┃\n`
+        texto += `╰━━━━━━━━━━━━━━━━━━━━━━⬣ *SAITAMA*`
       }
 
       await conn.sendMessage(m.chat, {
@@ -166,41 +214,7 @@ if ((chat.welcome || chat.reglas) && [27, 28, 32].includes(m.messageStubType)) {
         mentions: [userId]
       })
     }
-
-    // 📋 Reglas: ahora es independiente de welcome (toggle propio: chat.reglas)
-    if (chat.reglas) {
-      const reglasTexto = getReglasText(botNumber, m.chat, groupMetadata.subject)
-      await conn.sendMessage(m.chat, {
-        text: reglasTexto,
-        mentions: [userId]
-      })
-    }
   }
-
-  if ([28, 32].includes(m.messageStubType) && chat.welcome) {
-    let texto
-    if (chat.sBye) {
-      texto = chat.sBye
-        .replace(/@user/g, userMention)
-        .replace(/@group/g, groupMetadata.subject)
-        .replace(/@members/g, groupSize)
-    } else {
-      texto = '💥 「 SAITAMA BOT 」 💥\n\n'
-      texto += '🥱 » *porezo no lo quieren 🤣*\n'
-      texto += '風 » ' + userMention + '\n'
-      texto += '花 » ' + groupMetadata.subject + '\n'
-      texto += '桜 » Miembros: ' + groupSize + '\n\n'
-      texto += '✧･ﾟ: *✧･ﾟ:* *:･ﾟ✧*:･ﾟ✧'
-    }
-
-    await conn.sendMessage(m.chat, {
-      image: { url: profilePic },
-      caption: texto,
-      mentions: [userId]
-    })
-  }
-}
-
 }
 
 export default handler
