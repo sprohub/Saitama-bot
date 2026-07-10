@@ -6,6 +6,42 @@ import { pipeline } from "stream/promises";
 
 // ─── Configuración de carpeta temporal ────────────────────────────────────────
 const TEMP_DIR = "./temp_apk"; // Asegúrate de tener esta carpeta creada
+const CACHE_PATH = path.join(TEMP_DIR, "termux_release_cache.json");
+const CACHE_TTL = 60 * 60 * 1000; // 1 hora
+
+// Token opcional de GitHub para subir el límite de 60 a 5000 peticiones/hora.
+// Ponlo en tu .env o config global como GITHUB_TOKEN.
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || "";
+
+async function getReleaseData() {
+  // 1. Intentar usar caché si sigue vigente (evita gastar cuota de la API)
+  try {
+    const cached = JSON.parse(await fs.readFile(CACHE_PATH, "utf-8"));
+    if (Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
+  } catch {
+    // no hay caché o está corrupto, seguimos a pedirlo a la API
+  }
+
+  // 2. Pedir a la API de GitHub (con token si está disponible)
+  const headers = { "User-Agent": "Saitama-Bot" };
+  if (GITHUB_TOKEN) headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
+
+  const releaseData = await axios.get(
+    "https://api.github.com/repos/termux/termux-app/releases/latest",
+    { headers }
+  );
+
+  // 3. Guardar en caché
+  await fs.mkdir(TEMP_DIR, { recursive: true });
+  await fs.writeFile(
+    CACHE_PATH,
+    JSON.stringify({ timestamp: Date.now(), data: releaseData.data })
+  );
+
+  return releaseData.data;
+}
 
 let handler = async (m, { conn, isOwner, isAdmin }) => {
   // Solo permitir a owner o admins
@@ -19,11 +55,11 @@ let handler = async (m, { conn, isOwner, isAdmin }) => {
   const apkPath = path.join(TEMP_DIR, `termux_${Date.now()}.apk`);
 
   try {
-    // 1. Obtener la URL del último release de Termux en GitHub
-    const releaseData = await axios.get("https://api.github.com/repos/termux/termux-app/releases/latest");
+    // 1. Obtener la data del último release (cacheada o desde GitHub)
+    const releaseData = await getReleaseData();
 
     // 2. Buscar el asset que contenga 'universal.apk'
-    const asset = releaseData.data.assets.find(a => a.name.includes("universal.apk"));
+    const asset = releaseData.assets.find(a => a.name.includes("universal.apk"));
 
     if (!asset) {
       throw new Error("No encontré el archivo universal.apk en el último release.");
@@ -42,7 +78,7 @@ let handler = async (m, { conn, isOwner, isAdmin }) => {
       document: await fs.readFile(apkPath),
       fileName: "Termux_Oficial.apk",
       mimetype: "application/vnd.android.package-archive",
-      caption: `📦 *Termux APK*\n\nVersión: ${releaseData.data.tag_name}\nFuente: GitHub Oficial`,
+      caption: `📦 *Termux APK*\n\nVersión: ${releaseData.tag_name}\nFuente: GitHub Oficial`,
     }, { quoted: m });
 
   } catch (e) {
