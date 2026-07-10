@@ -11,7 +11,7 @@ function isOwner(m) {
 
 const handler = async (m, { conn }) => {
   if (!isOwner(m)) {
-    return m.reply('❌ Solo el dueño del bot puede usar este comando.')
+    return m.reply('❌ solo el dueño del bot puede usar este comando.')
   }
 
   const groups = await conn.groupFetchAllParticipating()
