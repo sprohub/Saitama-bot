@@ -511,21 +511,36 @@ const pluginFolder = global.__dirname(join(__dirname, './plugins/index'));
 const pluginFilter = (filename) => /\.js$/.test(filename);
 global.plugins = {};
 
+// 🌿 Recorre plugins/ de forma RECURSIVA (incluyendo subcarpetas como group/, rpg/, etc.)
+// y devuelve rutas relativas tipo 'group/group-kick.js'
+function getAllPluginFiles(dir, base = dir) {
+  let results = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results = results.concat(getAllPluginFiles(fullPath, base));
+    } else if (pluginFilter(entry.name)) {
+      results.push(path.relative(base, fullPath).split(path.sep).join('/'));
+    }
+  }
+  return results;
+}
+
 async function filesInit() {
   console.log(chalk.blue('📂 [SAITAMA] Cargando plugins...'));
   let loaded = 0;
-  for (const filename of readdirSync(pluginFolder).filter(pluginFilter)) {
+  for (const relFile of getAllPluginFiles(pluginFolder)) {
     try {
-      const file = global.__filename(join(pluginFolder, filename));
+      const file = global.__filename(join(pluginFolder, relFile));
       const module = await import(file);
-      global.plugins[filename] = module.default || module;
+      global.plugins[relFile] = module.default || module;
       loaded++;
     } catch (e) {
-      conn.logger.error(`Error al cargar el plugin '${filename}': ${e}`);
-      delete global.plugins[filename];
+      conn.logger.error(`Error al cargar el plugin '${relFile}': ${e}`);
+      delete global.plugins[relFile];
     }
   }
-  console.log(chalk.green(`✅ [SAITAMA] ${loaded} plugins cargados correctamente`));
+  console.log(chalk.green(`✅ [SAITAMA] ${loaded} plugins cargados correctamente (incluye subcarpetas)`));
 }
 
 await filesInit();
@@ -560,85 +575,4 @@ global.reload = async (_ev, filename) => {
 };
 Object.freeze(global.reload);
 
-watch(pluginFolder, global.reload);
-await global.reloadHandler();
-
-console.log(chalk.bold.magenta('\n' + '⭐'.repeat(30)));
-console.log(chalk.bold.yellow('   👊 SAITAMA BOT - LISTO PARA EL COMBATE 👊'));
-console.log(chalk.bold.cyan('   「Un golpe. Un héroe. Serius Mode.」'));
-console.log(chalk.bold.magenta('⭐'.repeat(30) + '\n'));
-
-conn.ev.on('group-participants.update', async (update) => {
-  const { id, participants, action } = update
-  let chat = global.db.data.chats[id]
-  if (!chat || chat.welcome !== true) return
-
-  let metadata = await conn.groupMetadata(id)
-  let pp
-  try {
-    pp = await conn.profilePictureUrl(id, 'image')
-  } catch {
-    pp = 'https://files.catbox.moe/r60c8l.jpg'
-  }
-
-  for (let user of participants) {
-    if (action === 'add') {
-      let texto
-      if (chat.sWelcome) {
-        texto = chat.sWelcome
-          .replace(/@user/g, '@' + user.split('@')[0])
-          .replace(/@group/g, metadata.subject)
-          .replace(/@members/g, metadata.participants.length)
-      } else {
-        texto = '╭━━⬣ *SAITAMA* ⬣\n'
-        texto += '┃\n'
-        texto += '┃ 👊 *¡BIENVENID@ AL GRUPO!*\n'
-        texto += '┃\n'
-        texto += '┃ 👤 @' + user.split('@')[0] + '\n'
-        texto += '┃ 🏠 *Grupo:* ' + metadata.subject + '\n'
-        texto += '┃ 👥 *Miembros:* ' + metadata.participants.length + '\n'
-        texto += '┃\n'
-        texto += '┃ 「Un golpe. Un héroe.」\n'
-        texto += '┃ Esperamos que disfrutes\n'
-        texto += '┃ tu estadía aquí 💪\n'
-        texto += '┃\n'
-        texto += '╰━━━━━━━━━━━━━━━━━━━━━━⬣ *SAITAMA*'
-      }
-
-      await conn.sendMessage(id, {
-        image: { url: pp },
-        caption: texto,
-        mentions: [user]
-      })
-
-    } else if (action === 'remove') {
-      let texto
-      if (chat.sBye) {
-        texto = chat.sBye
-          .replace(/@user/g, '@' + user.split('@')[0])
-          .replace(/@group/g, metadata.subject)
-          .replace(/@members/g, metadata.participants.length)
-      } else {
-        texto = '╭━━⬣ *SAITAMA* ⬣\n'
-        texto += '┃\n'
-        texto += '┃ 💨 *¡HASTA LUEGO!*\n'
-        texto += '┃\n'
-        texto += '┃ 👤 @' + user.split('@')[0] + '\n'
-        texto += '┃ 🏠 *Grupo:* ' + metadata.subject + '\n'
-        texto += '┃ 👥 *Miembros restantes:* ' + metadata.participants.length + '\n'
-        texto += '┃\n'
-        texto += '┃ 「Ni siquiera lo sentí...」\n'
-        texto += '┃ Un miembro ha abandonado\n'
-        texto += '┃ el dojo. Buena suerte 👊\n'
-        texto += '┃\n'
-        texto += '╰━━━━━━━━━━━━━━━━━━━━━━⬣ *SAITAMA*'
-      }
-
-      await conn.sendMessage(id, {
-        image: { url: pp },
-        caption: texto,
-        mentions: [user]
-      })
-    }
-  }
-})
+// 🌿 Vigila plugins/ Y todas sus subcarpetas (fs.watch normal NO es rec
