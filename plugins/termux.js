@@ -1,5 +1,6 @@
 import axios from "axios";
-import fs from "fs-extra";
+import fs from "fs/promises";
+import { createWriteStream, existsSync } from "fs";
 import path from "path";
 import { pipeline } from "stream/promises";
 
@@ -14,7 +15,7 @@ let handler = async (m, { conn, isOwner, isAdmin }) => {
 
   await conn.sendMessage(m.chat, { text: "⏳ *Descargando APK de Termux...*" }, { quoted: m });
 
-  await fs.ensureDir(TEMP_DIR);
+  await fs.mkdir(TEMP_DIR, { recursive: true });
   const apkPath = path.join(TEMP_DIR, `termux_${Date.now()}.apk`);
 
   try {
@@ -34,11 +35,11 @@ let handler = async (m, { conn, isOwner, isAdmin }) => {
       timeout: 120000,
     });
 
-    await pipeline(response.data, fs.createWriteStream(apkPath));
+    await pipeline(response.data, createWriteStream(apkPath));
 
     // 4. Enviar el archivo
     await conn.sendMessage(m.chat, {
-      document: fs.readFileSync(apkPath),
+      document: await fs.readFile(apkPath),
       fileName: "Termux_Oficial.apk",
       mimetype: "application/vnd.android.package-archive",
       caption: `📦 *Termux APK*\n\nVersión: ${releaseData.data.tag_name}\nFuente: GitHub Oficial`,
@@ -49,7 +50,7 @@ let handler = async (m, { conn, isOwner, isAdmin }) => {
     await conn.sendMessage(m.chat, { text: "❌ Error al obtener el APK oficial. Intenta de nuevo más tarde." }, { quoted: m });
   } finally {
     // Limpiar archivo temporal
-    if (await fs.pathExists(apkPath)) await fs.unlink(apkPath);
+    if (existsSync(apkPath)) await fs.unlink(apkPath);
   }
 };
 
