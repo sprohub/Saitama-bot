@@ -40,6 +40,17 @@ const bannerCategory = {
 
 const cmdIcon = '🍃'
 
+function getHelp() {
+  return Object.values(global.plugins)
+    .filter(p => !p.disabled)
+    .map(p => ({
+      help: Array.isArray(p.help) ? p.help : [p.help],
+      tags: Array.isArray(p.tags) ? p.tags : [p.tags],
+      prefix: 'customPrefix' in p,
+      desc: p.desc || ''
+    }))
+}
+
 function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
   let titulo = tagSeleccionada
     ? tags[tagSeleccionada].split(' ').slice(1).join(' ')
@@ -52,11 +63,30 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
     `│ 📦 ${totalcmd} cmds  🐒 ${totalreg} users\n` +
     `│ ⏱️ ${uptime}\n` +
     `╰・・・・・・・・・・・🌴─╯\n` +
-    `🍃 Toca el botón para ver comandos 🍃`
+    (tagSeleccionada
+      ? `🍃 Toca un comando para ejecutarlo 🍃`
+      : `🍃 Toca una categoría para ver sus comandos 🍃`)
   )
 }
 
-function buildSections(help, usedPrefix, tagSeleccionada) {
+// 📂 Nivel 1: solo lista de categorías
+function buildCategorySections(help) {
+  const rows = Object.keys(tags)
+    .filter(tag => help.some(menu => menu.tags?.includes(tag)))
+    .map(tag => {
+      const count = help.filter(menu => menu.tags?.includes(tag)).length
+      return {
+        title: tags[tag],
+        description: `📦 ${count} comando${count === 1 ? '' : 's'}`,
+        id: `menu_cat~${tag}`
+      }
+    })
+
+  return [{ title: '「 CATEGORÍAS 」', rows }]
+}
+
+// 📜 Nivel 2: comandos de una categoría específica
+function buildCommandSections(help, usedPrefix, tagSeleccionada) {
   const sections = []
 
   for (let tag of Object.keys(tags)) {
@@ -85,24 +115,67 @@ function buildSections(help, usedPrefix, tagSeleccionada) {
   return sections
 }
 
+// 🧱 Construye el mensaje interactivo completo (usado tanto por el handler principal como por el botón "volver")
+async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada }) {
+  let who = m.sender
+  let user = global.db.data.users[who]
+  if (!user) {
+    user = { exp: 0, level: 0 }
+    global.db.data.users[who] = user
+  }
+
+  const help = getHelp()
+
+  const bannerUrl = tagSeleccionada ? bannerCategory[tagSeleccionada] : bannerCategory.main
+  const totalreg = Object.keys(global.db.data.users).length
+  const totalcmd = Object.keys(global.plugins).length
+  const uptime = Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's'
+  const userTag = who.split('@')[0]
+
+  let media = null
+  try {
+    media = await prepareWAMessageMedia(
+      { image: { url: bannerUrl } },
+      { upload: conn.waUploadToServer }
+    )
+  } catch {}
+
+  const sections = tagSeleccionada
+    ? buildCommandSections(help, usedPrefix, tagSeleccionada)
+    : buildCategorySections(help)
+
+  if (!sections.length || sections.every(s => !s.rows.length)) return null
+
+  const bodyText = buildBodyText({ totalreg, totalcmd, uptime, user: userTag, tagSeleccionada })
+
+  const subtitleText = tagSeleccionada
+    ? tags[tagSeleccionada]
+    : `🌿 ${totalcmd} cmds • 🐒 ${totalreg} users`
+
+  const buttonTitle = tagSeleccionada ? '🌿 VER COMANDOS' : '🌿 VER CATEGORÍAS'
+
+  return proto.Message.InteractiveMessage.create({
+    header: {
+      title: '🌴 SAITAMA BOT 🌴',
+      subtitle: subtitleText,
+      hasMediaAttachment: !!media,
+      imageMessage: media?.imageMessage
+    },
+    body: { text: bodyText },
+    footer: { text: '🐆 SAITAMA BOT • v1.0 🌿' },
+    nativeFlowMessage: {
+      buttons: [
+        {
+          name: 'single_select',
+          buttonParamsJson: JSON.stringify({ title: buttonTitle, sections })
+        }
+      ]
+    }
+  })
+}
+
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
   try {
-    let who = m.sender
-    let user = global.db.data.users[who]
-    if (!user) {
-      user = { exp: 0, level: 0 }
-      global.db.data.users[who] = user
-    }
-
-    const help = Object.values(global.plugins)
-      .filter(p => !p.disabled)
-      .map(p => ({
-        help: Array.isArray(p.help) ? p.help : [p.help],
-        tags: Array.isArray(p.tags) ? p.tags : [p.tags],
-        prefix: 'customPrefix' in p,
-        desc: p.desc || ''
-      }))
-
     let tagSeleccionada = null
     if (command.startsWith('menu') && command.length > 4) {
       let tagBuscada = command.replace('menu', '').toLowerCase()
@@ -114,24 +187,9 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }
     }
 
-    const bannerUrl = tagSeleccionada ? bannerCategory[tagSeleccionada] : bannerCategory.main
+    const interactiveMessage = await buildMenuInteractive(m, conn, { usedPrefix: _p, tagSeleccionada })
 
-    const totalreg = Object.keys(global.db.data.users).length
-    const totalcmd = Object.keys(global.plugins).length
-    const uptime = Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's'
-    const userTag = who.split('@')[0]
-
-    let media = null
-    try {
-      media = await prepareWAMessageMedia(
-        { image: { url: bannerUrl } },
-        { upload: conn.waUploadToServer }
-      )
-    } catch {}
-
-    const sections = buildSections(help, _p, tagSeleccionada)
-
-    if (!sections.length) {
+    if (!interactiveMessage) {
       return conn.sendMessage(m.chat, {
         text:
           `╭─🌴・・・・・・・╮\n` +
@@ -141,48 +199,9 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }, { quoted: m })
     }
 
-    const bodyText = buildBodyText({ totalreg, totalcmd, uptime, user: userTag, tagSeleccionada })
-
-    const subtitleText = tagSeleccionada
-      ? tags[tagSeleccionada]
-      : `🌿 ${totalcmd} cmds • 🐒 ${totalreg} users`
-
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: {
-        title: '🌴 SAITAMA BOT 🌴',
-        subtitle: subtitleText,
-        hasMediaAttachment: !!media,
-        imageMessage: media?.imageMessage
-      },
-      body: {
-        text: bodyText
-      },
-      footer: {
-        text: '🐆 SAITAMA BOT • v1.0 🌿'
-      },
-      nativeFlowMessage: {
-        buttons: [
-          {
-            name: 'single_select',
-            buttonParamsJson: JSON.stringify({
-              title: '🌿 VER MENÚ',
-              sections
-            })
-          }
-        ]
-      }
-    })
-
     const msg = generateWAMessageFromContent(
       m.chat,
-      {
-        viewOnceMessage: {
-          message: {
-            messageContextInfo: {},
-            interactiveMessage
-          }
-        }
-      },
+      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
       { quoted: m }
     )
 
@@ -234,7 +253,6 @@ function extractSelectedId(content) {
   return null
 }
 
-// 🔎 Detecta si el sender usa @lid o @s.whatsapp.net, igual que handler.js
 function detectSuffix(jid) {
   return jid.includes('@lid') ? '@lid' : '@s.whatsapp.net'
 }
@@ -245,8 +263,6 @@ async function getLidFromJid(id, conn) {
   return res[0]?.lid || id
 }
 
-// 🚀 Ejecuta el plugin directamente, sin depender de re-enviar el texto
-// (evita el filtro de IDs tipo BAE5/NJX/B24E que descarta el eco del bot)
 handler.before = async (m, { conn }) => {
   if (m.isBaileys) return false
 
@@ -254,13 +270,39 @@ handler.before = async (m, { conn }) => {
   if (!content) return false
 
   const id = extractSelectedId(content)
-  if (!id || !id.startsWith('menu_cmd~')) return false
+  if (!id) return false
+
+  // 📂 Tocaron una categoría → mostrar submenú con sus comandos
+  if (id.startsWith('menu_cat~')) {
+    const tag = id.split('~')[1]
+    if (!tag || !tags[tag]) return false
+
+    const usedPrefix = (global.prefix instanceof RegExp ? '.' : global.prefix) || '.'
+    const interactiveMessage = await buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada: tag })
+
+    if (!interactiveMessage) {
+      await conn.sendMessage(m.chat, {
+        text: `╭─⪼ 🌿 *SAITAMA BOT*\n│ 🍃 Esa categoría no tiene comandos.\n╰───────────────⬣`
+      }, { quoted: m })
+      return true
+    }
+
+    const msg = generateWAMessageFromContent(
+      m.chat,
+      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
+      { quoted: m }
+    )
+    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+    return true
+  }
+
+  // ▶️ Tocaron un comando → ejecutarlo
+  if (!id.startsWith('menu_cmd~')) return false
 
   const parts = id.split('~')
   const cmdFinal = parts[2] || ''
   if (!cmdFinal) return false
 
-  // Determinamos el prefijo usado y separamos comando/args
   const prefixMatch = cmdFinal.match(global.prefix) || cmdFinal.match(/^[.\/#@]/)
   const usedPrefix = prefixMatch ? prefixMatch[0] : ''
   const noPrefix = cmdFinal.replace(usedPrefix, '').trim()
@@ -268,7 +310,6 @@ handler.before = async (m, { conn }) => {
   const text = args.join(' ')
   const cmdLower = (command || '').toLowerCase()
 
-  // Buscamos el plugin cuyo .command coincida (misma lógica que handler.js)
   let matchedName = null
   let plugin = null
   for (const name in global.plugins) {
@@ -296,7 +337,6 @@ handler.before = async (m, { conn }) => {
     return true
   }
 
-  // Recreamos el mismo contexto de permisos que arma handler.js
   const detectwhat = detectSuffix(m.sender)
   const isROwner = [...global.owner.map(([number]) => number)]
     .map(v => v.replace(/[^0-9]/g, '') + detectwhat)
@@ -318,7 +358,6 @@ handler.before = async (m, { conn }) => {
 
   const fail = plugin.fail || global.dfail
 
-  // Verificamos permisos, igual que handler.js
   if (plugin.rowner && plugin.owner && !(isROwner || isOwner)) return fail('owner', m, conn, usedPrefix, cmdLower), true
   if (plugin.rowner && !isROwner) return fail('rowner', m, conn, usedPrefix, cmdLower), true
   if (plugin.owner && !isOwner) return fail('owner', m, conn, usedPrefix, cmdLower), true
