@@ -1,6 +1,5 @@
 import { addSticker } from '../../lib/stickerpack.js'
-import { sticker } from '../../lib/sticker.js'
-import { fileTypeFromBuffer } from 'file-type'
+import { sticker, webpBufferIsAnimated } from '../../lib/sticker.js'
 
 const handler = async (m, { conn, text }) => {
   const quoted = m.quoted ? m.quoted : m
@@ -45,10 +44,9 @@ const handler = async (m, { conn, text }) => {
       author: m.pushName || 'SAITAMA'
     })
 
-    const type = await fileTypeFromBuffer(buffer).catch(() => null)
-    const animated = esVideo || (type?.ext === 'webp' && false) // el flag real de animado ya se resolvió dentro de sticker()
+    const animated = esVideo || webpBufferIsAnimated(buffer)
 
-    addSticker(name, webpBuffer, { owner: m.sender, chat: m.chat, animated: esVideo })
+    addSticker(name, webpBuffer, { owner: m.sender, chat: m.chat, animated })
 
     await conn.sendMessage(m.chat, {
       text:
@@ -71,7 +69,7 @@ handler.command = ['stsubir']
 handler.customPrefix = /^[.\/#@]/i
 handler.tags = ['tools']
 handler.help = ['stsubir <nombre>']
-handler.desc = 'Sube un sticker (imagen/video/gif) al pack'
+handler.desc = 'Sube un sticker (imagen/video/gif/sticker) al pack'
 handler.owner = true
 
 export default handler
