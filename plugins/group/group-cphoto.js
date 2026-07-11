@@ -192,7 +192,7 @@ handler.before = async function (m, { conn }) {
   const nombreDestino = partes[1] === 'bot' ? 'del Bot' : 'del Grupo'
 
   try {
-    await conn.updateProfilePicture(destino, { url: pendiente.buffer })
+    await conn.updateProfilePicture(destino, pendiente.buffer)
     clearTimeout(pendiente.timeout)
     delete global.__cphotoPending[m.sender]
 
