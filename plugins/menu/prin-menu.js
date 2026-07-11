@@ -38,10 +38,8 @@ const bannerCategory = {
   anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
 }
 
-// Icono genérico por comando
 const cmdIcon = '🍃'
 
-// Texto principal del body — tema selva, limpio y ordenado
 function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
   let titulo = tagSeleccionada
     ? tags[tagSeleccionada].split(' ').slice(1).join(' ')
@@ -58,7 +56,6 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
   )
 }
 
-// Construye las secciones para el single_select según la categoría
 function buildSections(help, usedPrefix, tagSeleccionada) {
   const sections = []
 
@@ -81,7 +78,7 @@ function buildSections(help, usedPrefix, tagSeleccionada) {
 
     sections.push({
       title: `「 ${tags[tag]} 」· ${cmdsFiltrados.length}`,
-      rows: rows.slice(0, 10) // WhatsApp permite max 10 rows por sección
+      rows: rows.slice(0, 10)
     })
   }
 
@@ -106,7 +103,6 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
         desc: p.desc || ''
       }))
 
-    // Detectar subcategoría (ej: menudownloader, menurpg...)
     let tagSeleccionada = null
     if (command.startsWith('menu') && command.length > 4) {
       let tagBuscada = command.replace('menu', '').toLowerCase()
@@ -125,7 +121,6 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
     const uptime = Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's'
     const userTag = who.split('@')[0]
 
-    // Preparar imagen del header
     let media = null
     try {
       media = await prepareWAMessageMedia(
@@ -134,10 +129,8 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       )
     } catch {}
 
-    // Construir secciones del menú
     const sections = buildSections(help, _p, tagSeleccionada)
 
-    // Si no hay secciones (categoría vacía)
     if (!sections.length) {
       return conn.sendMessage(m.chat, {
         text:
@@ -154,7 +147,6 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       ? tags[tagSeleccionada]
       : `🌿 ${totalcmd} cmds • 🐒 ${totalreg} users`
 
-    // Botón principal: si hay una sola categoría, su sección; si es menú general, todas
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: {
         title: '🌴 SAITAMA BOT 🌴',
@@ -202,7 +194,6 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
   }
 }
 
-// Quita wrappers (ephemeral / viewOnce / etc) para llegar al contenido real del mensaje
 function unwrapMessage(message) {
   const wrappers = [
     'ephemeralMessage',
@@ -222,7 +213,6 @@ function unwrapMessage(message) {
   return msg
 }
 
-// Extrae el id seleccionado sin importar el formato exacto de respuesta que mande WhatsApp
 function extractSelectedId(content) {
   const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
   if (nativeFlow?.paramsJson) {
@@ -244,29 +234,127 @@ function extractSelectedId(content) {
   return null
 }
 
-// Al seleccionar un comando del menú, solo se envía el texto ".comando" al chat
-handler.before = async (m, { conn, usedPrefix }) => {
+// 🔎 Detecta si el sender usa @lid o @s.whatsapp.net, igual que handler.js
+function detectSuffix(jid) {
+  return jid.includes('@lid') ? '@lid' : '@s.whatsapp.net'
+}
+
+async function getLidFromJid(id, conn) {
+  if (id.endsWith('@lid')) return id
+  const res = await conn.onWhatsApp(id).catch(() => [])
+  return res[0]?.lid || id
+}
+
+// 🚀 Ejecuta el plugin directamente, sin depender de re-enviar el texto
+// (evita el filtro de IDs tipo BAE5/NJX/B24E que descarta el eco del bot)
+handler.before = async (m, { conn }) => {
   if (m.isBaileys) return false
 
   const content = unwrapMessage(m.message)
   if (!content) return false
 
   const id = extractSelectedId(content)
-  if (!id) return false
-
-  if (!id.startsWith('menu_cmd~')) return false
+  if (!id || !id.startsWith('menu_cmd~')) return false
 
   const parts = id.split('~')
-  const cmd = parts[2] || ''
+  const cmdFinal = parts[2] || ''
+  if (!cmdFinal) return false
 
-  console.log('[menu] comando seleccionado:', cmd)
+  // Determinamos el prefijo usado y separamos comando/args
+  const prefixMatch = cmdFinal.match(global.prefix) || cmdFinal.match(/^[.\/#@]/)
+  const usedPrefix = prefixMatch ? prefixMatch[0] : ''
+  const noPrefix = cmdFinal.replace(usedPrefix, '').trim()
+  const [command, ...args] = noPrefix.split(' ').filter(Boolean)
+  const text = args.join(' ')
+  const cmdLower = (command || '').toLowerCase()
 
-  if (cmd) {
-    try {
-      await conn.sendMessage(m.chat, { text: cmd }, { quoted: m })
-    } catch (e) {
-      console.log('[menu] error enviando comando seleccionado:', e)
+  // Buscamos el plugin cuyo .command coincida (misma lógica que handler.js)
+  let matchedName = null
+  let plugin = null
+  for (const name in global.plugins) {
+    const p = global.plugins[name]
+    if (!p || p.disabled) continue
+    const isAccept = p.command instanceof RegExp
+      ? p.command.test(cmdLower)
+      : Array.isArray(p.command)
+        ? p.command.some(c => c instanceof RegExp ? c.test(cmdLower) : c === cmdLower)
+        : typeof p.command === 'string'
+          ? p.command === cmdLower
+          : false
+    if (isAccept) {
+      matchedName = name
+      plugin = p
+      break
     }
+  }
+
+  if (!plugin) {
+    console.log('[menu] no se encontró plugin para:', cmdLower)
+    await conn.sendMessage(m.chat, {
+      text: `╭─⪼ 🌿 *SAITAMA BOT*\n│ 🍃 No se encontró el comando *${cmdLower}*.\n╰───────────────⬣`
+    }, { quoted: m })
+    return true
+  }
+
+  // Recreamos el mismo contexto de permisos que arma handler.js
+  const detectwhat = detectSuffix(m.sender)
+  const isROwner = [...global.owner.map(([number]) => number)]
+    .map(v => v.replace(/[^0-9]/g, '') + detectwhat)
+    .includes(m.sender)
+  const isOwner = isROwner || m.fromMe
+  const isMods = isROwner || global.mods.map(v => v.replace(/[^0-9]/g, '') + detectwhat).includes(m.sender)
+  const _user = global.db.data.users[m.sender] || {}
+  const isPrems = isROwner || global.prems.map(v => v.replace(/[^0-9]/g, '') + detectwhat).includes(m.sender) || _user.premium == true
+
+  const senderLid = await getLidFromJid(m.sender, conn)
+  const botLid = await getLidFromJid(conn.user.jid, conn)
+  const groupMetadata = m.isGroup ? (await conn.groupMetadata(m.chat).catch(() => null)) : {}
+  const participants = m.isGroup ? (groupMetadata?.participants || []) : []
+  const userP = participants.find(p => p.id === senderLid || p.id === m.sender) || {}
+  const botP = participants.find(p => p.id === botLid || p.id === conn.user.jid) || {}
+  const isRAdmin = userP?.admin === 'superadmin'
+  const isAdmin = isRAdmin || userP?.admin === 'admin'
+  const isBotAdmin = !!botP?.admin
+
+  const fail = plugin.fail || global.dfail
+
+  // Verificamos permisos, igual que handler.js
+  if (plugin.rowner && plugin.owner && !(isROwner || isOwner)) return fail('owner', m, conn, usedPrefix, cmdLower), true
+  if (plugin.rowner && !isROwner) return fail('rowner', m, conn, usedPrefix, cmdLower), true
+  if (plugin.owner && !isOwner) return fail('owner', m, conn, usedPrefix, cmdLower), true
+  if (plugin.mods && !isMods) return fail('mods', m, conn, usedPrefix, cmdLower), true
+  if (plugin.premium && !isPrems) return fail('premium', m, conn, usedPrefix, cmdLower), true
+  if (plugin.group && !m.isGroup) return fail('group', m, conn, usedPrefix, cmdLower), true
+  if (plugin.botAdmin && !isBotAdmin) return fail('botAdmin', m, conn, usedPrefix, cmdLower), true
+  if (plugin.admin && !isAdmin) return fail('admin', m, conn, usedPrefix, cmdLower), true
+  if (plugin.private && m.isGroup) return fail('private', m, conn, usedPrefix, cmdLower), true
+  if (plugin.register == true && _user.registered == false) return fail('unreg', m, conn, usedPrefix, cmdLower), true
+
+  const extra = {
+    usedPrefix,
+    noPrefix,
+    _args: args,
+    args,
+    command: cmdLower,
+    text,
+    conn,
+    participants,
+    groupMetadata,
+    user: userP,
+    bot: botP,
+    isROwner,
+    isOwner,
+    isRAdmin,
+    isAdmin,
+    isBotAdmin,
+    isPrems
+  }
+
+  try {
+    await plugin.call(conn, m, extra)
+  } catch (e) {
+    console.log('[menu] error ejecutando comando seleccionado:', e)
+    await conn.sendMessage(m.chat, { text: `❌ Error al ejecutar *${cmdLower}*.` }, { quoted: m })
   }
 
   return true
