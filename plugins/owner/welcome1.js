@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { join } from 'path'
-import { xpRange } from '../lib/levelling.js'
+import { xpRange } from '../../lib/levelling.js'
 import { getReglasText } from './reglas-tools.js'
 
 const settingsPath = path.resolve('./json/settings.json')
