@@ -1,11 +1,15 @@
 let handler = async (m, { conn, args }) => {
   let who = m.sender
-  let owners = ['59177474230@s.whatsapp.net', '573223090406@s.whatsapp.net',
-'573225396540@s.whatsapp.net']
 
-  if (!owners.includes(who)) {
+  let esOwner = () => {
+    if (!global.owner || !Array.isArray(global.owner)) return false
+    let numeros = global.owner.map(([number]) => (number || '').replace(/[^0-9]/g, ''))
+    return numeros.some(num => who.includes(num))
+  }
+
+  if (!m.fromMe && !esOwner()) {
     return conn.sendMessage(m.chat, {
-      text: '💎 「 HINATA DAR DIAMANTES 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Solo los creadores pueden usar esto\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦'
+      text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo los creadores pueden usar esto\n╰───────────────⬣'
     }, { quoted: m })
   }
 
@@ -14,7 +18,7 @@ let handler = async (m, { conn, args }) => {
 
   if (isNaN(cantidad) || cantidad <= 0) {
     return conn.sendMessage(m.chat, {
-      text: '💎 「 HINATA DAR DIAMANTES 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Cantidad inválida\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n> #dardiamantes 100\n> #dardiamantes @usuario 100'
+      text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Cantidad inválida\n│ 🍃 Usa: .dardiamantes 100\n│ 🍃 Usa: .dardiamantes @usuario 100\n╰───────────────⬣'
     }, { quoted: m })
   }
 
@@ -28,7 +32,7 @@ let handler = async (m, { conn, args }) => {
   global.markDatabaseModified()
 
   await conn.sendMessage(m.chat, {
-    text: '💎 「 HINATA DAR DIAMANTES 」 💎\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦\n\n💫 » Diamantes entregados\n\n👤 » @' + target.split('@')[0] + '\n💎 » +' + cantidad + ' diamantes\n💰 » Total: ' + user.diamantes + ' 💎\n\n✦•┈๑⋅⋯ ⋯⋅๑┈•✦',
+    text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Diamantes entregados\n│ 🍃 Usuario: @' + target.split('@')[0] + '\n│ 🍃 +' + cantidad + ' 💎\n│ 🍃 Total: ' + user.diamantes + ' 💎\n╰───────────────⬣',
     mentions: [target]
   }, { quoted: m })
 }
@@ -37,5 +41,6 @@ handler.help = ['dardiamantes']
 handler.tags = ['owner']
 handler.command = /^(dardiamantes|dardinero|adddiamantes)$/i
 handler.desc = 'Da diamantes a un usuario'
+handler.owner = true
 
 export default handler
