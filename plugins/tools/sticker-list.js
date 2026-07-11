@@ -1,5 +1,6 @@
 import { generateWAMessageFromContent, proto } from '@whiskeysockets/baileys'
 import { listStickers, getSticker } from '../../lib/stickerpack.js'
+import { addExif } from '../../lib/sticker.js'
 import fs from 'fs'
 
 function unwrapMessage(message) {
@@ -83,7 +84,7 @@ const handler = async (m, { conn }) => {
   }
 }
 
-// Al seleccionar un sticker del menú, se envía directamente
+// Al seleccionar un sticker del menú, se le renombra el pack a "saitama-pack" y se envía
 handler.before = async (m, { conn }) => {
   if (m.isBaileys) return false
 
@@ -104,7 +105,10 @@ handler.before = async (m, { conn }) => {
   }
 
   try {
-    await conn.sendMessage(m.chat, { sticker: fs.readFileSync(sticker.file) }, { quoted: m })
+    const rawBuffer = fs.readFileSync(sticker.file)
+    const renamedBuffer = await addExif(rawBuffer, 'saitama-pack', 'SAITAMA-BOT', [''])
+
+    await conn.sendMessage(m.chat, { sticker: renamedBuffer }, { quoted: m })
   } catch (e) {
     console.log('[stlist] error enviando sticker:', e)
     await conn.sendMessage(m.chat, {
