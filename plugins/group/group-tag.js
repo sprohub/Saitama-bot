@@ -1,43 +1,45 @@
-let handler = async (m, { conn, text }) => {
-  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '𖣔 」 ˚ʚ♡ɞ˚\n\n💫 » Solo para grupos' }, { quoted: m })
-
-  let target
-  let mensaje
-
-  if (m.mentionedJid && m.mentionedJid[0]) {
-    target = m.mentionedJid[0]
-    mensaje = text.replace(/@\d+/g, '').trim()
-  } else if (m.quoted) {
-    target = m.quoted.sender
-    mensaje = m.quoted.text || m.quoted.caption || ''
-  } else if (text) {
-    mensaje = text
-    target = null
-  } else {
-    return conn.sendMessage(m.chat, { 
-      text: '𖣔 」 ˚ʚ♡ɞ˚\n\n💫 » Escribe un mensaje o responde a alguien\n\n> #tag hola\n> #tag @usuario mensaje' 
+const handler = async (m, { conn, isAdmin, participants }) => {
+  if (!m.isGroup) {
+    return conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 Este comando solo funciona en grupos.\n` +
+        `╰───────────────⬣`
     }, { quoted: m })
   }
 
-  let texto = ''
-
-  if (target && mensaje) {
-    texto += '📢 @' + target.split('@')[0] + ' ' + mensaje
-  } else if (target && !mensaje) {
-    texto += '📢 @' + target.split('@')[0] + ' te están llamando'
-  } else if (!target && mensaje) {
-    texto += mensaje
+  if (!isAdmin) {
+    return conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 Solo los administradores del grupo\n` +
+        `│ pueden usar este comando.\n` +
+        `╰───────────────⬣`
+    }, { quoted: m })
   }
 
-  let mentions = target ? [target] : []
+  let texto =
+    `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+    `│ 📢 Mencionando a todos\n` +
+    `│ 👥 Miembros: ${participants.length}\n` +
+    `╰───────────────⬣\n\n`
 
-  await conn.sendMessage(m.chat, { text: texto, mentions }, { quoted: m })
+  for (const p of participants) {
+    texto += `🍃 » @${p.id.split('@')[0]}\n`
+  }
+
+  texto += `\n╭───────────────⬣\n│ 🌿 SAITAMA-BOT\n╰───────────────⬣`
+
+  await conn.sendMessage(m.chat, {
+    text: texto,
+    mentions: participants.map(p => p.id)
+  }, { quoted: m })
 }
 
-handler.help = ['tag']
+handler.help = ['tagall']
 handler.tags = ['group']
-handler.command = /^(tag)$/i
-handler.desc = 'Envía mensaje'
-handler.group = true
+handler.command = /^(tagall|todos|all)$/i
+handler.desc = 'Menciona a todos los miembros del grupo (solo admins)'
+handler.admin = true
 
 export default handler
