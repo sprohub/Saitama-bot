@@ -37,18 +37,33 @@ function extractSelectedId(content) {
   return null
 }
 
-// 🔎 Busca en qué grupos el bot es admin, el objetivo es miembro,
-// y quien ejecuta el comando también es admin (o dueño del bot) ahí.
+// 🔎 Baileys puede reportar participantes con jid (@s.whatsapp.net) o lid (@lid).
+// Sacamos ambas variantes de un mismo número para comparar sin fallos.
+async function getLidFromJid(id, conn) {
+  if (id.endsWith('@lid')) return id
+  const res = await conn.onWhatsApp(id).catch(() => [])
+  return res[0]?.lid || null
+}
+
+function coincideParticipante(p, jid, lid) {
+  return p.id === jid || (lid && p.id === lid)
+}
+
 async function buscarGruposDisponibles(conn, targetJid, actorJid, isROwner) {
   const groups = await conn.groupFetchAllParticipating()
   const lista = Object.values(groups)
   const disponibles = []
 
+  const botJid = conn.user.jid
+  const botLid = await getLidFromJid(botJid, conn)
+  const targetLid = await getLidFromJid(targetJid, conn)
+  const actorLid = await getLidFromJid(actorJid, conn)
+
   for (const g of lista) {
     const participants = g.participants || []
-    const botP = participants.find(p => p.id === conn.user.jid)
-    const targetP = participants.find(p => p.id === targetJid)
-    const actorP = participants.find(p => p.id === actorJid)
+    const botP = participants.find(p => coincideParticipante(p, botJid, botLid))
+    const targetP = participants.find(p => coincideParticipante(p, targetJid, targetLid))
+    const actorP = participants.find(p => coincideParticipante(p, actorJid, actorLid))
 
     const botEsAdmin = !!botP?.admin
     const actorEsAdmin = !!actorP?.admin || isROwner
@@ -140,7 +155,6 @@ const handler = async (m, { conn, text, isROwner }) => {
   }
 }
 
-// Al elegir un grupo del menú, se ejecuta el ascenso ahí
 handler.before = async (m, { conn }) => {
   if (m.isBaileys) return false
 
