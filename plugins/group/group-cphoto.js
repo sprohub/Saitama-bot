@@ -9,7 +9,16 @@ import { promisify } from 'util'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { getLidFromJid } from '../../lib/simple.js' // ajusta el import si tu helper está en otra ruta
+// getLidFromJid autocontenido (evita depender de un export que no exista en lib/simple.js).
+// Si tu proyecto ya tiene esta función en otro archivo, puedes borrar esto e importarla de ahí.
+async function getLidFromJid(jid, conn) {
+  try {
+    const lid = await conn.signalRepository?.lidMapping?.getLIDForPN?.(jid)
+    return lid || null
+  } catch {
+    return null
+  }
+}
 
 const execAsync = promisify(exec)
 
