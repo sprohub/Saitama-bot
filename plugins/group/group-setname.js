@@ -1,18 +1,178 @@
-let handler = async (m, { conn, isAdmin, isBotAdmin, text }) => {
-  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '👥 「 HINATA SETNAME 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ Solo para grupos\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
-  if (!isAdmin) return conn.sendMessage(m.chat, { text: '👥 「 HINATA SETNAME 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ Solo administradores\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
-  if (!isBotAdmin) return conn.sendMessage(m.chat, { text: '👥 「 HINATA SETNAME 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ La bot necesita ser admin\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
-  if (!text) return conn.sendMessage(m.chat, { text: '👥 「 HINATA SETNAME 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ Escribe el nuevo nombre\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
+import { generateWAMessageFromContent, proto } from '@whiskeysockets/baileys'
 
-  await conn.groupUpdateSubject(m.chat, text)
-  await conn.sendMessage(m.chat, { text: '👥 「 HINATA SETNAME 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n✅ » Nombre actualizado\n📛 » ' + text + '\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
+function unwrapMessage(message) {
+  const wrappers = [
+    'ephemeralMessage',
+    'viewOnceMessage',
+    'viewOnceMessageV2',
+    'viewOnceMessageV2Extension',
+    'documentWithCaptionMessage'
+  ]
+  let msg = message
+  let guard = 0
+  while (msg && guard < 5) {
+    const key = wrappers.find(w => msg[w])
+    if (!key) break
+    msg = msg[key].message
+    guard++
+  }
+  return msg
 }
 
-handler.help = ['setname']
-handler.tags = ['group']
+function extractSelectedId(content) {
+  const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
+  if (nativeFlow?.paramsJson) {
+    try {
+      const data = JSON.parse(nativeFlow.paramsJson)
+      const id = data.id || data.selectedId || data.selectedRowId
+      if (id) return id
+    } catch (e) {
+      console.log('[setname] error parseando paramsJson:', e)
+    }
+  }
+  const listReply = content?.listResponseMessage?.singleSelectReply
+  if (listReply?.selectedRowId) return listReply.selectedRowId
+  const btnReply = content?.buttonsResponseMessage
+  if (btnReply?.selectedButtonId) return btnReply.selectedButtonId
+  return null
+}
+
+async function getLidFromJid(id, conn) {
+  if (id.endsWith('@lid')) return id
+  const res = await conn.onWhatsApp(id).catch(() => [])
+  return res[0]?.lid || null
+}
+
+function coincideParticipante(p, jid, lid) {
+  return p.id === jid || (lid && p.id === lid)
+}
+
+// 🔎 Solo owners pueden usar este comando, así que solo verificamos
+// que el bot sea admin en cada grupo.
+async function buscarGruposDisponibles(conn) {
+  const groups = await conn.groupFetchAllParticipating()
+  const lista = Object.values(groups)
+  const disponibles = []
+
+  const botJid = conn.user.jid
+  const botLid = await getLidFromJid(botJid, conn)
+
+  for (const g of lista) {
+    const participants = g.participants || []
+    const botP = participants.find(p => coincideParticipante(p, botJid, botLid))
+    const botEsAdmin = !!botP?.admin
+
+    if (botEsAdmin) {
+      disponibles.push({ id: g.id, subject: g.subject })
+    }
+  }
+
+  return disponibles
+}
+
+const handler = async (m, { conn, text }) => {
+  if (!text) {
+    return conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 Escribe el nuevo nombre.\n` +
+        `│ Ejemplo: *.setname Mi Grupo Nuevo*\n` +
+        `╰───────────────⬣`
+    }, { quoted: m })
+  }
+
+  const disponibles = await buscarGruposDisponibles(conn)
+
+  if (!disponibles.length) {
+    return conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 No encontré grupos donde el bot\n` +
+        `│ sea administrador.\n` +
+        `╰───────────────⬣`
+    }, { quoted: m })
+  }
+
+  const nombreCodificado = encodeURIComponent(text.trim())
+
+  const bodyText =
+    `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+    `│ 📛 Nuevo nombre: *${text.trim()}*\n` +
+    `│ 📋 Grupos disponibles: ${disponibles.length}\n` +
+    `│ 🍃 Toca el botón para elegir el grupo\n` +
+    `╰───────────────⬣`
+
+  const rows = disponibles.map(g => ({
+    title: `🌿 ${g.subject.length > 24 ? g.subject.slice(0, 24) + '…' : g.subject}`,
+    description: '🍃 Toca para renombrar este grupo',
+    id: `setname_grupo~${g.id}~${nombreCodificado}`
+  }))
+
+  const sections = [{ title: `「 🌿 SELECCIONA GRUPO 」· ${disponibles.length}`, rows: rows.slice(0, 10) }]
+
+  try {
+    const interactiveMessage = proto.Message.InteractiveMessage.create({
+      header: { title: '🌴 SAITAMA-BOT 🌴', subtitle: '🌿 Cambiar nombre de grupo', hasMediaAttachment: false },
+      body: { text: bodyText },
+      footer: { text: '🍃 SAITAMA-BOT 🌿' },
+      nativeFlowMessage: {
+        buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '🌿 VER GRUPOS', sections }) }]
+      }
+    })
+
+    const msg = generateWAMessageFromContent(
+      m.chat,
+      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
+      { quoted: m }
+    )
+
+    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+  } catch (e) {
+    console.log('[setname] error mostrando menú:', e)
+    await conn.sendMessage(m.chat, {
+      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ ❌ No se pudo mostrar el menú de grupos.\n╰───────────────⬣`
+    }, { quoted: m })
+  }
+}
+
+// Al elegir un grupo del menú, se aplica el nuevo nombre ahí
+handler.before = async (m, { conn }) => {
+  if (m.isBaileys) return false
+
+  const content = unwrapMessage(m.message)
+  if (!content) return false
+
+  const id = extractSelectedId(content)
+  if (!id || !id.startsWith('setname_grupo~')) return false
+
+  const parts = id.split('~')
+  const groupId = parts[1]
+  const nuevoNombre = decodeURIComponent(parts.slice(2).join('~'))
+
+  try {
+    await conn.groupUpdateSubject(groupId, nuevoNombre)
+
+    await conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ ✅ Nombre actualizado\n` +
+        `│ 📛 *${nuevoNombre}*\n` +
+        `╰───────────────⬣`
+    }, { quoted: m })
+  } catch (e) {
+    console.log('[setname] error al renombrar:', e)
+    await conn.sendMessage(m.chat, {
+      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ ❌ No se pudo cambiar el nombre de ese grupo.\n╰───────────────⬣`
+    }, { quoted: m })
+  }
+
+  return true
+}
+
+handler.help = ['setname <nombre>']
+handler.tags = ['owner']
 handler.command = /^(setname|setnombre|nombregrupo)$/i
-handler.desc = 'Cambia el nombre del grupo'
-handler.admin = true
-handler.botAdmin = true
+handler.desc = 'Cambia el nombre de un grupo (solo owners), eligiéndolo desde un menú'
+handler.owner = true
 
 export default handler
