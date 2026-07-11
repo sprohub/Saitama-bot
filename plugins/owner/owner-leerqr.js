@@ -1,6 +1,8 @@
-import { Jimp } from 'jimp'
+import pkg from 'jimp'
 import QrCodeReader from 'qrcode-reader'
 import fetch from 'node-fetch'
+
+const { Jimp } = pkg
 
 const API_KEY = 'Edward3bW2HWqQ'
 const BASE_URL = 'https://dv-edward.onrender.com/api/tools/qr'
