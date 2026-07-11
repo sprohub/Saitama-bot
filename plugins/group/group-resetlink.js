@@ -47,25 +47,22 @@ function coincideParticipante(p, jid, lid) {
   return p.id === jid || (lid && p.id === lid)
 }
 
-// 🔎 Busca grupos donde el bot es admin y quien ejecuta también es admin (o owner)
-async function buscarGruposDisponibles(conn, actorJid, isROwner) {
+// 🔎 Solo verificamos que el bot sea admin en el grupo.
+// El permiso de quien ejecuta ya lo garantiza handler.owner = true.
+async function buscarGruposDisponibles(conn) {
   const groups = await conn.groupFetchAllParticipating()
   const lista = Object.values(groups)
   const disponibles = []
 
   const botJid = conn.user.jid
   const botLid = await getLidFromJid(botJid, conn)
-  const actorLid = await getLidFromJid(actorJid, conn)
 
   for (const g of lista) {
     const participants = g.participants || []
     const botP = participants.find(p => coincideParticipante(p, botJid, botLid))
-    const actorP = participants.find(p => coincideParticipante(p, actorJid, actorLid))
-
     const botEsAdmin = !!botP?.admin
-    const actorEsAdmin = !!actorP?.admin || isROwner
 
-    if (botEsAdmin && actorEsAdmin) {
+    if (botEsAdmin) {
       disponibles.push({ id: g.id, subject: g.subject })
     }
   }
@@ -73,15 +70,15 @@ async function buscarGruposDisponibles(conn, actorJid, isROwner) {
   return disponibles
 }
 
-const handler = async (m, { conn, isROwner }) => {
-  const disponibles = await buscarGruposDisponibles(conn, m.sender, isROwner)
+const handler = async (m, { conn }) => {
+  const disponibles = await buscarGruposDisponibles(conn)
 
   if (!disponibles.length) {
     return conn.sendMessage(m.chat, {
       text:
         `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
-        `│ 🍃 No encontré grupos donde tú y el\n` +
-        `│ bot sean administradores.\n` +
+        `│ 🍃 No encontré grupos donde el bot\n` +
+        `│ sea administrador.\n` +
         `╰───────────────⬣`
     }, { quoted: m })
   }
@@ -176,8 +173,9 @@ handler.before = async (m, { conn }) => {
 }
 
 handler.help = ['resetlink']
-handler.tags = ['group']
+handler.tags = ['owner']
 handler.command = /^(resetlink|revoke|nuevolink)$/i
-handler.desc = 'Resetea el link de invitación de un grupo, eligiéndolo desde un menú'
+handler.desc = 'Resetea el link de invitación de un grupo (solo owners), eligiéndolo desde un menú'
+handler.owner = true
 
 export default handler
