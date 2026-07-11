@@ -1,33 +1,183 @@
-let handler = async (m, { conn, isAdmin, isBotAdmin }) => {
-  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '❀ HINATA RESETLINK ❀\n\nSolo para grupos' }, { quoted: m })
-  if (!isAdmin) return conn.sendMessage(m.chat, { text: '❀ HINATA RESETLINK ❀\n\nSolo administradores' }, { quoted: m })
-  if (!isBotAdmin) return conn.sendMessage(m.chat, { text: '❀ HINATA RESETLINK ❀\n\nLa bot necesita ser admin' }, { quoted: m })
+import { generateWAMessageFromContent, proto } from '@whiskeysockets/baileys'
 
-  await conn.sendMessage(m.chat, { text: '⏳ Reseteando link...' }, { quoted: m })
+function unwrapMessage(message) {
+  const wrappers = [
+    'ephemeralMessage',
+    'viewOnceMessage',
+    'viewOnceMessageV2',
+    'viewOnceMessageV2Extension',
+    'documentWithCaptionMessage'
+  ]
+  let msg = message
+  let guard = 0
+  while (msg && guard < 5) {
+    const key = wrappers.find(w => msg[w])
+    if (!key) break
+    msg = msg[key].message
+    guard++
+  }
+  return msg
+}
+
+function extractSelectedId(content) {
+  const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
+  if (nativeFlow?.paramsJson) {
+    try {
+      const data = JSON.parse(nativeFlow.paramsJson)
+      const id = data.id || data.selectedId || data.selectedRowId
+      if (id) return id
+    } catch (e) {
+      console.log('[resetlink] error parseando paramsJson:', e)
+    }
+  }
+  const listReply = content?.listResponseMessage?.singleSelectReply
+  if (listReply?.selectedRowId) return listReply.selectedRowId
+  const btnReply = content?.buttonsResponseMessage
+  if (btnReply?.selectedButtonId) return btnReply.selectedButtonId
+  return null
+}
+
+async function getLidFromJid(id, conn) {
+  if (id.endsWith('@lid')) return id
+  const res = await conn.onWhatsApp(id).catch(() => [])
+  return res[0]?.lid || null
+}
+
+function coincideParticipante(p, jid, lid) {
+  return p.id === jid || (lid && p.id === lid)
+}
+
+// 🔎 Busca grupos donde el bot es admin y quien ejecuta también es admin (o owner)
+async function buscarGruposDisponibles(conn, actorJid, isROwner) {
+  const groups = await conn.groupFetchAllParticipating()
+  const lista = Object.values(groups)
+  const disponibles = []
+
+  const botJid = conn.user.jid
+  const botLid = await getLidFromJid(botJid, conn)
+  const actorLid = await getLidFromJid(actorJid, conn)
+
+  for (const g of lista) {
+    const participants = g.participants || []
+    const botP = participants.find(p => coincideParticipante(p, botJid, botLid))
+    const actorP = participants.find(p => coincideParticipante(p, actorJid, actorLid))
+
+    const botEsAdmin = !!botP?.admin
+    const actorEsAdmin = !!actorP?.admin || isROwner
+
+    if (botEsAdmin && actorEsAdmin) {
+      disponibles.push({ id: g.id, subject: g.subject })
+    }
+  }
+
+  return disponibles
+}
+
+const handler = async (m, { conn, isROwner }) => {
+  const disponibles = await buscarGruposDisponibles(conn, m.sender, isROwner)
+
+  if (!disponibles.length) {
+    return conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 No encontré grupos donde tú y el\n` +
+        `│ bot sean administradores.\n` +
+        `╰───────────────⬣`
+    }, { quoted: m })
+  }
+
+  const bodyText =
+    `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+    `│ 🔗 Resetear link de invitación\n` +
+    `│ 📋 Grupos disponibles: ${disponibles.length}\n` +
+    `│ 🍃 Toca el botón para elegir el grupo\n` +
+    `╰───────────────⬣`
+
+  const rows = disponibles.map(g => ({
+    title: `🌿 ${g.subject.length > 24 ? g.subject.slice(0, 24) + '…' : g.subject}`,
+    description: '🍃 Toca para resetear su link',
+    id: `resetlink_grupo~${g.id}`
+  }))
+
+  const sections = [{ title: `「 🌿 SELECCIONA GRUPO 」· ${disponibles.length}`, rows: rows.slice(0, 10) }]
+
+  try {
+    const interactiveMessage = proto.Message.InteractiveMessage.create({
+      header: { title: '🌴 SAITAMA-BOT 🌴', subtitle: '🌿 Resetear link de grupo', hasMediaAttachment: false },
+      body: { text: bodyText },
+      footer: { text: '🍃 SAITAMA-BOT 🌿' },
+      nativeFlowMessage: {
+        buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '🌿 VER GRUPOS', sections }) }]
+      }
+    })
+
+    const msg = generateWAMessageFromContent(
+      m.chat,
+      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
+      { quoted: m }
+    )
+
+    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+  } catch (e) {
+    console.log('[resetlink] error mostrando menú:', e)
+    await conn.sendMessage(m.chat, {
+      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ ❌ No se pudo mostrar el menú de grupos.\n╰───────────────⬣`
+    }, { quoted: m })
+  }
+}
+
+// Al elegir un grupo del menú, se resetea su link ahí
+handler.before = async (m, { conn }) => {
+  if (m.isBaileys) return false
+
+  const content = unwrapMessage(m.message)
+  if (!content) return false
+
+  const id = extractSelectedId(content)
+  if (!id || !id.startsWith('resetlink_grupo~')) return false
+
+  const groupId = id.replace('resetlink_grupo~', '')
 
   try {
     let pp
-    try { pp = await conn.profilePictureUrl(m.chat, 'image') } catch { pp = 'https://files.catbox.moe/5tegkb.png' }
+    try {
+      pp = await conn.profilePictureUrl(groupId, 'image')
+    } catch {
+      pp = 'https://files.catbox.moe/5tegkb.png'
+    }
 
-    await conn.groupRevokeInvite(m.chat)
-    let code = await conn.groupInviteCode(m.chat)
-    let link = 'https://chat.whatsapp.com/' + code
+    await conn.groupRevokeInvite(groupId)
+    const code = await conn.groupInviteCode(groupId)
+    const link = `https://chat.whatsapp.com/${code}`
+
+    let subject = groupId
+    try {
+      const meta = await conn.groupMetadata(groupId)
+      subject = meta.subject
+    } catch {}
 
     await conn.sendMessage(m.chat, {
       image: { url: pp },
-      caption: '❀ HINATA RESETLINK ❀\n\nLink reseteado correctamente\n\n' + link
+      caption:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ ✅ Link reseteado en:\n` +
+        `│ 🏠 *${subject}*\n` +
+        `│ 🔗 ${link}\n` +
+        `╰───────────────⬣`
     }, { quoted: m })
-
   } catch (e) {
-    await conn.sendMessage(m.chat, { text: '❀ HINATA RESETLINK ❀\n\nNo se pudo resetear el link' }, { quoted: m })
+    console.log('[resetlink] error al resetear:', e)
+    await conn.sendMessage(m.chat, {
+      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ ❌ No se pudo resetear el link de ese grupo.\n╰───────────────⬣`
+    }, { quoted: m })
   }
+
+  return true
 }
 
 handler.help = ['resetlink']
 handler.tags = ['group']
 handler.command = /^(resetlink|revoke|nuevolink)$/i
-handler.desc = 'Resetea el link del grupo'
-handler.admin = true
-handler.botAdmin = true
+handler.desc = 'Resetea el link de invitación de un grupo, eligiéndolo desde un menú'
 
 export default handler
