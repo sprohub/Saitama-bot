@@ -20,6 +20,9 @@ const links = {
   groupSaitama: 'https://chat.whatsapp.com/GrnEybt0lVO9PbWfEf88AQ'
 }
 
+// 👉 Pon aquí tu imagen: puede ser una URL pública o una ruta local
+const bannerImage = 'https://tu-link-o-ruta/banner.jpg'
+
 let handler = async (m, { conn }) => {
   const ownersText = owners.map(o => {
     let block = `╭─⪼ 🌱 *${o.name}*\n│ 📱 ${o.phone}\n│ ${o.role}`
@@ -44,7 +47,10 @@ ${ownersText}
 > 🌱 SAITAMA BOT
 > Contáctanos si tienes dudas`
 
-  await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
+  await conn.sendMessage(m.chat, {
+    image: { url: bannerImage },
+    caption: texto
+  }, { quoted: m })
 }
 
 handler.help = ['owner']
