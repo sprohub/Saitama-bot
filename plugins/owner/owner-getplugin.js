@@ -1,65 +1,73 @@
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import fetch from 'node-fetch'
 
 let handler = async (m, { conn, text }) => {
   let who = m.sender
-  let owners = ['573225396540@s.whatsapp.net', '573225814649@s.whatsapp.net']
 
-  if (!owners.includes(who)) {
+  let esOwner = () => {
+    if (!global.owner || !Array.isArray(global.owner)) return false
+    let numeros = global.owner.map(([number]) => (number || '').replace(/[^0-9]/g, ''))
+    return numeros.some(num => who.includes(num))
+  }
+
+  if (!m.fromMe && !esOwner()) {
     return conn.sendMessage(m.chat, {
-      text: '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ HINATA BOT ㅤ֢ㅤׄㅤׅ\n\n🌸 Solo los creadores pueden usar este comando\n\n> Solicitado por @' + who.split('@')[0],
+      text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo los creadores pueden usar este comando\n│ 🍃 Solicitado por @' + who.split('@')[0] + '\n╰───────────────⬣',
       mentions: [who]
     }, { quoted: m })
   }
 
   if (!text) {
-    await conn.sendMessage(m.chat, { text: '⏳ Obteniendo lista de plugins del repositorio...' }, { quoted: m })
+    await conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Obteniendo lista de plugins del repositorio...\n╰───────────────⬣' }, { quoted: m })
 
     try {
-      let apiUrl = 'https://api.github.com/repos/ElvigilanteDv/Hinata-Bot/contents/plugins'
+      let apiUrl = 'https://api.github.com/repos/sprohub/Saitama-bot/contents/plugins'
       let res = await fetch(apiUrl)
       let files = await res.json()
 
       if (!Array.isArray(files)) {
-        return conn.sendMessage(m.chat, { text: '❌ No se pudo obtener la lista de plugins' }, { quoted: m })
+        return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No se pudo obtener la lista de plugins\n╰───────────────⬣' }, { quoted: m })
       }
 
       let jsFiles = files.filter(f => f.name.endsWith('.js')).map(f => f.name.replace('.js', ''))
 
-      let texto = '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ HINATA GETPLUGIN ㅤ֢ㅤׄㅤׅ\n\n'
-      texto += '📥 Descarga plugins del repositorio\n\n'
-      texto += '📋 *Plugins disponibles (' + jsFiles.length + '):*\n\n'
+      let texto = '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Descarga plugins del repositorio\n│ 🍃 Plugins disponibles (' + jsFiles.length + '):\n│\n'
 
       for (let plugin of jsFiles) {
-        texto += '❀ ' + plugin + '\n'
+        texto += '│ ❀ ' + plugin + '\n'
       }
 
-      texto += '\n> #getplugin <nombre>\n> Solicitado por @' + who.split('@')[0]
+      texto += '│\n│ 🍃 Usa: #getplugin <nombre>\n│ 🍃 Solicitado por @' + who.split('@')[0] + '\n╰───────────────⬣'
 
       await conn.sendMessage(m.chat, { text: texto, mentions: [who] }, { quoted: m })
 
     } catch (e) {
-      await conn.sendMessage(m.chat, { text: '❌ Error al obtener la lista' }, { quoted: m })
+      await conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Error al obtener la lista\n╰───────────────⬣' }, { quoted: m })
     }
     return
   }
 
-  let pluginName = text.toLowerCase().replace('.js', '')
-  let rawUrl = `https://raw.githubusercontent.com/ElvigilanteDv/Hinata-Bot/main/plugins/${pluginName}.js`
+  let pluginName = text.toLowerCase().replace('.js', '').trim()
 
-  await conn.sendMessage(m.chat, { text: '⏳ Descargando *' + pluginName + '.js*...' }, { quoted: m })
+  if (!/^[a-z0-9_-]+$/.test(pluginName)) {
+    return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Nombre de plugin inválido\n╰───────────────⬣' }, { quoted: m })
+  }
 
-  exec(`curl -o plugins/${pluginName}.js ${rawUrl}`, async (err, stdout, stderr) => {
+  let rawUrl = `https://raw.githubusercontent.com/sprohub/Saitama-bot/main/plugins/${pluginName}.js`
+
+  await conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Descargando ' + pluginName + '.js...\n╰───────────────⬣' }, { quoted: m })
+
+  execFile('curl', ['-f', '-o', `plugins/${pluginName}.js`, rawUrl], async (err, stdout, stderr) => {
     if (err) {
       await conn.sendMessage(m.chat, {
-        text: '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ HINATA GETPLUGIN ㅤ֢ㅤׄㅤׅ\n\n🌸 No se encontró *' + pluginName + '.js*\n\n> Verifica el nombre con #getplugin\n> Solicitado por @' + who.split('@')[0],
+        text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No se encontró ' + pluginName + '.js\n│ 🍃 Verifica el nombre con #getplugin\n│ 🍃 Solicitado por @' + who.split('@')[0] + '\n╰───────────────⬣',
         mentions: [who]
       }, { quoted: m })
       return
     }
 
     await conn.sendMessage(m.chat, {
-      text: '𑁍ࠬܓ ⁾ ㅤׄㅤׅㅤׄ HINATA GETPLUGIN ㅤ֢ㅤׄㅤׅ\n\n✨ Plugin descargado correctamente\n\n📦 *' + pluginName + '.js*\n📂 plugins/\n\n> Hinata lo cargará automáticamente\n> Solicitado por @' + who.split('@')[0],
+      text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Plugin descargado correctamente\n│ 🍃 ' + pluginName + '.js → plugins/\n│ 🍃 Se cargará automáticamente\n│ 🍃 Solicitado por @' + who.split('@')[0] + '\n╰───────────────⬣',
       mentions: [who]
     }, { quoted: m })
   })
