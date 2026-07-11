@@ -10,8 +10,8 @@
     "plugins": "plugins"
   },
   "scripts": {
-    "start": "node index.js",
-    "postinstall": "sed -i 's/jimp_1\\.default/jimp_1.Jimp/g; s/jimp\\.getWidth()/jimp.bitmap.width/g; s/jimp\\.getHeight()/jimp.bitmap.height/g; s/jimp\\.resize(550, -1) : jimp\\.resize(-1, 650)/jimp.resize({ w: 550 }) : jimp.resize({ h: 650 })/' node_modules/@whiskeysockets/baileys/lib/Utils/messages-media.js"
+  "start": "node build-edw.cjs && node index.js",
+  "build:edw": "node build-edw.cjs"
   },
   "homepage": "https://github.com/ElvigilanteDv/Hinata-Bot",
   "author": {
@@ -27,7 +27,7 @@
   "license": "MIT-LICENSE",
   "dependencies": {
     "@hapi/boom": "^10.0.1",
-    "@whiskeysockets/baileys": "github:ElvigilanteDv/bails.git",
+    "@whiskeysockets/baileys": "github:Edward-oficial/bails.git",
     "awesome-phonenumber": "^3.4.0",
     "axios": "^1.1.2",
     "acrcloud": "^1.4.0",
@@ -47,7 +47,7 @@
     "google-it": "^1.6.4",
     "human-readable": "^0.2.1",
     "jsdom": "^20.0.1",
-    "jimp": "^1.6.0",
+    "jimp": "^0.16.1",
     "link-preview-js": "^3.0.0",
     "lodash": "^4.17.21",
     "lowdb": "^3.0.0",
@@ -81,5 +81,8 @@
   },
   "optionalDependencies": {
     "moment-timezone": "^0.5.37"
+  },
+  "devDependencies": {
+    "edw-lang": "github:Edward-oficial/edw-lang"
   }
 }
