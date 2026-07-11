@@ -1,32 +1,6 @@
 import { addSticker } from '../../lib/stickerpack.js'
-import { spawn } from 'child_process'
-import fs from 'fs'
-import path from 'path'
-import os from 'os'
-
-function convertToWebp(inputPath, outputPath) {
-  return new Promise((resolve, reject) => {
-    const args = [
-      '-y',
-      '-i', inputPath,
-      '-vf', "scale='min(512,iw)':min'(512,ih)':force_original_aspect_ratio=decrease,format=rgba,pad=512:512:(512-iw)/2:(512-ih)/2:color=#00000000",
-      '-vcodec', 'libwebp',
-      '-lossless', '0',
-      '-compression_level', '6',
-      '-q:v', '80',
-      outputPath
-    ]
-
-    const proc = spawn('ffmpeg', args)
-    let stderr = ''
-    proc.stderr.on('data', d => (stderr += d.toString()))
-    proc.on('close', code => {
-      if (code === 0) resolve()
-      else reject(new Error(`ffmpeg salió con código ${code}: ${stderr}`))
-    })
-    proc.on('error', reject)
-  })
-}
+import { sticker } from '../../lib/sticker.js'
+import { fileTypeFromBuffer } from 'file-type'
 
 const handler = async (m, { conn, text }) => {
   const quoted = m.quoted ? m.quoted : m
@@ -38,38 +12,43 @@ const handler = async (m, { conn, text }) => {
       `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
       `│ 🍃 Debes poner un nombre para el sticker.\n` +
       `│ Ejemplo: *.stsubir goku*\n` +
-      `│ (citando una imagen o sticker)\n` +
+      `│ (citando una imagen, video, gif o sticker)\n` +
       `╰───────────────⬣`
     )
   }
 
-  if (!/image\/(jpe?g|png)|webp/i.test(mime)) {
+  const soportado = /image\/(jpe?g|png|webp|gif)|video\/(mp4|3gpp|quicktime)/i.test(mime)
+  if (!soportado) {
     return m.reply(
       `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
-      `│ 🍃 Debes citar una *imagen* o *sticker*\n` +
-      `│ junto con *.stsubir ${name}*.\n` +
+      `│ 🍃 Debes citar una *imagen*, *video*, *gif*\n` +
+      `│ o *sticker* junto con *.stsubir ${name}*.\n` +
       `╰───────────────⬣`
     )
   }
+
+  const esVideo = /video/i.test(mime) || /gif/i.test(mime)
 
   await m.reply(
     `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
     `│ 🍃 Guardando sticker *${name}*...\n` +
+    `│ ${esVideo ? '⏳ Los animados tardan un poco más' : ''}\n` +
     `╰───────────────⬣`
   )
-
-  const tmpIn = path.join(os.tmpdir(), `st_in_${Date.now()}.${/png/i.test(mime) ? 'png' : /webp/i.test(mime) ? 'webp' : 'jpg'}`)
-  const tmpOut = path.join(os.tmpdir(), `st_out_${Date.now()}.webp`)
 
   try {
     const buffer = await quoted.download()
     if (!buffer || !buffer.length) throw new Error('Buffer vacío')
 
-    fs.writeFileSync(tmpIn, buffer)
-    await convertToWebp(tmpIn, tmpOut)
+    const webpBuffer = await sticker(buffer, {
+      packname: 'SAITAMA-BOT',
+      author: m.pushName || 'SAITAMA'
+    })
 
-    const webpBuffer = fs.readFileSync(tmpOut)
-    addSticker(name, webpBuffer, { owner: m.sender, chat: m.chat })
+    const type = await fileTypeFromBuffer(buffer).catch(() => null)
+    const animated = esVideo || (type?.ext === 'webp' && false) // el flag real de animado ya se resolvió dentro de sticker()
+
+    addSticker(name, webpBuffer, { owner: m.sender, chat: m.chat, animated: esVideo })
 
     await conn.sendMessage(m.chat, {
       text:
@@ -82,12 +61,9 @@ const handler = async (m, { conn, text }) => {
     console.log('[stsubir] error:', e)
     await m.reply(
       `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
-      `│ ❌ Error al guardar el sticker.\n` +
+      `│ ❌ ${e.message || 'Error al guardar el sticker.'}\n` +
       `╰───────────────⬣`
     )
-  } finally {
-    try { if (fs.existsSync(tmpIn)) fs.unlinkSync(tmpIn) } catch {}
-    try { if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut) } catch {}
   }
 }
 
@@ -95,7 +71,7 @@ handler.command = ['stsubir']
 handler.customPrefix = /^[.\/#@]/i
 handler.tags = ['tools']
 handler.help = ['stsubir <nombre>']
-handler.desc = 'Sube un sticker al pack (cita una imagen o sticker)'
+handler.desc = 'Sube un sticker (imagen/video/gif) al pack'
 handler.owner = true
 
 export default handler
