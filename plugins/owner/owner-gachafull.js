@@ -3,12 +3,16 @@ import path from 'path'
 
 let handler = async (m, { conn }) => {
   let who = m.sender
-  let owners = ['59177474230@s.whatsapp.net', '573223090406@s.whatsapp.net',
-'573225396540@s.whatsapp.net',]
 
-  if (!owners.includes(who)) {
+  let esOwner = () => {
+    if (!global.owner || !Array.isArray(global.owner)) return false
+    let numeros = global.owner.map(([number]) => (number || '').replace(/[^0-9]/g, ''))
+    return numeros.some(num => who.includes(num))
+  }
+
+  if (!m.fromMe && !esOwner()) {
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA GACHA FULL 」 ˚ʚ♡ɞ˚\n\n💫 » Solo los creadores'
+      text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo los creadores pueden usar esto\n╰───────────────⬣'
     }, { quoted: m })
   }
 
@@ -16,7 +20,7 @@ let handler = async (m, { conn }) => {
 
   if (!fs.existsSync(gachaPath)) {
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA GACHA FULL 」 ˚ʚ♡ɞ˚\n\n💫 » No hay gacha.json'
+      text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No se encontró gacha.json\n╰───────────────⬣'
     }, { quoted: m })
   }
 
@@ -38,15 +42,13 @@ let handler = async (m, { conn }) => {
 
   if (agregados === 0) {
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA GACHA FULL 」 ˚ʚ♡ɞ˚\n\n💫 » Ya tienes toda la colección\n📊 » ' + user.inventory.length + ' personajes'
+      text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Ya tienes toda la colección\n│ 🍃 ' + user.inventory.length + ' personajes\n╰───────────────⬣'
     }, { quoted: m })
   }
 
-  let texto = '𖣔 「 HINATA GACHA FULL 」 ˚ʚ♡ɞ˚\n\n'
-  texto += '🌟 » Colección completada\n\n'
-  texto += '📦 » +' + agregados + ' personajes nuevos\n'
-  texto += '🎒 » Total: ' + user.inventory.length + '/' + characters.length + ' personajes\n\n'
-  texto += '> Eres el dueño de la gacha'
+  global.markDatabaseModified()
+
+  let texto = '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Colección completada\n│ 🍃 +' + agregados + ' personajes nuevos\n│ 🍃 Total: ' + user.inventory.length + '/' + characters.length + ' personajes\n╰───────────────⬣'
 
   await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
 }
