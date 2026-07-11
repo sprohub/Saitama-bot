@@ -47,6 +47,14 @@ function coincideParticipante(p, jid, lid) {
   return p.id === jid || (lid && p.id === lid)
 }
 
+// 🔒 Verifica si quien tocó el botón es owner del bot (usa global.owner de config.js)
+async function esOwner(conn, senderJid) {
+  if (!global.owner || !Array.isArray(global.owner)) return false
+  const senderLid = await getLidFromJid(senderJid, conn)
+  const numeros = global.owner.map(([number]) => (number || '').replace(/[^0-9]/g, ''))
+  return numeros.some(num => senderJid.includes(num) || (senderLid && senderLid.includes(num)))
+}
+
 // 🔎 Solo verificamos que el bot sea admin en el grupo.
 // El permiso de quien ejecuta ya lo garantiza handler.owner = true.
 async function buscarGruposDisponibles(conn) {
@@ -123,7 +131,7 @@ const handler = async (m, { conn }) => {
   }
 }
 
-// Al elegir un grupo del menú, se resetea su link ahí
+// 🔒 Al tocar el botón, primero verificamos que sea owner
 handler.before = async (m, { conn }) => {
   if (m.isBaileys) return false
 
@@ -132,6 +140,14 @@ handler.before = async (m, { conn }) => {
 
   const id = extractSelectedId(content)
   if (!id || !id.startsWith('resetlink_grupo~')) return false
+
+  const permitido = m.fromMe || await esOwner(conn, m.sender)
+  if (!permitido) {
+    await conn.sendMessage(m.chat, {
+      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ ❌ Solo el owner puede usar este botón.\n╰───────────────⬣`
+    }, { quoted: m })
+    return true
+  }
 
   const groupId = id.replace('resetlink_grupo~', '')
 
