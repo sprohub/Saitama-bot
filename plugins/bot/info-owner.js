@@ -16,7 +16,7 @@ const owners = [
 ]
 
 const links = {
-  groupOficial: 'https://chat.whatsapp.com/EEppolIlNjGDZrmNyDERRr',
+  groupOficial: 'https://chat.whatsapp.com/J0sxzJySsV5D2xd410vPzS',
   groupSaitama: 'https://chat.whatsapp.com/GrnEybt0lVO9PbWfEf88AQ'
 }
 
@@ -40,8 +40,8 @@ let handler = async (m, { conn }) => {
 ${ownersText}
 
 ╭─⪼ 🍀 *COMUNIDAD*
-│ 💬 Grupo oficial: ${links.groupOficial}
-│ 🧪 Pruebas y novedades: ${links.groupSaitama}
+│ 🍃Grupo Mitsuri: ${links.groupOficial}
+│ ☘️ Grupo Saitama: ${links.groupSaitama}
 ╰───────────────⬣
 
 > 🌱 SAITAMA BOT
