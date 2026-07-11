@@ -1,11 +1,15 @@
 let handler = async (m, { conn, args }) => {
   let who = m.sender
-  let owners = ['59177474230@s.whatsapp.net', '573223090406@s.whatsapp.net',
-'573225396540@s.whatsapp.net',]
 
-  if (!owners.includes(who)) {
+  let esOwner = () => {
+    if (!global.owner || !Array.isArray(global.owner)) return false
+    let numeros = global.owner.map(([number]) => (number || '').replace(/[^0-9]/g, ''))
+    return numeros.some(num => who.includes(num))
+  }
+
+  if (!m.fromMe && !esOwner()) {
     return conn.sendMessage(m.chat, {
-      text: '✨ 「 HINATA DAR XP 」 ✨\n\n💫 » Solo los creadores pueden usar esto'
+      text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo los creadores pueden usar esto\n╰───────────────⬣'
     }, { quoted: m })
   }
 
@@ -14,7 +18,7 @@ let handler = async (m, { conn, args }) => {
 
   if (isNaN(cantidad) || cantidad <= 0) {
     return conn.sendMessage(m.chat, {
-      text: '✨ 「 HINATA DAR XP 」 ✨\n\n💫 » Cantidad inválida\n\n> #darxp 500\n> #darxp @usuario 500'
+      text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Cantidad inválida\n│ 🍃 Usa: .darxp 500\n│ 🍃 Usa: .darxp @usuario 500\n╰───────────────⬣'
     }, { quoted: m })
   }
 
@@ -25,13 +29,9 @@ let handler = async (m, { conn, args }) => {
   }
 
   user.exp = (user.exp || 0) + cantidad
+  global.markDatabaseModified()
 
-  let texto = '✨ 「 HINATA DAR XP 」 ✨\n\n'
-  texto += '✅ » Experiencia entregada\n\n'
-  texto += '👤 » @' + target.split('@')[0] + '\n'
-  texto += '✨ » +' + cantidad + ' exp\n'
-  texto += '📊 » Total: ' + user.exp + ' exp\n'
-  texto += '⭐ » Nivel: ' + (user.level || 0)
+  let texto = '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Experiencia entregada\n│ 🍃 Usuario: @' + target.split('@')[0] + '\n│ 🍃 +' + cantidad + ' exp\n│ 🍃 Total: ' + user.exp + ' exp\n│ 🍃 Nivel: ' + (user.level || 0) + '\n╰───────────────⬣'
 
   await conn.sendMessage(m.chat, { text: texto, mentions: [target] }, { quoted: m })
 }
