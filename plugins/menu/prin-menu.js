@@ -6,7 +6,7 @@ import {
   prepareWAMessageMedia,
   proto
 } from '@whiskeysockets/baileys'
-import { xpRange } from '../lib/levelling.js'
+import { xpRange } from '../../lib/levelling.js'
 
 const tags = {
   main: '🌿 Principal',
