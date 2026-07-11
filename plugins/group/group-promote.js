@@ -49,7 +49,9 @@ function coincideParticipante(p, jid, lid) {
   return p.id === jid || (lid && p.id === lid)
 }
 
-async function buscarGruposDisponibles(conn, targetJid, actorJid, isROwner) {
+// 🔎 Como solo owners pueden usar este comando (handler.owner = true),
+// solo verificamos que el bot sea admin y que el objetivo esté en el grupo.
+async function buscarGruposDisponibles(conn, targetJid) {
   const groups = await conn.groupFetchAllParticipating()
   const lista = Object.values(groups)
   const disponibles = []
@@ -57,18 +59,15 @@ async function buscarGruposDisponibles(conn, targetJid, actorJid, isROwner) {
   const botJid = conn.user.jid
   const botLid = await getLidFromJid(botJid, conn)
   const targetLid = await getLidFromJid(targetJid, conn)
-  const actorLid = await getLidFromJid(actorJid, conn)
 
   for (const g of lista) {
     const participants = g.participants || []
     const botP = participants.find(p => coincideParticipante(p, botJid, botLid))
     const targetP = participants.find(p => coincideParticipante(p, targetJid, targetLid))
-    const actorP = participants.find(p => coincideParticipante(p, actorJid, actorLid))
 
     const botEsAdmin = !!botP?.admin
-    const actorEsAdmin = !!actorP?.admin || isROwner
 
-    if (botEsAdmin && actorEsAdmin && targetP) {
+    if (botEsAdmin && targetP) {
       disponibles.push({
         id: g.id,
         subject: g.subject,
@@ -85,7 +84,7 @@ function extraerNumero(texto) {
   return limpio.length >= 8 ? `${limpio}@s.whatsapp.net` : null
 }
 
-const handler = async (m, { conn, text, isROwner }) => {
+const handler = async (m, { conn, text }) => {
   let who = (m.mentionedJid && m.mentionedJid[0])
     || (m.quoted ? m.quoted.sender : null)
     || extraerNumero(text)
@@ -101,15 +100,15 @@ const handler = async (m, { conn, text, isROwner }) => {
     }, { quoted: m })
   }
 
-  const disponibles = await buscarGruposDisponibles(conn, who, m.sender, isROwner)
+  const disponibles = await buscarGruposDisponibles(conn, who)
 
   if (!disponibles.length) {
     return conn.sendMessage(m.chat, {
       text:
         `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
         `│ 🍃 No encontré grupos donde @${who.split('@')[0]}\n` +
-        `│ esté presente y donde tú y el bot\n` +
-        `│ sean administradores.\n` +
+        `│ esté presente y donde el bot sea\n` +
+        `│ administrador.\n` +
         `╰───────────────⬣`,
       mentions: [who]
     }, { quoted: m })
@@ -196,8 +195,9 @@ handler.before = async (m, { conn }) => {
 }
 
 handler.help = ['promote <@usuario>']
-handler.tags = ['group']
+handler.tags = ['owner']
 handler.command = /^(promote|promover|daradmin)$/i
-handler.desc = 'Da administrador a alguien, eligiendo el grupo desde un menú'
+handler.desc = 'Da administrador a alguien (solo owners), eligiendo el grupo desde un menú'
+handler.owner = true
 
 export default handler
