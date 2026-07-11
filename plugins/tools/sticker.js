@@ -1,5 +1,5 @@
 import { downloadMediaMessage } from '@whiskeysockets/baileys'
-import { sticker } from '../lib/sticker.js'
+import { sticker } from '../../lib/sticker.js'
 
 let handler = async (m, { conn, usedPrefix, command }) => {
   const quoted = m.quoted ? m.quoted : m
