@@ -22,16 +22,6 @@ const handler = async (m, { conn, text }) => {
     )
   }
 
-  // Solo quien subió el sticker o el dueño del bot puede eliminarlo
-  if (sticker.owner !== m.sender && !m.fromMe) {
-    return m.reply(
-      `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
-      `│ ❌ Solo quien subió *${name}* o el dueño\n` +
-      `│ del bot puede eliminarlo.\n` +
-      `╰───────────────⬣`
-    )
-  }
-
   removeSticker(name)
 
   await conn.sendMessage(m.chat, {
@@ -44,5 +34,6 @@ handler.customPrefix = /^[.\/#@]/i
 handler.tags = ['tools']
 handler.help = ['steliminar <nombre>']
 handler.desc = 'Elimina un sticker del pack por su nombre'
+handler.owner = true
 
 export default handler
