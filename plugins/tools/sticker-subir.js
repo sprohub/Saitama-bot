@@ -96,5 +96,6 @@ handler.customPrefix = /^[.\/#@]/i
 handler.tags = ['tools']
 handler.help = ['stsubir <nombre>']
 handler.desc = 'Sube un sticker al pack (cita una imagen o sticker)'
+handler.owner = true
 
 export default handler
