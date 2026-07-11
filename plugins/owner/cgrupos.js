@@ -1,24 +1,13 @@
 // === COMANDO grupos / .grupos / /grupos / #grupos / @grupos ===
 // Muestra los grupos donde está el bot en un menú interactivo (botón),
-// igual de estilo que el menú principal. Solo lo pueden usar los dueños.
+// igual de estilo que el menú principal. Ahora cualquier persona puede usarlo.
 
 import {
   generateWAMessageFromContent,
   proto
 } from '@whiskeysockets/baileys'
 
-const OWNERS = ['573225396540', '573225814649', '573223090406']
-
-function isOwner(m) {
-  const number = m.sender?.split('@')[0]
-  return m.fromMe || OWNERS.includes(number)
-}
-
 const handler = async (m, { conn }) => {
-  if (!isOwner(m)) {
-    return m.reply('❌ Solo el dueño del bot puede usar este comando.')
-  }
-
   const groups = await conn.groupFetchAllParticipating()
   const groupList = Object.values(groups)
 
@@ -78,7 +67,7 @@ const handler = async (m, { conn }) => {
         text: bodyText
       },
       footer: {
-        text: '🍃 SAITAMA-BOT • Solo owners 🌿'
+        text: '🍃 SAITAMA-BOT 🌿'
       },
       nativeFlowMessage: {
         buttons: [
@@ -161,7 +150,7 @@ handler.before = async (m, { conn }) => {
 
 handler.command = ['grupos']
 handler.customPrefix = /^[.\/#@]?/i
-handler.tags = ['owner']
+handler.tags = ['group']
 handler.help = ['grupos']
 
 export default handler
