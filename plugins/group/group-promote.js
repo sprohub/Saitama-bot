@@ -37,8 +37,6 @@ function extractSelectedId(content) {
   return null
 }
 
-// 🔎 Baileys puede reportar participantes con jid (@s.whatsapp.net) o lid (@lid).
-// Sacamos ambas variantes de un mismo número para comparar sin fallos.
 async function getLidFromJid(id, conn) {
   if (id.endsWith('@lid')) return id
   const res = await conn.onWhatsApp(id).catch(() => [])
@@ -49,8 +47,14 @@ function coincideParticipante(p, jid, lid) {
   return p.id === jid || (lid && p.id === lid)
 }
 
-// 🔎 Como solo owners pueden usar este comando (handler.owner = true),
-// solo verificamos que el bot sea admin y que el objetivo esté en el grupo.
+// 🔒 Verifica si quien tocó el botón es owner del bot (usa global.owner de config.js)
+async function esOwner(conn, senderJid) {
+  if (!global.owner || !Array.isArray(global.owner)) return false
+  const senderLid = await getLidFromJid(senderJid, conn)
+  const numeros = global.owner.map(([number]) => (number || '').replace(/[^0-9]/g, ''))
+  return numeros.some(num => senderJid.includes(num) || (senderLid && senderLid.includes(num)))
+}
+
 async function buscarGruposDisponibles(conn, targetJid) {
   const groups = await conn.groupFetchAllParticipating()
   const lista = Object.values(groups)
@@ -154,6 +158,7 @@ const handler = async (m, { conn, text }) => {
   }
 }
 
+// 🔒 Al tocar el botón, primero verificamos que sea owner
 handler.before = async (m, { conn }) => {
   if (m.isBaileys) return false
 
@@ -162,6 +167,14 @@ handler.before = async (m, { conn }) => {
 
   const id = extractSelectedId(content)
   if (!id || !id.startsWith('promote_grupo~')) return false
+
+  const permitido = m.fromMe || await esOwner(conn, m.sender)
+  if (!permitido) {
+    await conn.sendMessage(m.chat, {
+      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ ❌ Solo el owner puede usar este botón.\n╰───────────────⬣`
+    }, { quoted: m })
+    return true
+  }
 
   const parts = id.split('~')
   const groupId = parts[1]
