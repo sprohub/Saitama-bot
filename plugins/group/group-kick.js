@@ -1,37 +1,73 @@
-let handler = async (m, { conn, isAdmin, isBotAdmin }) => {
-  if (!m.isGroup) return conn.sendMessage(m.chat, { text: '👥 「 HINATA KICK 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ Solo para grupos\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
-  if (!isBotAdmin) return conn.sendMessage(m.chat, { text: '👥 「 HINATA KICK 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ La bot necesita ser admin\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
-  if (!isAdmin) return conn.sendMessage(m.chat, { text: '👥 「 HINATA KICK 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ Solo administradores\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
+const handler = async (m, { conn, isBotAdmin }) => {
+  if (!m.isGroup) {
+    return conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 Este comando solo funciona en grupos.\n` +
+        `╰───────────────⬣`
+    }, { quoted: m })
+  }
 
-  let who = m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : null
-  if (!who) return conn.sendMessage(m.chat, { text: '👥 「 HINATA KICK 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ Menciona o responde a quien expulsar\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
+  if (!isBotAdmin) {
+    return conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 El bot necesita ser administrador\n` +
+        `│ del grupo para poder expulsar.\n` +
+        `╰───────────────⬣`
+    }, { quoted: m })
+  }
 
-  let metadata = await conn.groupMetadata(m.chat)
-  let isOwner = metadata.participants.some(p => p.id === who && p.admin === 'superadmin')
+  const who = (m.mentionedJid && m.mentionedJid[0]) || (m.quoted ? m.quoted.sender : null)
 
-  if (isOwner) {
-    return conn.sendMessage(m.chat, { 
-      text: '👥 「 HINATA KICK 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ No se puede expulsar al creador\n👑 » @' + who.split('@')[0] + '\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔',
+  if (!who) {
+    return conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 Menciona o responde a quien\n` +
+        `│ quieres expulsar.\n` +
+        `╰───────────────⬣`
+    }, { quoted: m })
+  }
+
+  const metadata = await conn.groupMetadata(m.chat)
+  const esSuperAdmin = metadata.participants.some(p => p.id === who && p.admin === 'superadmin')
+
+  if (esSuperAdmin) {
+    return conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 No se puede expulsar al creador\n` +
+        `│ 👑 @${who.split('@')[0]}\n` +
+        `╰───────────────⬣`,
       mentions: [who]
     }, { quoted: m })
   }
 
   try {
     await conn.groupParticipantsUpdate(m.chat, [who], 'remove')
-    await conn.sendMessage(m.chat, { 
-      text: '👥 「 HINATA KICK 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n✅ » @' + who.split('@')[0] + ' expulsado\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔',
+    await conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ ✅ @${who.split('@')[0]} fue expulsado\n` +
+        `╰───────────────⬣`,
       mentions: [who]
     }, { quoted: m })
   } catch (e) {
-    await conn.sendMessage(m.chat, { text: '👥 「 HINATA KICK 」 👥\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n❥ Error al expulsar\n\n▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔' }, { quoted: m })
+    await conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ ❌ Error al expulsar.\n` +
+        `╰───────────────⬣`
+    }, { quoted: m })
   }
 }
 
-handler.help = ['kick']
-handler.tags = ['group']
+handler.help = ['kick <@usuario>']
+handler.tags = ['owner']
 handler.command = /^(kick|echar|expulsar)$/i
-handler.desc = 'Expulsa a un miembro'
-handler.admin = true
+handler.desc = 'Expulsa a un miembro del grupo (solo owners)'
+handler.owner = true
 handler.botAdmin = true
 
 export default handler
