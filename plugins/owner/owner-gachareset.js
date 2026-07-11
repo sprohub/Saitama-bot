@@ -1,11 +1,15 @@
 let handler = async (m, { conn }) => {
   let who = m.sender
-  let owners = ['59177474230@s.whatsapp.net', '573223090406@s.whatsapp.net',
-'573225396540@s.whatsapp.net']
 
-  if (!owners.includes(who)) {
+  let esOwner = () => {
+    if (!global.owner || !Array.isArray(global.owner)) return false
+    let numeros = global.owner.map(([number]) => (number || '').replace(/[^0-9]/g, ''))
+    return numeros.some(num => who.includes(num))
+  }
+
+  if (!m.fromMe && !esOwner()) {
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA RESET GACHA 」 ˚ʚ♡ɞ˚\n\n💫 » Solo los creadores'
+      text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo los creadores pueden usar esto\n╰───────────────⬣'
     }, { quoted: m })
   }
 
@@ -17,18 +21,15 @@ let handler = async (m, { conn }) => {
 
   if (!user.inventory || user.inventory.length === 0) {
     return conn.sendMessage(m.chat, {
-      text: '𖣔 「 HINATA RESET GACHA 」 ˚ʚ♡ɞ˚\n\n💫 » No tienes personajes'
+      text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No tienes personajes\n╰───────────────⬣'
     }, { quoted: m })
   }
 
   let tenia = user.inventory.length
   user.inventory = []
+  global.markDatabaseModified()
 
-  let texto = '𖣔 「 HINATA RESET GACHA 」 ˚ʚ♡ɞ˚\n\n'
-  texto += '🗑️ » Colección vaciada\n\n'
-  texto += '📦 » -' + tenia + ' personajes\n'
-  texto += '🎒 » Total: 0 personajes\n\n'
-  texto += '> Empieza de nuevo con #rw'
+  let texto = '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Colección vaciada\n│ 🍃 -' + tenia + ' personajes\n│ 🍃 Total: 0 personajes\n│ 🍃 Empieza de nuevo con .rw\n╰───────────────⬣'
 
   await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
 }
