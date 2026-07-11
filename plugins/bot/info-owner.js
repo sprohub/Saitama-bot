@@ -21,7 +21,7 @@ const links = {
 }
 
 // 👉 Pon aquí tu imagen: puede ser una URL pública o una ruta local
-const bannerImage = 'https://tu-link-o-ruta/banner.jpg'
+const bannerImage = 'https://i.ibb.co/8n3QbFnJ/2140482e-e443-4829-b97b-2e1af92faa14.png'
 
 let handler = async (m, { conn }) => {
   const ownersText = owners.map(o => {
