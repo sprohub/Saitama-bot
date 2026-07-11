@@ -6,7 +6,7 @@ const Jimp = pkg.Jimp || pkg
 
 const API_KEY = 'Edward3bW2HWqQ'
 const BASE_URL = 'https://dv-edward.onrender.com/api/tools/qr'
-const IMG = 'https://i.ibb.co/TB7cZfFG/SAITAMAmenu.jpg'
+const IMG = 'https://i.ibb.co/cqqj2T4/011b3cca-2c95-4911-bb55-27a0686c7544.jpg'
 
 function detectarTipo(contenido) {
   if (/^https?:\/\//i.test(contenido)) return '🌐 Enlace / Web'
