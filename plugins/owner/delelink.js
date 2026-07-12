@@ -8,7 +8,9 @@
 // Regex para detectar links (http/https, www., wa.me, chat.whatsapp.com, etc.)
 // ───────────────────────────────────────────
 const LINK_REGEX = /(https?:\/\/|www\.|wa\.me\/|chat\.whatsapp\.com\/)\S+/gi
-const LIMITE_LINKS = 3 // "más de 3" => 4 o más dispara el ban
+const GROUP_LINK_REGEX = /(https?:\/\/)?(chat\.whatsapp\.com\/|whatsapp\.com\/channel\/)\S+/gi
+const LIMITE_LINKS = 3        // links normales: "más de 3" => 4to dispara ban
+const LIMITE_LINKS_GRUPO = 2  // links de grupo/canal: al 2do se banea
 
 // ───────────────────────────────────────────
 // Utilidad: saber si el sender es owner (mismo patrón usado en cphoto.js)
@@ -60,7 +62,10 @@ const handler = async (m, { conn, text, command, isOwner }) => {
 
   global.db.data.chats[m.chat] = global.db.data.chats[m.chat] || {}
   global.db.data.chats[m.chat].delelink = activar
-  if (!activar) global.db.data.chats[m.chat].delelinkCounter = {}
+  if (!activar) {
+    global.db.data.chats[m.chat].delelinkCounter = {}
+    global.db.data.chats[m.chat].delelinkGrupoCounter = {}
+  }
 
   await conn.sendMessage(
     m.chat,
@@ -115,7 +120,43 @@ handler.before = async function (m, { conn }) {
     await conn.sendMessage(m.chat, { delete: m.key })
   } catch {}
 
-  // Contador acumulado por usuario dentro del grupo (persistente en la db)
+  const esLinkDeGrupo = GROUP_LINK_REGEX.test(m.text)
+  GROUP_LINK_REGEX.lastIndex = 0 // reset porque el regex tiene flag "g"
+
+  if (esLinkDeGrupo) {
+    // ── Links de grupo/canal: 2 oportunidades, al 2do se banea ──
+    chatData.delelinkGrupoCounter = chatData.delelinkGrupoCounter || {}
+    chatData.delelinkGrupoCounter[m.sender] = (chatData.delelinkGrupoCounter[m.sender] || 0) + 1
+    const strikesGrupo = chatData.delelinkGrupoCounter[m.sender]
+
+    if (strikesGrupo >= LIMITE_LINKS_GRUPO) {
+      try {
+        await conn.groupParticipantsUpdate(m.chat, [m.sender], 'remove')
+      } catch {}
+
+      delete chatData.delelinkGrupoCounter[m.sender]
+
+      await conn.sendMessage(m.chat, {
+        text:
+          `╭─⪼ 🌿 *SAITAMA-BOT — Delelink*\n` +
+          `│ 🍃 @${m.sender.split('@')[0]} fue expulsado por enviar links de *grupos/canales* (${LIMITE_LINKS_GRUPO}/${LIMITE_LINKS_GRUPO}).\n` +
+          `╰───────────────⬣`,
+        mentions: [m.sender]
+      })
+    } else {
+      await conn.sendMessage(m.chat, {
+        text:
+          `╭─⪼ 🌿 *SAITAMA-BOT — Delelink*\n` +
+          `│ 🍃 @${m.sender.split('@')[0]}, no envíes links de grupos/canales. (${strikesGrupo}/${LIMITE_LINKS_GRUPO}) — la próxima serás expulsado.\n` +
+          `╰───────────────⬣`,
+        mentions: [m.sender]
+      })
+    }
+
+    return true
+  }
+
+  // ── Links normales: contador acumulado, más de 3 en total => ban ──
   chatData.delelinkCounter = chatData.delelinkCounter || {}
   chatData.delelinkCounter[m.sender] = (chatData.delelinkCounter[m.sender] || 0) + matches.length
 
