@@ -3,6 +3,9 @@ import { listStickers, getSticker } from '../../lib/stickerpack.js'
 import { addExif } from '../../lib/sticker.js'
 import fs from 'fs'
 
+const MAX_STICKERS = 100
+const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
+
 function unwrapMessage(message) {
   const wrappers = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'documentWithCaptionMessage']
   let msg = message
@@ -34,6 +37,29 @@ function extractSelectedId(content) {
   return null
 }
 
+// Divide los stickers en varias secciones de máximo 10 filas cada una
+function construirSecciones(stickers) {
+  const limitados = stickers.slice(0, MAX_STICKERS)
+  const secciones = []
+
+  for (let i = 0; i < limitados.length; i += FILAS_POR_SECCION) {
+    const chunk = limitados.slice(i, i + FILAS_POR_SECCION)
+    const desde = i + 1
+    const hasta = i + chunk.length
+
+    secciones.push({
+      title: `「 🌿 STICKERS ${desde}-${hasta} 」`,
+      rows: chunk.map(s => ({
+        title: `🌿 ${s.name}`,
+        description: `🍃 Subido ${new Date(s.date).toLocaleDateString()}`,
+        id: `sticker_send~${s.name}`
+      }))
+    })
+  }
+
+  return secciones
+}
+
 const handler = async (m, { conn }) => {
   const stickers = listStickers()
 
@@ -52,13 +78,7 @@ const handler = async (m, { conn }) => {
     `│ 🍃 Toca el botón para ver el pack\n` +
     `╰───────────────⬣`
 
-  const rows = stickers.map(s => ({
-    title: `🌿 ${s.name}`,
-    description: `🍃 Subido ${new Date(s.date).toLocaleDateString()}`,
-    id: `sticker_send~${s.name}`
-  }))
-
-  const sections = [{ title: `「 🌿 PACK DE STICKERS 」· ${stickers.length}`, rows: rows.slice(0, 10) }]
+  const sections = construirSecciones(stickers)
 
   try {
     const interactiveMessage = proto.Message.InteractiveMessage.create({
