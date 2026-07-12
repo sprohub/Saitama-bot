@@ -25,11 +25,19 @@ let handler = async (m, { conn, text }) => {
     try {
       // Árbol completo del repo (recursivo) para llegar a las subcarpetas
       let apiUrl = 'https://api.github.com/repos/sprohub/Saitama-bot/git/trees/main?recursive=1'
-      let res = await fetch(apiUrl)
+      let res = await fetch(apiUrl, { headers: { 'User-Agent': 'Saitama-Bot' } })
       let data = await res.json()
 
-      if (!data.tree || !Array.isArray(data.tree)) {
-        return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No se pudo obtener la lista de plugins\n╰───────────────⬣' }, { quoted: m })
+      if (!res.ok || !data.tree || !Array.isArray(data.tree)) {
+        console.log('[getplugin] error de GitHub API:', res.status, JSON.stringify(data).slice(0, 500))
+        return conn.sendMessage(m.chat, {
+          text:
+            '╭─⪼ 🌿 *SAITAMA-BOT*\n' +
+            '│ 🍃 No se pudo obtener la lista de plugins\n' +
+            '│ 🍃 Código: ' + res.status + '\n' +
+            '│ 🍃 ' + (data.message || 'Error desconocido') + '\n' +
+            '╰───────────────⬣'
+        }, { quoted: m })
       }
 
       let jsFiles = data.tree
@@ -47,7 +55,8 @@ let handler = async (m, { conn, text }) => {
       await conn.sendMessage(m.chat, { text: texto, mentions: [who] }, { quoted: m })
 
     } catch (e) {
-      await conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Error al obtener la lista\n╰───────────────⬣' }, { quoted: m })
+      console.log('[getplugin] excepción:', e)
+      await conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Error al obtener la lista: ' + (e.message || e) + '\n╰───────────────⬣' }, { quoted: m })
     }
     return
   }
