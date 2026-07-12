@@ -1,60 +1,31 @@
 // plugins/tools/imagina2.js — .imagina2 <descripción>
-// Genera 4 variaciones de una imagen con IA (Pollinations.ai, sin API key)
-// y las envía unidas en una sola grilla 2x2.
+// Genera una imagen con IA (Pollinations.ai, sin API key) y la envía al chat.
 
-import { exec } from 'child_process'
-import { promisify } from 'util'
-import fs from 'fs'
-import os from 'os'
-import path from 'path'
 import fetch from 'node-fetch'
 
-const execAsync = promisify(exec)
+async function descargarImagen(prompt, seed) {
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&seed=${seed}&nologo=true&model=turbo`
 
-function esperar(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 45000) // 45s máximo
 
-async function descargarImagen(prompt, seed, intentos = 3) {
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&seed=${seed}&nologo=true`
-
-  for (let i = 1; i <= intentos; i++) {
-    const res = await fetch(url)
-
-    if (res.status === 429) {
-      // Rate limit: espera un poco más cada intento y reintenta
-      await esperar(2000 * i)
-      continue
-    }
+  try {
+    const res = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeout)
 
     if (!res.ok) throw new Error(`Pollinations respondió ${res.status}`)
 
     const arrayBuffer = await res.arrayBuffer()
-    return Buffer.from(arrayBuffer)
+    const buffer = Buffer.from(arrayBuffer)
+
+    if (!buffer.length) throw new Error('La imagen llegó vacía')
+
+    return buffer
+  } catch (e) {
+    clearTimeout(timeout)
+    if (e.name === 'AbortError') throw new Error('Pollinations tardó demasiado (más de 45s)')
+    throw e
   }
-
-  throw new Error('Pollinations respondió 429 (límite de peticiones) tras varios intentos')
-}
-
-async function armarGrilla(buffers) {
-  const tmp = os.tmpdir()
-  const ids = buffers.map(() => Date.now() + '_' + Math.random().toString(36).slice(2))
-  const rutas = ids.map((id) => path.join(tmp, `imagina2_${id}.jpg`))
-  const salida = path.join(tmp, `imagina2_grid_${Date.now()}.jpg`)
-
-  buffers.forEach((buf, i) => fs.writeFileSync(rutas[i], buf))
-
-  const inputs = rutas.map((r) => `-i "${r}"`).join(' ')
-  const filtro =
-    '[0:v][1:v]hstack=inputs=2[top];[2:v][3:v]hstack=inputs=2[bottom];[top][bottom]vstack=inputs=2[out]'
-
-  await execAsync(`ffmpeg -y ${inputs} -filter_complex "${filtro}" -map "[out]" "${salida}"`)
-
-  const resultado = fs.readFileSync(salida)
-  rutas.forEach((r) => fs.existsSync(r) && fs.unlinkSync(r))
-  fs.existsSync(salida) && fs.unlinkSync(salida)
-
-  return resultado
 }
 
 const handler = async (m, { conn, text }) => {
@@ -71,27 +42,19 @@ const handler = async (m, { conn, text }) => {
 
   await m.reply(
     `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
-    `│ 🍃 Generando 4 variaciones con IA...\n` +
+    `│ 🍃 Generando imagen con IA...\n` +
     `│ ⏳ Espera un momento\n` +
     `╰───────────────⬣`
   )
 
   try {
-    const seeds = Array.from({ length: 4 }, () => Math.floor(Math.random() * 1000000))
-
-    const buffers = []
-    for (const seed of seeds) {
-      const buf = await descargarImagen(prompt, seed)
-      buffers.push(buf)
-      await esperar(800) // pequeña pausa entre cada petición para no gatillar el 429
-    }
-
-    const grilla = await armarGrilla(buffers)
+    const seed = Math.floor(Math.random() * 1000000)
+    const imagen = await descargarImagen(prompt, seed)
 
     await conn.sendMessage(
       m.chat,
       {
-        image: grilla,
+        image: imagen,
         caption: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🎨 ${prompt}\n╰───────────────⬣`
       },
       { quoted: m }
@@ -99,7 +62,7 @@ const handler = async (m, { conn, text }) => {
   } catch (e) {
     console.log('[imagina2] error:', e)
     await m.reply(
-      `╭─⪼ 🌿 *SAITAMA-BOT*\n│ ❌ No se pudo generar la imagen. Intenta de nuevo.\n╰───────────────⬣`
+      `╭─⪼ 🌿 *SAITAMA-BOT*\n│ ❌ ${e.message || 'No se pudo generar la imagen.'}\n╰───────────────⬣`
     )
   }
 }
@@ -108,6 +71,6 @@ handler.command = ['imagina2']
 handler.customPrefix = /^[.\/#@]/i
 handler.tags = ['tools']
 handler.help = ['imagina2 <descripción>']
-handler.desc = 'Genera 4 variaciones de una imagen con IA en una grilla'
+handler.desc = 'Genera una imagen con IA'
 
 export default handler
