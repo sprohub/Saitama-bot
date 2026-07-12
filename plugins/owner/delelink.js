@@ -9,8 +9,9 @@
 // ───────────────────────────────────────────
 const LINK_REGEX = /(https?:\/\/|www\.|wa\.me\/|chat\.whatsapp\.com\/)\S+/gi
 const GROUP_LINK_REGEX = /(https?:\/\/)?(chat\.whatsapp\.com\/|whatsapp\.com\/channel\/)\S+/gi
-const LIMITE_LINKS = 3        // links normales: "más de 3" => 4to dispara ban
+const LIMITE_LINKS = 3        // al llegar a 3 links en total => ban
 const LIMITE_LINKS_GRUPO = 2  // links de grupo/canal: al 2do se banea
+const OWNER_CONTACTO = '+57 322 5396540'
 
 // ───────────────────────────────────────────
 // Utilidad: saber si el sender es owner (mismo patrón usado en cphoto.js)
@@ -30,6 +31,19 @@ async function esOwner(conn, senderJid, m) {
   const senderLid = await getLidFromJid(senderJid, conn)
   const numeros = global.owner.map(([number]) => (number || '').replace(/[^0-9]/g, ''))
   return numeros.some((num) => senderJid.includes(num) || (senderLid && senderLid.includes(num)))
+}
+
+async function avisarExpulsadoPorPrivado(conn, userJid, nombreGrupo) {
+  try {
+    await conn.sendMessage(userJid, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 Fuiste expulsado del grupo *${nombreGrupo}* por enviar demasiados links.\n` +
+        `│ 🍃 Si crees que fue un error o quieres ser desbaneado, habla con el dueño:\n` +
+        `│ 📞 ${OWNER_CONTACTO}\n` +
+        `╰───────────────⬣`
+    })
+  } catch {}
 }
 
 // ───────────────────────────────────────────
@@ -135,19 +149,22 @@ handler.before = async function (m, { conn }) {
       } catch {}
 
       delete chatData.delelinkGrupoCounter[m.sender]
+      await avisarExpulsadoPorPrivado(conn, m.sender, groupMetadata.subject)
 
       await conn.sendMessage(m.chat, {
         text:
-          `╭─⪼ 🌿 *SAITAMA-BOT — Delelink*\n` +
-          `│ 🍃 @${m.sender.split('@')[0]} fue expulsado por enviar links de *grupos/canales* (${LIMITE_LINKS_GRUPO}/${LIMITE_LINKS_GRUPO}).\n` +
+          `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+          `│ 🍃 Delelink ${strikesGrupo}/${LIMITE_LINKS_GRUPO}\n` +
+          `│ 🍃 @${m.sender.split('@')[0]} fue expulsado por enviar links de grupos/canales.\n` +
           `╰───────────────⬣`,
         mentions: [m.sender]
       })
     } else {
       await conn.sendMessage(m.chat, {
         text:
-          `╭─⪼ 🌿 *SAITAMA-BOT — Delelink*\n` +
-          `│ 🍃 @${m.sender.split('@')[0]}, no envíes links de grupos/canales. (${strikesGrupo}/${LIMITE_LINKS_GRUPO}) — la próxima serás expulsado.\n` +
+          `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+          `│ 🍃 Delelink ${strikesGrupo}/${LIMITE_LINKS_GRUPO}\n` +
+          `│ 🍃 @${m.sender.split('@')[0]}, no envíes links de grupos/canales.\n` +
           `╰───────────────⬣`,
         mentions: [m.sender]
       })
@@ -156,31 +173,34 @@ handler.before = async function (m, { conn }) {
     return true
   }
 
-  // ── Links normales: contador acumulado, más de 3 en total => ban ──
+  // ── Links normales: contador acumulado, al llegar a 3 en total => ban ──
   chatData.delelinkCounter = chatData.delelinkCounter || {}
   chatData.delelinkCounter[m.sender] = (chatData.delelinkCounter[m.sender] || 0) + matches.length
 
   const strikes = chatData.delelinkCounter[m.sender]
 
-  if (strikes > LIMITE_LINKS) {
+  if (strikes >= LIMITE_LINKS) {
     try {
       await conn.groupParticipantsUpdate(m.chat, [m.sender], 'remove')
     } catch {}
 
     delete chatData.delelinkCounter[m.sender]
+    await avisarExpulsadoPorPrivado(conn, m.sender, groupMetadata.subject)
 
     await conn.sendMessage(m.chat, {
       text:
-        `╭─⪼ 🌿 *SAITAMA-BOT — Delelink*\n` +
-        `│ 🍃 @${m.sender.split('@')[0]} fue expulsado por superar el límite de ${LIMITE_LINKS} links.\n` +
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 Delelink ${strikes}/${LIMITE_LINKS}\n` +
+        `│ 🍃 @${m.sender.split('@')[0]} fue expulsado por superar el límite de links.\n` +
         `╰───────────────⬣`,
       mentions: [m.sender]
     })
   } else {
     await conn.sendMessage(m.chat, {
       text:
-        `╭─⪼ 🌿 *SAITAMA-BOT — Delelink*\n` +
-        `│ 🍃 @${m.sender.split('@')[0]}, no envíes links. (${strikes}/${LIMITE_LINKS})\n` +
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 🍃 Delelink ${strikes}/${LIMITE_LINKS}\n` +
+        `│ 🍃 @${m.sender.split('@')[0]}, no envíes links.\n` +
         `╰───────────────⬣`,
       mentions: [m.sender]
     })
