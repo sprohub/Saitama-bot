@@ -11,12 +11,29 @@ import fetch from 'node-fetch'
 
 const execAsync = promisify(exec)
 
-async function descargarImagen(prompt, seed) {
+function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function descargarImagen(prompt, seed, intentos = 3) {
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&seed=${seed}&nologo=true`
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`Pollinations respondió ${res.status}`)
-  const arrayBuffer = await res.arrayBuffer()
-  return Buffer.from(arrayBuffer)
+
+  for (let i = 1; i <= intentos; i++) {
+    const res = await fetch(url)
+
+    if (res.status === 429) {
+      // Rate limit: espera un poco más cada intento y reintenta
+      await esperar(2000 * i)
+      continue
+    }
+
+    if (!res.ok) throw new Error(`Pollinations respondió ${res.status}`)
+
+    const arrayBuffer = await res.arrayBuffer()
+    return Buffer.from(arrayBuffer)
+  }
+
+  throw new Error('Pollinations respondió 429 (límite de peticiones) tras varios intentos')
 }
 
 async function armarGrilla(buffers) {
@@ -61,7 +78,14 @@ const handler = async (m, { conn, text }) => {
 
   try {
     const seeds = Array.from({ length: 4 }, () => Math.floor(Math.random() * 1000000))
-    const buffers = await Promise.all(seeds.map((seed) => descargarImagen(prompt, seed)))
+
+    const buffers = []
+    for (const seed of seeds) {
+      const buf = await descargarImagen(prompt, seed)
+      buffers.push(buf)
+      await esperar(800) // pequeña pausa entre cada petición para no gatillar el 429
+    }
+
     const grilla = await armarGrilla(buffers)
 
     await conn.sendMessage(
