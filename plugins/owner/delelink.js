@@ -60,6 +60,7 @@ const handler = async (m, { conn, text, command, isOwner }) => {
 
   global.db.data.chats[m.chat] = global.db.data.chats[m.chat] || {}
   global.db.data.chats[m.chat].delelink = activar
+  if (!activar) global.db.data.chats[m.chat].delelinkCounter = {}
 
   await conn.sendMessage(
     m.chat,
@@ -80,11 +81,11 @@ handler.group = true
 handler.before = async function (m, { conn }) {
   if (!m.isGroup || !m.text) return false
 
-  const chatSettings = global.db.data.chats[m.chat]
-  if (!chatSettings?.delelink) return false
+  const chatData = (global.db.data.chats[m.chat] = global.db.data.chats[m.chat] || {})
+  if (!chatData.delelink) return false
 
   const matches = m.text.match(LINK_REGEX)
-  if (!matches || matches.length <= LIMITE_LINKS) return false
+  if (!matches || matches.length === 0) return false
 
   // No aplica a owners
   if (await esOwner(conn, m.sender, m)) return false
@@ -95,35 +96,54 @@ handler.before = async function (m, { conn }) {
   if (participante?.admin) return false
 
   // Verifica que el bot sea admin para poder borrar/expulsar
-  const botId = conn.user.id.split(':')[0] + '@s.whatsapp.net'
-  const botParticipante = groupMetadata.participants.find((p) => p.id.startsWith(botId.split('@')[0]))
+  const botNumber = conn.user.id.split(':')[0].split('@')[0]
+  const botParticipante = groupMetadata.participants.find((p) => p.id.split('@')[0] === botNumber)
   if (!botParticipante?.admin) {
     await conn.sendMessage(
       m.chat,
       {
         text:
-          '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Se detectaron demasiados links pero no soy *admin*, no puedo actuar.\n╰───────────────⬣'
+          '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Se detectó un link pero no soy *admin*, no puedo actuar.\n╰───────────────⬣'
       },
       { quoted: m }
     )
     return true
   }
 
+  // Borra el mensaje con link siempre que delelink esté activo
   try {
     await conn.sendMessage(m.chat, { delete: m.key })
   } catch {}
 
-  try {
-    await conn.groupParticipantsUpdate(m.chat, [m.sender], 'remove')
-  } catch {}
+  // Contador acumulado por usuario dentro del grupo (persistente en la db)
+  chatData.delelinkCounter = chatData.delelinkCounter || {}
+  chatData.delelinkCounter[m.sender] = (chatData.delelinkCounter[m.sender] || 0) + matches.length
 
-  await conn.sendMessage(m.chat, {
-    text:
-      `╭─⪼ 🌿 *SAITAMA-BOT — Delelink*\n` +
-      `│ 🍃 @${m.sender.split('@')[0]} fue expulsado por enviar más de ${LIMITE_LINKS} links.\n` +
-      `╰───────────────⬣`,
-    mentions: [m.sender]
-  })
+  const strikes = chatData.delelinkCounter[m.sender]
+
+  if (strikes > LIMITE_LINKS) {
+    try {
+      await conn.groupParticipantsUpdate(m.chat, [m.sender], 'remove')
+    } catch {}
+
+    delete chatData.delelinkCounter[m.sender]
+
+    await conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT — Delelink*\n` +
+        `│ 🍃 @${m.sender.split('@')[0]} fue expulsado por superar el límite de ${LIMITE_LINKS} links.\n` +
+        `╰───────────────⬣`,
+      mentions: [m.sender]
+    })
+  } else {
+    await conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿 *SAITAMA-BOT — Delelink*\n` +
+        `│ 🍃 @${m.sender.split('@')[0]}, no envíes links. (${strikes}/${LIMITE_LINKS})\n` +
+        `╰───────────────⬣`,
+      mentions: [m.sender]
+    })
+  }
 
   return true
 }
