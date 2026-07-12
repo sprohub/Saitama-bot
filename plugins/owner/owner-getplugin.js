@@ -1,6 +1,7 @@
 import { execFile } from 'child_process'
 import fetch from 'node-fetch'
 import path from 'path'
+import fs from 'fs'
 
 let handler = async (m, { conn, text }) => {
   let who = m.sender
@@ -83,6 +84,22 @@ let handler = async (m, { conn, text }) => {
         text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Plugin descargado correctamente\n│ 🍃 ' + destino + '\n│ 🍃 Se cargará automáticamente\n│ 🍃 Solicitado por @' + who.split('@')[0] + '\n╰───────────────⬣',
         mentions: [who]
       }, { quoted: m })
+
+      // Envía también el archivo .js como documento en el chat
+      try {
+        let buffer = fs.readFileSync(destino)
+        let nombreArchivo = pluginName.split('/').pop() + '.js'
+
+        await conn.sendMessage(m.chat, {
+          document: buffer,
+          fileName: nombreArchivo,
+          mimetype: 'application/javascript'
+        }, { quoted: m })
+      } catch (e) {
+        await conn.sendMessage(m.chat, {
+          text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 El plugin se guardó pero no se pudo enviar el archivo aquí\n╰───────────────⬣'
+        }, { quoted: m })
+      }
     })
   })
 }
