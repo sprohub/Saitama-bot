@@ -48,6 +48,7 @@ async function descargarPack(packUrl) {
   const resp = await fetch(url)
   if (!resp.ok) throw new Error(`Descarga respondió estado ${resp.status}`)
   const data = await resp.json()
+  console.log('[stickerbt] DEBUG respuesta descarga:', JSON.stringify(data).slice(0, 800))
   // Ajusta este acceso si la API cambia la forma de la respuesta
   const stickers = data?.data?.stickers || data?.data?.images || data?.result?.stickers || data?.stickers || []
   return stickers
