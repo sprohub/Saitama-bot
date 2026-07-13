@@ -1,14 +1,12 @@
 import fs from 'fs'
 import path from 'path'
-import { join } from 'path'
-import { xpRange } from '../../lib/levelling.js'
-import { getReglasText } from './reglas.js'
+import { generateWAMessageFromContent, proto } from '@whiskeysockets/baileys'
 
 const settingsPath = path.resolve('./json/settings.json')
 const defaultImage = 'https://files.catbox.moe/avx0u1.jpg'
+const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
 
 // === DUEÑOS DEL BOT ===
-// Solo estos números (o el propio bot) pueden activar/desactivar welcome y reglas
 const OWNERS = ['573225396540', '573225814649']
 
 function isOwner(m) {
@@ -16,7 +14,7 @@ function isOwner(m) {
   return m.fromMe || OWNERS.includes(number)
 }
 
-// === UTILS JSON ===
+// === UTILS JSON (mismo formato que tu archivo on/off original) ===
 function readSettings() {
   try {
     if (!fs.existsSync(settingsPath)) {
@@ -48,173 +46,271 @@ function getChatConfig(botNumber, chatId) {
   return settings
 }
 
-// === COMANDO ON/OFF ===
-const handler = async (m, { conn, command, args, isAdmin }) => {
+function getWelcome(botNumber, chatId) {
+  const settings = getChatConfig(botNumber, chatId)
+  return !!settings[botNumber][chatId].welcome
+}
 
-  const type = (args[0] || '').toLowerCase()
-  const enable = command === 'on'
-  const validTypes = ['antilink', 'welcome', 'antiarabe', 'modoadmin', 'reglas']
-  if (!validTypes.includes(type)) {
+function setWelcome(botNumber, chatId, enable) {
+  const settings = getChatConfig(botNumber, chatId)
+  settings[botNumber][chatId].welcome = enable
+  saveSettings(settings)
+}
+
+// === Detecta en qué grupos el bot es admin ===
+async function gruposDondeSoyAdmin(conn) {
+  const chats = await conn.groupFetchAllParticipating()
+  const grupos = Object.values(chats)
+  const botNumber = (conn.user?.id || '').split(':')[0].split('@')[0]
+
+  return grupos.filter((g) => {
+    const yo = g.participants.find((p) => p.id.split('@')[0].split(':')[0] === botNumber)
+    return !!yo?.admin
+  })
+}
+
+// === Helpers de menú interactivo (mismo patrón que cphoto.js / stlist.js) ===
+function unwrapMessage(message) {
+  const wrappers = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'documentWithCaptionMessage']
+  let msg = message
+  let guard = 0
+  while (msg && guard < 5) {
+    const key = wrappers.find((w) => msg[w])
+    if (!key) break
+    msg = msg[key].message
+    guard++
+  }
+  return msg
+}
+
+function extractSelectedId(content) {
+  const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
+  if (nativeFlow?.paramsJson) {
+    try {
+      const data = JSON.parse(nativeFlow.paramsJson)
+      return data.id || data.selectedId || data.selectedRowId || null
+    } catch {}
+  }
+  const listReply = content?.listResponseMessage?.singleSelectReply
+  if (listReply?.selectedRowId) return listReply.selectedRowId
+  const btnReply = content?.buttonsResponseMessage
+  if (btnReply?.selectedButtonId) return btnReply.selectedButtonId
+  return null
+}
+
+// ───────────────────────────────────────────
+// Comando .welcome — abre el menú de botones
+// ───────────────────────────────────────────
+const handler = async (m, { conn }) => {
+  if (!isOwner(m)) {
     return m.reply(
-      `*_🟢 ON:_*\n\n_.on antilink_\n_.on welcome_\n_.on antiarabe_\n_.on modoadmin_\n_.on reglas_\n\n\n*_🔴 OFF:_*\n\n_.off antilink_\n_.off welcome_\n_.off antiarabe_\n_.off modoadmin_\n_.off reglas_`
+      `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo el dueño del bot puede usar este comando.\n╰───────────────⬣`
     )
   }
 
-  // 🔐 welcome y reglas solo los puede tocar el dueño del bot
-  if ((type === 'welcome' || type === 'reglas') && !isOwner(m)) {
-    return m.reply('❌ Solo el dueño del bot puede activar o desactivar esto.')
+  await m.reply(
+    `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Cargando grupos donde soy admin...\n╰───────────────⬣`
+  )
+
+  const botNumber = conn.user?.jid || conn.user.id
+  const gruposAdmin = await gruposDondeSoyAdmin(conn)
+
+  const sections = []
+
+  // Sección: este grupo (si el comando se usó dentro de uno)
+  if (m.isGroup) {
+    const enAqui = getWelcome(botNumber, m.chat)
+    sections.push({
+      title: '⚙️ Este grupo',
+      rows: [{
+        title: enAqui ? '🔴 Desactivar aquí' : '🟢 Activar aquí',
+        description: `Estado actual: ${enAqui ? 'Activado ✅' : 'Desactivado ❌'}`,
+        id: `welcome|${enAqui ? 'off' : 'on'}|${m.chat}`
+      }]
+    })
   }
 
-  const botNumber = conn.user?.jid || 'bot'
-  let settings = getChatConfig(botNumber, m.chat)
-  settings[botNumber][m.chat][type] = enable
-  saveSettings(settings)
+  // Sección: todos los grupos donde soy admin
+  sections.push({
+    title: '🌐 Todos los grupos',
+    rows: [
+      { title: '🟢 Activar en todos', description: `${gruposAdmin.length} grupos donde soy admin`, id: 'welcome|on|all' },
+      { title: '🔴 Desactivar en todos', description: `${gruposAdmin.length} grupos donde soy admin`, id: 'welcome|off|all' }
+    ]
+  })
 
-  return m.reply(`✅ ${type} ${enable ? 'activado' : 'desactivado'}.`)
+  // Secciones: grupos individuales (divididos de a 10 por límite de WhatsApp)
+  for (let i = 0; i < gruposAdmin.length; i += FILAS_POR_SECCION) {
+    const chunk = gruposAdmin.slice(i, i + FILAS_POR_SECCION)
+    const desde = i + 1
+    const hasta = i + chunk.length
+
+    sections.push({
+      title: `📋 Grupos ${desde}-${hasta}`,
+      rows: chunk.map((g) => {
+        const estado = getWelcome(botNumber, g.id)
+        return {
+          title: `🌿 ${g.subject}`,
+          description: `${estado ? 'Activado ✅' : 'Desactivado ❌'} — toca para alternar`,
+          id: `welcome|toggle|${g.id}`
+        }
+      })
+    })
+  }
+
+  const bodyText =
+    `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+    `│ 👋 Menú de Bienvenida\n` +
+    `│ 🍃 Soy admin en ${gruposAdmin.length} grupo(s)\n` +
+    `│ 🍃 Toca una opción para activar/desactivar\n` +
+    `╰───────────────⬣`
+
+  try {
+    const interactiveMessage = proto.Message.InteractiveMessage.create({
+      header: { title: '🌿 SAITAMA-BOT — Welcome', subtitle: 'Bienvenida por grupo', hasMediaAttachment: false },
+      body: { text: bodyText },
+      footer: { text: '🍃 SAITAMA-BOT 🌿' },
+      nativeFlowMessage: {
+        buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '🌿 VER OPCIONES', sections }) }]
+      }
+    })
+
+    const msg = generateWAMessageFromContent(
+      m.chat,
+      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
+      { quoted: m }
+    )
+
+    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+  } catch (e) {
+    console.log('[welcome] error mostrando menú:', e)
+    await m.reply(`╭─⪼ 🌿 *SAITAMA-BOT*\n│ ❌ No se pudo mostrar el menú.\n╰───────────────⬣`)
+  }
 }
 
-handler.command = ['on', 'off']
-handler.group = true
-handler.admin = true
+handler.command = ['welcome']
+handler.customPrefix = /^[.\/#@]/i
 handler.tags = ['group']
-handler.help = ['on welcome', 'off welcome', 'on reglas', 'off reglas']
+handler.help = ['welcome']
+handler.desc = 'Menú para activar/desactivar la bienvenida por grupo o en todos'
 
-// === MIDDLEWARE ===
+// ───────────────────────────────────────────
+// handler.before — botones del menú + envío real de bienvenida/despedida
+// ───────────────────────────────────────────
 handler.before = async (m, { conn }) => {
-  if (!m.isGroup) return
-  const botNumber = conn.user?.jid || 'bot'
+  const botNumber = conn.user?.jid || conn.user.id
+
+  // ── 1) Botones del menú .welcome ──
+  const content = unwrapMessage(m.message)
+  const id = content ? extractSelectedId(content) : null
+
+  if (id && id.startsWith('welcome|')) {
+    if (!isOwner(m)) {
+      await conn.sendMessage(m.chat, {
+        text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo el dueño del bot puede usar esto.\n╰───────────────⬣`
+      }, { quoted: m })
+      return true
+    }
+
+    const [, accion, destino] = id.split('|')
+
+    if (destino === 'all') {
+      const gruposAdmin = await gruposDondeSoyAdmin(conn)
+      gruposAdmin.forEach((g) => setWelcome(botNumber, g.id, accion === 'on'))
+
+      await conn.sendMessage(m.chat, {
+        text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Bienvenida ${accion === 'on' ? 'activada ✅' : 'desactivada ❌'} en ${gruposAdmin.length} grupo(s).\n╰───────────────⬣`
+      }, { quoted: m })
+      return true
+    }
+
+    if (accion === 'toggle') {
+      const actual = getWelcome(botNumber, destino)
+      setWelcome(botNumber, destino, !actual)
+
+      await conn.sendMessage(m.chat, {
+        text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Bienvenida ${!actual ? 'activada ✅' : 'desactivada ❌'} en ese grupo.\n╰───────────────⬣`
+      }, { quoted: m })
+      return true
+    }
+
+    setWelcome(botNumber, destino, accion === 'on')
+    await conn.sendMessage(m.chat, {
+      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Bienvenida ${accion === 'on' ? 'activada ✅' : 'desactivada ❌'} en este grupo.\n╰───────────────⬣`
+    }, { quoted: m })
+    return true
+  }
+
+  // ── 2) Envío real de bienvenida / despedida ──
+  if (!m.isGroup) return false
+  if (!getWelcome(botNumber, m.chat)) return false
+  if (![27, 28, 32].includes(m.messageStubType)) return false
+
   const settings = getChatConfig(botNumber, m.chat)
   const chat = settings[botNumber][m.chat]
 
-  // 🔒 MODO ADMIN
-  if (chat.modoadmin) {
-    const groupMetadata = await conn.groupMetadata(m.chat)
-    const isUserAdmin = groupMetadata.participants.find(p => p.id === m.sender)?.admin
-    if (!isUserAdmin && !m.fromMe) return
+  const groupMetadata = await conn.groupMetadata(m.chat)
+  const groupSize = groupMetadata.participants.length
+  const userId = m.messageStubParameters?.[0] || m.sender
+  const userMention = '@' + userId.split('@')[0]
+
+  let profilePic
+  try {
+    profilePic = await conn.profilePictureUrl(m.chat, 'image')
+  } catch {
+    profilePic = defaultImage
   }
 
-  // 🚫 ANTIARABE
-  if (chat.antiarabe && m.messageStubType === 27) {
-    const newJid = m.messageStubParameters?.[0]
-    if (newJid) {
-      const number = newJid.split('@')[0]
-      const arabicPrefixes = ['212', '20', '971', '965', '966', '974', '973', '962']
-      if (arabicPrefixes.some(prefix => number.startsWith(prefix))) {
-        await conn.sendMessage(m.chat, { text: `Este usuario ${newJid} será expulsado. [ Anti Arabe Activado ]` })
-        await conn.groupParticipantsUpdate(m.chat, [newJid], 'remove')
-        return true
-      }
+  // ✅ ENTRA AL GRUPO
+  if (m.messageStubType === 27) {
+    let texto
+    if (chat.sWelcome) {
+      texto = chat.sWelcome
+        .replace(/@user/g, userMention)
+        .replace(/@group/g, groupMetadata.subject)
+        .replace(/@members/g, groupSize)
+    } else {
+      texto =
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 👋 ¡Bienvenido/a!\n` +
+        `│\n` +
+        `│ 👤 ${userMention}\n` +
+        `│ 🏠 Grupo: ${groupMetadata.subject}\n` +
+        `│ 👥 Miembros: ${groupSize}\n` +
+        `│\n` +
+        `│ 🍃 Un nuevo discípulo se une al dojo.\n` +
+        `│ 💪 Entrena duro.\n` +
+        `╰───────────────⬣`
     }
+
+    await conn.sendMessage(m.chat, { image: { url: profilePic }, caption: texto, mentions: [userId] })
   }
 
-  // 🔗 ANTILINK
-  const linkRegex = /chat\.whatsapp\.com\/[0-9A-Za-z]{20,24}/i
-  const linkRegex1 = /whatsapp\.com\/channel\/[0-9A-Za-z]{20,24}/i
-  if (chat.antilink) {
-    const groupMetadata = await conn.groupMetadata(m.chat)
-    const isUserAdmin = groupMetadata.participants.find(p => p.id === m.sender)?.admin
-    const text = m?.text || ''
-
-    if (!isUserAdmin && (linkRegex.test(text) || linkRegex1.test(text))) {
-      const userTag = `@${m.sender.split('@')[0]}`
-
-      try {
-        const ownGroupLink = `https://chat.whatsapp.com/${await conn.groupInviteCode(m.chat)}`
-        if (text.includes(ownGroupLink)) return
-      } catch {}
-
-      await conn.sendMessage(m.chat, { text: `🚫 Hey ${userTag}, no se permiten links aquí.`, mentions: [m.sender] }, { quoted: m })
-      await conn.groupParticipantsUpdate(m.chat, [m.sender], 'remove')
-      return true
+  // ❌ SALE DEL GRUPO
+  if ([28, 32].includes(m.messageStubType)) {
+    let texto
+    if (chat.sBye) {
+      texto = chat.sBye
+        .replace(/@user/g, userMention)
+        .replace(/@group/g, groupMetadata.subject)
+        .replace(/@members/g, groupSize)
+    } else {
+      texto =
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+        `│ 💨 ¡Hasta luego!\n` +
+        `│\n` +
+        `│ 👤 ${userMention}\n` +
+        `│ 🏠 Grupo: ${groupMetadata.subject}\n` +
+        `│ 👥 Miembros restantes: ${groupSize}\n` +
+        `│\n` +
+        `│ 🍃 Un miembro abandonó el dojo.\n` +
+        `╰───────────────⬣`
     }
+
+    await conn.sendMessage(m.chat, { image: { url: profilePic }, caption: texto, mentions: [userId] })
   }
 
-  // 👋 BIENVENIDA / DESPEDIDA / REGLAS
-  if ((chat.welcome || chat.reglas) && [27, 28, 32].includes(m.messageStubType)) {
-    const groupMetadata = await conn.groupMetadata(m.chat)
-    const groupSize = groupMetadata.participants.length
-    const userId = m.messageStubParameters?.[0] || m.sender
-    const userMention = '@' + userId.split('@')[0]
-    let profilePic
-    try {
-      profilePic = await conn.profilePictureUrl(m.chat, 'image')
-    } catch {
-      profilePic = 'https://files.catbox.moe/r60c8l.jpg'
-    }
-
-    // ✅ ENTRA AL GRUPO
-    if (m.messageStubType === 27) {
-      if (chat.welcome) {
-        let texto
-        if (chat.sWelcome) {
-          texto = chat.sWelcome
-            .replace(/@user/g, userMention)
-            .replace(/@group/g, groupMetadata.subject)
-            .replace(/@members/g, groupSize)
-        } else {
-          texto = `╭━━⬣ *SAITAMA* ⬣\n`
-          texto += `┃\n`
-          texto += `┃ 👊 *¡BIENVENIDO!*\n`
-          texto += `┃\n`
-          texto += `┃ 👤 ${userMention}\n`
-          texto += `┃ 🏠 *Grupo:* ${groupMetadata.subject}\n`
-          texto += `┃ 👥 *Miembros:* ${groupSize}\n`
-          texto += `┃\n`
-          texto += `┃ 「Un nuevo discípulo...」\n`
-          texto += `┃ Se ha unido al dojo.\n`
-          texto += `┃ Entrena duro 💪\n`
-          texto += `┃\n`
-          texto += `╰━━━━━━━━━━━━━━━━━━━━━━⬣ *SAITAMA*`
-        }
-
-        await conn.sendMessage(m.chat, {
-          image: { url: profilePic },
-          caption: texto,
-          mentions: [userId]
-        })
-      }
-
-      // 📋 Reglas: independiente de welcome (toggle propio: chat.reglas)
-      if (chat.reglas) {
-        const reglasTexto = getReglasText(botNumber, m.chat, groupMetadata.subject)
-        await conn.sendMessage(m.chat, {
-          text: reglasTexto,
-          mentions: [userId]
-        })
-      }
-    }
-
-    // ❌ SALE DEL GRUPO
-    if ([28, 32].includes(m.messageStubType) && chat.welcome) {
-      let texto
-      if (chat.sBye) {
-        texto = chat.sBye
-          .replace(/@user/g, userMention)
-          .replace(/@group/g, groupMetadata.subject)
-          .replace(/@members/g, groupSize)
-      } else {
-        texto = `╭━━⬣ *SAITAMA* ⬣\n`
-        texto += `┃\n`
-        texto += `┃ 💨 *¡HASTA LUEGO!*\n`
-        texto += `┃\n`
-        texto += `┃ 👤 ${userMention}\n`
-        texto += `┃ 🏠 *Grupo:* ${groupMetadata.subject}\n`
-        texto += `┃ 👥 *Miembros restantes:* ${groupSize}\n`
-        texto += `┃\n`
-        texto += `┃ 「Ni siquiera lo sentí...」\n`
-        texto += `┃ Un miembro ha abandonado\n`
-        texto += `┃ el dojo. Buena suerte 👊\n`
-        texto += `┃\n`
-        texto += `╰━━━━━━━━━━━━━━━━━━━━━━⬣ *SAITAMA*`
-      }
-
-      await conn.sendMessage(m.chat, {
-        image: { url: profilePic },
-        caption: texto,
-        mentions: [userId]
-      })
-    }
-  }
+  return false
 }
 
 export default handler
