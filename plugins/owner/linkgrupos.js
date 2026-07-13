@@ -9,9 +9,6 @@ const GROUP_LINK_REGEX = /(https?:\/\/)?(chat\.whatsapp\.com\/|whatsapp\.com\/ch
 const LIMITE = 3 // "más de 3" => al llegar al 4to se banea
 const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
 
-// ───────────────────────────────────────────
-// Owner check (mismo patrón usado en cphoto.js / antilink.js)
-// ───────────────────────────────────────────
 async function getLidFromJid(jid, conn) {
   try {
     const lid = await conn.signalRepository?.lidMapping?.getLIDForPN?.(jid)
@@ -29,9 +26,6 @@ async function esOwner(conn, senderJid, m) {
   return numeros.some((num) => senderJid.includes(num) || (senderLid && senderLid.includes(num)))
 }
 
-// ───────────────────────────────────────────
-// Estado guardado en global.db.data.chats[jid].linkgrupos
-// ───────────────────────────────────────────
 function getEstado(chatId) {
   return !!global.db.data.chats[chatId]?.linkgrupos
 }
@@ -42,23 +36,22 @@ function setEstado(chatId, enable) {
   if (!enable) global.db.data.chats[chatId].linkgruposCounter = {}
 }
 
-// ───────────────────────────────────────────
-// Detecta en qué grupos el bot es admin
-// ───────────────────────────────────────────
-async function gruposDondeSoyAdmin(conn) {
+// Devuelve TODOS los grupos donde está el bot, marcando si es admin en cada uno
+async function obtenerTodosLosGrupos(conn) {
   const chats = await conn.groupFetchAllParticipating()
   const grupos = Object.values(chats)
   const botNumber = (conn.user?.id || '').split(':')[0].split('@')[0]
 
-  return grupos.filter((g) => {
-    const yo = g.participants.find((p) => p.id.split('@')[0].split(':')[0] === botNumber)
-    return !!yo?.admin
+  return grupos.map((g) => {
+    const yo = g.participants.find((p) => {
+      const pid = p.id.split('@')[0].split(':')[0]
+      const ppn = (p.phoneNumber || '').replace(/\D/g, '')
+      return pid === botNumber || ppn === botNumber
+    })
+    return { id: g.id, subject: g.subject, esAdmin: !!yo?.admin }
   })
 }
 
-// ───────────────────────────────────────────
-// Helpers de menú interactivo (mismo patrón que welcome.js / stlist.js)
-// ───────────────────────────────────────────
 function unwrapMessage(message) {
   const wrappers = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'documentWithCaptionMessage']
   let msg = message
@@ -87,18 +80,16 @@ function extractSelectedId(content) {
   return null
 }
 
-// ───────────────────────────────────────────
-// Comando .linkgrupos — abre el menú de botones
-// ───────────────────────────────────────────
 const handler = async (m, { conn }) => {
   const permitido = await esOwner(conn, m.sender, m)
   if (!permitido) {
     return m.reply(`╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo el owner puede usar este comando.\n╰───────────────⬣`)
   }
 
-  await m.reply(`╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Cargando grupos donde soy admin...\n╰───────────────⬣`)
+  await m.reply(`╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Cargando grupos...\n╰───────────────⬣`)
 
-  const gruposAdmin = await gruposDondeSoyAdmin(conn)
+  const grupos = await obtenerTodosLosGrupos(conn)
+  const adminCount = grupos.filter((g) => g.esAdmin).length
   const sections = []
 
   if (m.isGroup) {
@@ -116,13 +107,13 @@ const handler = async (m, { conn }) => {
   sections.push({
     title: '🌐 Todos los grupos',
     rows: [
-      { title: '🟢 Activar en todos', description: `${gruposAdmin.length} grupos donde soy admin`, id: 'linkgrupos|on|all' },
-      { title: '🔴 Desactivar en todos', description: `${gruposAdmin.length} grupos donde soy admin`, id: 'linkgrupos|off|all' }
+      { title: '🟢 Activar en todos', description: `${grupos.length} grupos (${adminCount} como admin)`, id: 'linkgrupos|on|all' },
+      { title: '🔴 Desactivar en todos', description: `${grupos.length} grupos (${adminCount} como admin)`, id: 'linkgrupos|off|all' }
     ]
   })
 
-  for (let i = 0; i < gruposAdmin.length; i += FILAS_POR_SECCION) {
-    const chunk = gruposAdmin.slice(i, i + FILAS_POR_SECCION)
+  for (let i = 0; i < grupos.length; i += FILAS_POR_SECCION) {
+    const chunk = grupos.slice(i, i + FILAS_POR_SECCION)
     const desde = i + 1
     const hasta = i + chunk.length
 
@@ -130,9 +121,10 @@ const handler = async (m, { conn }) => {
       title: `📋 Grupos ${desde}-${hasta}`,
       rows: chunk.map((g) => {
         const estado = getEstado(g.id)
+        const badge = g.esAdmin ? '👑 admin' : '⚠️ no admin'
         return {
           title: `🌿 ${g.subject}`,
-          description: `${estado ? 'Activado ✅' : 'Desactivado ❌'} — toca para alternar`,
+          description: `${estado ? 'Activado ✅' : 'Desactivado ❌'} · ${badge} — toca para alternar`,
           id: `linkgrupos|toggle|${g.id}`
         }
       })
@@ -142,8 +134,9 @@ const handler = async (m, { conn }) => {
   const bodyText =
     `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
     `│ 🔗 Menú Linkgrupos\n` +
-    `│ 🍃 Soy admin en ${gruposAdmin.length} grupo(s)\n` +
-    `│ 🍃 Bloquea links de otros grupos/canales\n` +
+    `│ 🍃 Estoy en ${grupos.length} grupo(s), admin en ${adminCount}\n` +
+    `│ 🍃 En grupos donde NO soy admin puedo\n` +
+    `│    detectar el link pero no expulsar\n` +
     `╰───────────────⬣`
 
   try {
@@ -175,11 +168,7 @@ handler.tags = ['group']
 handler.help = ['linkgrupos']
 handler.desc = 'Menú para activar/desactivar el bloqueo de links de otros grupos/canales'
 
-// ───────────────────────────────────────────
-// handler.before — botones del menú + detección real de links
-// ───────────────────────────────────────────
 handler.before = async function (m, { conn }) {
-  // ── 1) Botones del menú .linkgrupos ──
   const content = unwrapMessage(m.message)
   const id = content ? extractSelectedId(content) : null
 
@@ -195,11 +184,16 @@ handler.before = async function (m, { conn }) {
     const [, accion, destino] = id.split('|')
 
     if (destino === 'all') {
-      const gruposAdmin = await gruposDondeSoyAdmin(conn)
-      gruposAdmin.forEach((g) => setEstado(g.id, accion === 'on'))
+      const grupos = await obtenerTodosLosGrupos(conn)
+      grupos.forEach((g) => setEstado(g.id, accion === 'on'))
+      const adminCount = grupos.filter((g) => g.esAdmin).length
 
       await conn.sendMessage(m.chat, {
-        text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Linkgrupos ${accion === 'on' ? 'activado ✅' : 'desactivado ❌'} en ${gruposAdmin.length} grupo(s).\n╰───────────────⬣`
+        text:
+          `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+          `│ 🍃 Linkgrupos ${accion === 'on' ? 'activado ✅' : 'desactivado ❌'} en ${grupos.length} grupo(s).\n` +
+          `│ 🍃 (${adminCount} donde soy admin y podré expulsar)\n` +
+          `╰───────────────⬣`
       }, { quoted: m })
       return true
     }
@@ -221,7 +215,6 @@ handler.before = async function (m, { conn }) {
     return true
   }
 
-  // ── 2) Detección real de links de grupo/canal ──
   if (!m.isGroup || !m.text) return false
   if (!getEstado(m.chat)) return false
 
@@ -235,7 +228,6 @@ handler.before = async function (m, { conn }) {
   const participante = groupMetadata.participants.find((p) => p.id === m.sender)
   if (participante?.admin) return false
 
-  // No cuenta el link de invitación del propio grupo
   try {
     const codigoPropio = await conn.groupInviteCode(m.chat)
     if (m.text.includes(codigoPropio)) return false
