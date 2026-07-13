@@ -1,154 +1,128 @@
+/**
+ * plugins/tools/stickerbt.js
+ * Comando: .stickerbt
+ *
+ * Busca stickers en Stickerly por palabra clave y envía los primeros
+ * 10 resultados directamente como stickers de WhatsApp.
+ *
+ * Uso:
+ * .stickerbt meme
+ * .stickerbt naruto
+ * .stickerbt gato
+ *
+ * Usa la API pública de búsqueda de Stickerly (api.sticker.ly).
+ * No requiere API key, pero al ser una API no oficial puede cambiar
+ * o dejar de responder en cualquier momento — si eso pasa, revisa si
+ * cambió la URL o el formato de respuesta.
+ */
+
 import fetch from 'node-fetch'
-import {
-  generateWAMessageFromContent,
-  proto
-} from '@whiskeysockets/baileys'
 
-let handler = async (m, { conn, text }) => {
-  if (!text) {
-    let sections = [{
-      title: '🔥 BÚSQUEDAS RÁPIDAS',
-      rows: [
-        { header: '🐉', title: 'Goku', description: 'Stickers de Goku', id: 'stickerly_Goku' },
-        { header: '🍃', title: 'Naruto', description: 'Stickers de Naruto', id: 'stickerly_Naruto' },
-        { header: '👒', title: 'Luffy', description: 'Stickers de Luffy', id: 'stickerly_Luffy' },
-        { header: '😂', title: 'Meme', description: 'Stickers de memes', id: 'stickerly_Meme' }
-      ]
-    }]
+const STICKERLY_SEARCH_URL = 'https://api.sticker.ly/v4/stickerPack/search'
+const MAX_STICKERS = 10
 
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: { title: '🌟 HINATA STICKERLY 🌟', subtitle: 'Busca y descarga stickers', hasMediaAttachment: false },
-      body: { text: '🌟 「 HINATA STICKERLY 」 🌟\n\n💫 » Busca stickers en Stickerly\n\n> #stickerly <búsqueda>\n> #stickerly Goku' },
-      footer: { text: '⫏⫏ HINATA BOT ✿' },
-      nativeFlowMessage: {
-        buttons: [{
-          name: 'single_select',
-          buttonParamsJson: JSON.stringify({
-            title: '🔍 BÚSQUEDAS',
-            sections: sections
-          })
-        }]
-      }
-    })
-
-    const msg = generateWAMessageFromContent(m.chat, {
-      viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } }
-    }, { quoted: m })
-
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
-    return
-  }
-
-  await m.react('🔍')
-
-  try {
-    let searchUrl = `https://api.delirius.store/search/stickerly?query=${encodeURIComponent(text)}`
-    let res = await fetch(searchUrl)
-    let json = await res.json()
-
-    if (!json.status || !json.data?.length) {
-      await m.react('❌')
-      return conn.sendMessage(m.chat, {
-        text: '🌟 「 HINATA STICKERLY 」 🌟\n\n💫 » Sin resultados'
-      }, { quoted: m })
-    }
-
-    let resultados = json.data.slice(0, 10)
-    let rows = resultados.map((pack, i) => ({
-      header: pack.isAnimated ? '🎬 Animado' : '🖼️ Estático',
-      title: pack.name.substring(0, 35),
-      description: '👤 ' + pack.author + ' | 📦 ' + pack.sticker_count + ' stickers',
-      id: 'stickerlydl_' + i + '_' + Buffer.from(pack.url).toString('base64') + '_' + Buffer.from(pack.name).toString('base64')
-    }))
-
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: { title: '🌟 HINATA STICKERLY 🌟', subtitle: 'Selecciona un paquete', hasMediaAttachment: false },
-      body: { text: '🌟 「 HINATA STICKERLY 」 🌟\n\n💫 » Búsqueda: ' + text + '\n📦 » ' + json.data.length + ' paquetes\n\n> Elige un paquete' },
-      footer: { text: '⫏⫏ HINATA BOT ✿' },
-      nativeFlowMessage: {
-        buttons: [{
-          name: 'single_select',
-          buttonParamsJson: JSON.stringify({
-            title: '📦 PAQUETES',
-            sections: [{ title: '📋 ' + text.toUpperCase(), rows }]
-          })
-        }]
-      }
-    })
-
-    const msg = generateWAMessageFromContent(m.chat, {
-      viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } }
-    }, { quoted: m })
-
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
-
-  } catch (e) {
-    console.log(e)
-    await m.react('❌')
-    conn.sendMessage(m.chat, { text: '❌ Error al buscar' }, { quoted: m })
-  }
+function decorar(texto) {
+  return `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 ${texto.split('\n').join('\n│ 🍃 ')}\n╰───────────────⬣`
 }
 
-handler.before = async (m, { conn }) => {
-  const nativeFlow = m.message?.interactiveResponseMessage?.nativeFlowResponseMessage
-  if (!nativeFlow) return false
+// Busca packs por palabra clave y devuelve una lista plana de URLs de stickers (.webp)
+async function buscarStickers(keyword, limite) {
+  const params = new URLSearchParams({
+    keyword,
+    limit: '10', // límite de PACKS a revisar, no de stickers individuales
+    cursor: '',
+    countryCode: 'US'
+  })
 
+  const resp = await fetch(`${STICKERLY_SEARCH_URL}?${params.toString()}`, {
+    headers: {
+      'User-Agent': 'Stickerly/3.6.1 (Android)',
+      'Accept': 'application/json'
+    }
+  })
+
+  if (!resp.ok) {
+    throw new Error(`Stickerly respondió con estado ${resp.status}`)
+  }
+
+  const data = await resp.json()
+  const packs = data?.result?.stickerPacks || data?.stickerPacks || []
+
+  if (!packs.length) return []
+
+  const stickerUrls = []
+  for (const pack of packs) {
+    const stickers = pack.stickers || []
+    for (const st of stickers) {
+      // El campo exacto puede variar; probamos los más comunes
+      const url = st.imageFile?.thumbnail || st.imageFile?.original || st.uri || st.stickerUrl
+      if (url) stickerUrls.push(url)
+      if (stickerUrls.length >= limite) return stickerUrls
+    }
+  }
+
+  return stickerUrls
+}
+
+async function descargarBuffer(url) {
+  const resp = await fetch(url)
+  if (!resp.ok) throw new Error(`No se pudo descargar: ${url}`)
+  const arrayBuffer = await resp.arrayBuffer()
+  return Buffer.from(arrayBuffer)
+}
+
+const handler = async function (m, { conn, text, command }) {
+  const keyword = (text || '').trim()
+
+  if (!keyword) {
+    return conn.sendMessage(m.chat, {
+      text: decorar(`Uso:\n.${command} <palabra>\n\nEjemplo:\n.${command} meme`)
+    }, { quoted: m })
+  }
+
+  await conn.sendMessage(m.chat, {
+    text: decorar(`🔎 Buscando stickers de "${keyword}"...`)
+  }, { quoted: m })
+
+  let urls = []
   try {
-    const data = JSON.parse(nativeFlow.paramsJson || '{}')
-    const id = data.id || data.selectedId || data.selectedRowId || null
-    if (!id || !id.startsWith('stickerlydl_')) return false
+    urls = await buscarStickers(keyword, MAX_STICKERS)
+  } catch (e) {
+    console.error('[stickerbt] ERROR buscando en Stickerly:', e)
+    return conn.sendMessage(m.chat, {
+      text: decorar('❌ No se pudo conectar con Stickerly. Intenta de nuevo más tarde.')
+    }, { quoted: m })
+  }
 
-    let parts = id.split('_')
-    let urlBase64 = parts[2]
-    let nameBase64 = parts[3]
-    let packUrl = Buffer.from(urlBase64, 'base64').toString()
-    let packName = Buffer.from(nameBase64, 'base64').toString()
+  if (!urls.length) {
+    return conn.sendMessage(m.chat, {
+      text: decorar(`😕 No encontré stickers para "${keyword}". Prueba con otra palabra.`)
+    }, { quoted: m })
+  }
 
-    await m.react('⏳')
-    await conn.sendMessage(m.chat, { text: '⏳ Descargando stickers...' }, { quoted: m })
-
-    let downloadUrl = `https://api.delirius.store/download/stickerly?url=${encodeURIComponent(packUrl)}`
-    let res = await fetch(downloadUrl)
-    let json = await res.json()
-
-    if (!json.status || !json.data?.stickers?.length) {
-      await m.react('❌')
-      return conn.sendMessage(m.chat, { text: '❌ Error al descargar stickers' }, { quoted: m })
+  let enviados = 0
+  for (const url of urls) {
+    try {
+      const buffer = await descargarBuffer(url)
+      await conn.sendMessage(m.chat, { sticker: buffer }, { quoted: m })
+      enviados++
+      // Pequeña pausa para no saturar el envío
+      await new Promise(res => setTimeout(res, 400))
+    } catch (e) {
+      console.error('[stickerbt] ERROR descargando/enviando sticker:', url, e)
+      // Si uno falla, seguimos con los demás
     }
+  }
 
-    let stickers = json.data.stickers
-    let enviados = 0
-
-    for (let i = 0; i < Math.min(stickers.length, 5); i++) {
-      try {
-        let stickerRes = await fetch(stickers[i])
-        let stickerBuffer = await stickerRes.buffer()
-        await conn.sendMessage(m.chat, {
-          sticker: stickerBuffer
-        }, { quoted: m })
-        enviados++
-      } catch (e) {
-        console.log('Error enviando sticker ' + i)
-      }
-    }
-
+  if (enviados === 0) {
     await conn.sendMessage(m.chat, {
-      text: '🌟 「 HINATA STICKERLY 」 🌟\n\n✅ » ' + enviados + '/' + stickers.length + ' stickers enviados\n📦 » ' + packName + '\n👤 » ' + json.data.author + '\n\n> Algunos stickers pueden ser animados'
+      text: decorar('❌ Encontré resultados pero ninguno se pudo enviar. Intenta de nuevo.')
     }, { quoted: m })
-
-    await m.react('✅')
-    return true
-
-  } catch (e) {
-    console.log(e)
-    await m.react('❌')
-    return conn.sendMessage(m.chat, { text: '❌ Error: ' + e.message }, { quoted: m })
   }
 }
 
-handler.help = ['stickerly']
-handler.tags = ['downloader']
-handler.command = /^(stickerly|stickers|stickerpack)$/i
-handler.desc = 'Busca y descarga stickers de Stickerly'
+handler.command = ['stickerbt', 'stickerbuscar', 'stbt']
+handler.help = ['stickerbt <palabra> (envía hasta 10 stickers relacionados)']
+handler.tags = ['tools']
 
 export default handler
