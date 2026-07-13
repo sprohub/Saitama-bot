@@ -1,4 +1,4 @@
-import { Jimp } from 'jimp'
+import Jimp from 'jimp'
 import QrCodeReader from 'qrcode-reader'
 import fetch from 'node-fetch'
 
