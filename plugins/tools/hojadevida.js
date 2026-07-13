@@ -35,13 +35,17 @@
  *   Se descarga con `m.quoted.download()`; si tu fork de Baileys usa
  *   otro helper para descargar multimedia citada (como el que ya
  *   usan `.mgpdf` o `.stsubir` en este bot), ajusta esa única línea.
+ * - La foto se normaliza con `sharp` (lib/prepararImagen.js) antes de
+ *   embeberla, para evitar errores de pdf-lib como "SOI not found in
+ *   JPEG" cuando el JPEG es progresivo, viene en CMYK o el buffer
+ *   llegó incompleto desde la descarga de WhatsApp.
  */
 
 import { generateWAMessageFromContent, proto } from '@whiskeysockets/baileys'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
-import { fileTypeFromBuffer } from 'file-type'
 import fs from 'fs'
 import path from 'path'
+import { prepararImagenParaPDF } from '../../lib/prepararImagen.js'
 
 global.__cvPending = global.__cvPending || {}
 
@@ -189,13 +193,15 @@ async function generarPDF(datos, plantilla, fotoBuffer) {
   let fotoImg = null
   if (fotoBuffer) {
     try {
-      const tipo = await fileTypeFromBuffer(fotoBuffer)
-      console.log('[cv] tipo de imagen detectado:', tipo)
-      if (tipo?.mime === 'image/png') fotoImg = await pdf.embedPng(fotoBuffer)
-      else if (tipo?.mime === 'image/jpeg') fotoImg = await pdf.embedJpg(fotoBuffer)
-      else console.warn('[cv] mime no soportado por pdf-lib (solo png/jpg):', tipo?.mime)
+      const bufferLimpio = await prepararImagenParaPDF(fotoBuffer)
+      if (bufferLimpio) {
+        fotoImg = await pdf.embedJpg(bufferLimpio)
+        console.log('[cv] foto normalizada y embebida correctamente')
+      } else {
+        console.warn('[cv] no se pudo normalizar la foto, se omite de la sidebar')
+      }
     } catch (e) {
-      console.error('[cv] ERROR detectando/embebiendo la foto:', e)
+      console.error('[cv] ERROR embebiendo la foto (tras normalizar):', e)
       fotoImg = null
     }
   } else {
