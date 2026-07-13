@@ -190,11 +190,16 @@ async function generarPDF(datos, plantilla, fotoBuffer) {
   if (fotoBuffer) {
     try {
       const tipo = await fileTypeFromBuffer(fotoBuffer)
+      console.log('[cv] tipo de imagen detectado:', tipo)
       if (tipo?.mime === 'image/png') fotoImg = await pdf.embedPng(fotoBuffer)
       else if (tipo?.mime === 'image/jpeg') fotoImg = await pdf.embedJpg(fotoBuffer)
-    } catch {
+      else console.warn('[cv] mime no soportado por pdf-lib (solo png/jpg):', tipo?.mime)
+    } catch (e) {
+      console.error('[cv] ERROR detectando/embebiendo la foto:', e)
       fotoImg = null
     }
+  } else {
+    console.log('[cv] generarPDF: no llegó buffer de foto')
   }
 
   let page = null
@@ -403,12 +408,17 @@ const handler = async function (m, { conn, text, command }) {
 
   // Foto opcional: si el usuario citó una imagen junto con .cv
   let fotoBuffer = null
+  console.log('[cv] m.quoted presente:', !!m.quoted, '| tipo download:', typeof m.quoted?.download, '| mtype:', m.quoted?.mtype)
   if (m.quoted && typeof m.quoted.download === 'function') {
     try {
       fotoBuffer = await m.quoted.download()
-    } catch {
+      console.log('[cv] foto descargada, bytes:', fotoBuffer ? fotoBuffer.length : 0)
+    } catch (e) {
+      console.error('[cv] ERROR descargando foto citada:', e)
       fotoBuffer = null
     }
+  } else if (m.quoted) {
+    console.warn('[cv] m.quoted no tiene método .download() en este fork — hay que usar otro helper (ver mgpdf.js).')
   }
 
   const sessionId = `cv_${m.sender}_${Date.now()}`
