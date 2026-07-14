@@ -36,6 +36,7 @@ const {
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
+  fetchLatestWaWebVersion,
   Browsers,
   makeCacheableSignalKeyStore,
   jidNormalizedUser,
