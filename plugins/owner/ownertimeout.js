@@ -101,16 +101,26 @@ function chatConfig(jid) {
   return global.db.data.chats[jid]
 }
 
-// Misma verificación que usan los comandos .close / .open
+// Misma verificación robusta que usa menu.js (soporta cuentas @lid)
+function detectSuffix(jid) {
+  return jid.includes('@lid') ? '@lid' : '@s.whatsapp.net'
+}
+
+async function getLidFromJid(id, conn) {
+  if (id.endsWith('@lid')) return id
+  const res = await conn.onWhatsApp(id).catch(() => [])
+  return res[0]?.lid || id
+}
+
 async function esBotAdmin(conn, jid) {
   try {
     const metadata = await conn.groupMetadata(jid)
-    const botNumber = conn.user.id.split(':')[0]
-    const participant = metadata.participants.find(
-      p => p.id === conn.user.jid || p.id.startsWith(botNumber)
-    )
-    return participant?.admin === 'admin' || participant?.admin === 'superadmin'
-  } catch {
+    const participants = metadata?.participants || []
+    const botLid = await getLidFromJid(conn.user.jid, conn)
+    const botP = participants.find(p => p.id === botLid || p.id === conn.user.jid)
+    return !!botP?.admin
+  } catch (e) {
+    console.error('[autocierre] ERROR verificando si el bot es admin en', jid, e)
     return false
   }
 }
