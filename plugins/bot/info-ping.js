@@ -1,53 +1,81 @@
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
+import { fileURLToPath } from 'url'
 import speed from 'performance-now'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// 👉 Imagen local del banner (colócala en lib/saitama-ping.jpg)
+const bannerImagePath = path.join(__dirname, '..', '..', 'lib', 'saitama-ping.jpg')
+
+function formatearTiempo(segundos) {
+  const dias = Math.floor(segundos / 86400)
+  const horas = Math.floor((segundos % 86400) / 3600)
+  const minutos = Math.floor((segundos % 3600) / 60)
+  const segs = Math.floor(segundos % 60)
+
+  const partes = []
+  if (dias) partes.push(`${dias}d`)
+  if (horas) partes.push(`${horas}h`)
+  if (minutos) partes.push(`${minutos}m`)
+  partes.push(`${segs}s`)
+  return partes.join(' ')
+}
+
+function formatearMB(bytes) {
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+}
+
 let handler = async (m, { conn }) => {
-  let start = speed()
-  await conn.sendMessage(m.chat, { text: '⏳ » Saitama está midiendo su golpe...' }, { quoted: m })
-  let end = speed()
+  const inicio = speed()
+  await conn.sendMessage(m.chat, { text: '⏳ Midiendo velocidad de respuesta...' }, { quoted: m })
+  const fin = speed()
 
-  let vel = (end - start).toFixed(3)
+  const latenciaMs = (fin - inicio).toFixed(2)
 
-  let emoji, frase, color
-  let poder = Math.floor(Math.random() * 100)
+  const memoria = process.memoryUsage()
+  const usoRAM = formatearMB(memoria.rss)
+  const ramLibre = formatearMB(os.freemem())
+  const ramTotal = formatearMB(os.totalmem())
+  const uptimeProceso = formatearTiempo(process.uptime())
+  const uptimeSistema = formatearTiempo(os.uptime())
+  const cargaCpu = os.loadavg()[0].toFixed(2) // promedio de carga últimos 1 min (Linux/Android)
+  const nucleos = os.cpus().length
 
-  if (vel < 80) {
-    emoji = '👊'
-    frase = '¡Un solo golpe! Saitama acaba con todo en un instante'
-    color = '#FFFF00'
-  } else if (vel < 200) {
-    emoji = '🦸'
-    frase = 'Saitama entrenando: 100 flexiones, 100 sentadillas, 10km'
-    color = '#FFD700'
-  } else if (vel < 400) {
-    emoji = '🛒'
-    frase = 'Saitama está de compras esperando las ofertas, velocidad normal'
-    color = '#FFA500'
-  } else if (vel < 700) {
-    emoji = '😑'
-    frase = 'Saitama está aburrido, ningún rival lo hace ir más rápido'
-    color = '#FF8C00'
-  } else {
-    emoji = '💤'
-    frase = 'Saitama se quedó dormido esperando una pelea decente'
-    color = '#FF0000'
-  }
-
-  let texto = emoji + ' 「 SAITAMA PING 」 ' + emoji + '\n'
+  let texto = '「 🌿 SAITAMA-BOT · PING 」\n'
   texto += '▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔\n\n'
-  texto += frase + '\n\n'
-  texto += '📊 Velocidad: ' + vel + ' ms\n'
-  texto += '👊 Poder: ' + poder + '%\n\n'
+  texto += `⚡ Latencia: ${latenciaMs} ms\n`
+  texto += `🕐 Uptime del bot: ${uptimeProceso}\n`
+  texto += `🖥️ Uptime del sistema: ${uptimeSistema}\n\n`
+  texto += `💾 RAM en uso (proceso): ${usoRAM}\n`
+  texto += `💽 RAM libre: ${ramLibre} / ${ramTotal}\n`
+  texto += `⚙️ Carga CPU (1 min): ${cargaCpu} · ${nucleos} núcleos\n`
+  texto += `🧩 Node.js: ${process.version}\n`
+  texto += `🌐 Plataforma: ${os.platform()} (${os.arch()})\n\n`
   texto += '▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔'
 
-  await conn.sendMessage(m.chat, {
-    image: { url: 'https://i.ibb.co/ZzmGwWRp/70a442b4-e75b-409c-9c6d-6994713f5726.png' },
-    caption: texto
-  }, { quoted: m })
+  let imagenBanner
+  try {
+    imagenBanner = fs.readFileSync(bannerImagePath)
+  } catch (e) {
+    console.error('[ping] No se encontró la imagen en', bannerImagePath, e)
+  }
+
+  if (imagenBanner) {
+    await conn.sendMessage(m.chat, {
+      image: imagenBanner,
+      caption: texto
+    }, { quoted: m })
+  } else {
+    // Si no se encuentra la imagen, se envía solo el texto para no romper el comando
+    await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
+  }
 }
 
 handler.help = ['ping']
 handler.tags = ['info']
 handler.command = /^(ping|velocidad|speed)$/i
-handler.desc = 'Mide la velocidad de Saitama'
+handler.desc = 'Muestra latencia y estadísticas del sistema'
 
 export default handler
