@@ -101,11 +101,36 @@ function chatConfig(jid) {
   return global.db.data.chats[jid]
 }
 
+// Misma verificación que usan los comandos .close / .open
+async function esBotAdmin(conn, jid) {
+  try {
+    const metadata = await conn.groupMetadata(jid)
+    const botNumber = conn.user.id.split(':')[0]
+    const participant = metadata.participants.find(
+      p => p.id === conn.user.jid || p.id.startsWith(botNumber)
+    )
+    return participant?.admin === 'admin' || participant?.admin === 'superadmin'
+  } catch {
+    return false
+  }
+}
+
 async function cerrarGrupo(conn, jid, horas) {
+  const botAdmin = await esBotAdmin(conn, jid)
+  if (!botAdmin) {
+    console.warn('[autocierre] Salté el cierre de', jid, '— el bot no es admin ahí.')
+    try {
+      await conn.sendMessage(jid, {
+        text: decorar('⚠️ No pude cerrar el grupo automáticamente: la bot necesita ser admin.')
+      })
+    } catch {}
+    return
+  }
+
   try {
     await conn.groupSettingUpdate(jid, 'announcement') // solo admins pueden escribir
     await conn.sendMessage(jid, {
-      text: decorar(`🔒 Este grupo se cerró automáticamente (${formatearHora(horas.cierre)}). Solo admins pueden escribir hasta las ${formatearHora(horas.apertura)}.`)
+      text: decorar(`Grupo cerrado automáticamente (${formatearHora(horas.cierre)}), solo admins hablan hasta las ${formatearHora(horas.apertura)}.`)
     })
   } catch (e) {
     console.error('[autocierre] ERROR cerrando grupo', jid, e)
@@ -113,10 +138,21 @@ async function cerrarGrupo(conn, jid, horas) {
 }
 
 async function abrirGrupo(conn, jid, horas) {
+  const botAdmin = await esBotAdmin(conn, jid)
+  if (!botAdmin) {
+    console.warn('[autocierre] Salté la apertura de', jid, '— el bot no es admin ahí.')
+    try {
+      await conn.sendMessage(jid, {
+        text: decorar('⚠️ No pude abrir el grupo automáticamente: la bot necesita ser admin.')
+      })
+    } catch {}
+    return
+  }
+
   try {
     await conn.groupSettingUpdate(jid, 'not_announcement') // todos pueden escribir de nuevo
     await conn.sendMessage(jid, {
-      text: decorar(`🔓 Este grupo se abrió automáticamente (${formatearHora(horas.apertura)}). Ya todos pueden escribir.`)
+      text: decorar(`Grupo abierto automáticamente (${formatearHora(horas.apertura)}), todos pueden hablar.`)
     })
   } catch (e) {
     console.error('[autocierre] ERROR abriendo grupo', jid, e)
