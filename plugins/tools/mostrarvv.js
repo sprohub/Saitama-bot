@@ -1,6 +1,17 @@
 import { downloadMediaMessage, normalizeMessageContent } from "@whiskeysockets/baileys";
-// 👉 Imagen local del banner (colócala en lib/mostrarmg.png)
-const bannerImagePath = path.join(__dirname, '..', '..', 'lib', 'mostrarmg.png')
+import path from 'path';
+import fs from 'fs';
+
+// Ruta de la imagen local
+const bannerImagePath = path.join(__dirname, '..', '..', 'lib', 'mostrarmg.png');
+
+// Verificamos que la imagen exista
+let bannerBuffer = null;
+if (fs.existsSync(bannerImagePath)) {
+  bannerBuffer = fs.readFileSync(bannerImagePath);
+} else {
+  console.warn(`[WARN] No se encontró la imagen: ${bannerImagePath}`);
+}
 
 let handler = async (m, { conn }) => {
   const quoted = m.quoted ? m.quoted : m;
@@ -15,8 +26,7 @@ let handler = async (m, { conn }) => {
     return conn.sendMessage(
       m.chat,
       {
-        text:
-`╭─⪼ 🌿 *SAITAMA BOT* 🌿
+        text: `╭─⪼ 🌿 *SAITAMA BOT* 🌿
 │
 │ ❌ Responde a una foto o video
 │ de *ver una sola vez* citándolo
@@ -29,12 +39,12 @@ let handler = async (m, { conn }) => {
   }
 
   try {
+    // Enviar banner con imagen local
     await conn.sendMessage(
       m.chat,
       {
-        image: { url: SAITAMA_REVEAL_IMG },
-        caption:
-`╭─⪼ 🌱 *SAITAMA BOT* 🌱
+        image: bannerBuffer || { url: "https://i.imgur.com/default.jpg" }, // fallback si no existe la imagen
+        caption: `╭─⪼ 🌱 *SAITAMA BOT* 🌱
 │
 │ 👀 Intentando revelar el
 │ contenido de ver una sola vez...
@@ -81,8 +91,7 @@ let handler = async (m, { conn }) => {
       throw new Error("No pude descargar el archivo multimedia.");
     }
 
-    const caption =
-`╭─⪼ 🌿 *SAITAMA BOT* 🌿
+    const caption = `╭─⪼ 🌿 *SAITAMA BOT* 🌿
 │
 │ ✅ Contenido revelado
 │ con éxito
@@ -92,11 +101,7 @@ let handler = async (m, { conn }) => {
 ╰───────────────⬣`;
 
     if (mtype === "imageMessage") {
-      await conn.sendMessage(
-        m.chat,
-        { image: buffer, caption },
-        { quoted: m }
-      );
+      await conn.sendMessage(m.chat, { image: buffer, caption }, { quoted: m });
     } else {
       await conn.sendMessage(
         m.chat,
@@ -109,8 +114,7 @@ let handler = async (m, { conn }) => {
     await conn.sendMessage(
       m.chat,
       {
-        text:
-`╭─⪼ 🍂 *SAITAMA BOT* 🍂
+        text: `╭─⪼ 🍂 *SAITAMA BOT* 🍂
 │
 │ ❌ No pude recuperar el
 │ contenido de ver una sola vez
