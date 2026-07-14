@@ -1,6 +1,6 @@
 import { downloadMediaMessage, normalizeMessageContent } from "@whiskeysockets/baileys";
-
-const SAITAMA_REVEAL_IMG = "https://i.ibb.co/QvRLcvJ8/69c6d8b5-e937-48b6-a772-40f669441678.png";
+// 👉 Imagen local del banner (colócala en lib/mostrarmg.png)
+const bannerImagePath = path.join(__dirname, '..', '..', 'lib', 'mostrarmg.png')
 
 let handler = async (m, { conn }) => {
   const quoted = m.quoted ? m.quoted : m;
