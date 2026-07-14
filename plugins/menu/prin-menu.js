@@ -1,12 +1,17 @@
 import fs from 'fs'
-import path, { join } from 'path'
-import fetch from 'node-fetch'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import {
   generateWAMessageFromContent,
   prepareWAMessageMedia,
   proto
 } from '@whiskeysockets/baileys'
 import { xpRange } from '../../lib/levelling.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// 👉 Imagen única del menú (colócala en lib/menu.jpg)
+const menuImagePath = path.join(__dirname, '..', '..', 'lib', 'menu.jpg')
 
 const tags = {
   main: '🌿 Principal',
@@ -21,21 +26,6 @@ const tags = {
   owner: '👑 Owner',
   downloader: '📥 Downloader',
   info: 'ℹ️ Info'
-}
-
-const bannerCategory = {
-  main: 'https://i.ibb.co/8DsHnhn9/8f759145-d6d9-4980-8b65-bc5a27d63c00.png',
-  group: 'https://i.ibb.co/C38P3Wqg/ultra.jpg',
-  tools: 'https://i.ibb.co/jkhp8BZD/wof.jpg',
-  rpg: 'https://i.ibb.co/V040CGfq/enojado.jpg',
-  game: 'https://i.ibb.co/jkhp8BZD/wof.jpg',
-  gacha: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg',
-  serbot: 'https://i.ibb.co/j94w01QV/mascota.jpg',
-  owner: 'https://i.ibb.co/V040CGfq/enojado.jpg',
-  downloader: 'https://i.ibb.co/C38P3Wqg/ultra.jpg',
-  info: 'https://i.ibb.co/jkhp8BZD/wof.jpg',
-  diversion: 'https://i.ibb.co/j94w01QV/mascota.jpg',
-  anime: 'https://i.ibb.co/DPHT5V5Y/caminata.jpg'
 }
 
 const cmdIcon = '🍃'
@@ -126,7 +116,6 @@ async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada }) {
 
   const help = getHelp()
 
-  const bannerUrl = tagSeleccionada ? bannerCategory[tagSeleccionada] : bannerCategory.main
   const totalreg = Object.keys(global.db.data.users).length
   const totalcmd = Object.keys(global.plugins).length
   const uptime = Math.floor(process.uptime() / 60) + 'm ' + Math.floor(process.uptime() % 60) + 's'
@@ -134,11 +123,14 @@ async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada }) {
 
   let media = null
   try {
+    const bannerBuffer = fs.readFileSync(menuImagePath)
     media = await prepareWAMessageMedia(
-      { image: { url: bannerUrl } },
+      { image: bannerBuffer },
       { upload: conn.waUploadToServer }
     )
-  } catch {}
+  } catch (e) {
+    console.error('[menu] No se encontró la imagen en', menuImagePath, e)
+  }
 
   const sections = tagSeleccionada
     ? buildCommandSections(help, usedPrefix, tagSeleccionada)
