@@ -1,3 +1,12 @@
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+// 👉 Imagen local del banner (colócala en lib/ownerinfo.jpg)
+const bannerImagePath = path.join(__dirname, '..', '..', 'lib', 'ownerinfo.jpg')
+
 const owners = [
   {
     name: 'BRAYANRK',
@@ -19,9 +28,6 @@ const links = {
   groupOficial: 'https://chat.whatsapp.com/J0sxzJySsV5D2xd410vPzS',
   groupSaitama: 'https://chat.whatsapp.com/GrnEybt0lVO9PbWfEf88AQ'
 }
-
-// 👉 Pon aquí tu imagen: puede ser una URL pública o una ruta local
-const bannerImage = 'https://i.ibb.co/ZRLmQwRG/2140482e-e443-4829-b97b-2e1af92faa14.jpg'
 
 let handler = async (m, { conn }) => {
   const ownersText = owners.map(o => {
@@ -47,10 +53,22 @@ ${ownersText}
 > 🌱 SAITAMA BOT
 > Contáctanos si tienes dudas`
 
-  await conn.sendMessage(m.chat, {
-    image: { url: bannerImage },
-    caption: texto
-  }, { quoted: m })
+  let imagenBanner
+  try {
+    imagenBanner = fs.readFileSync(bannerImagePath)
+  } catch (e) {
+    console.error('[owner] No se encontró la imagen en', bannerImagePath, e)
+  }
+
+  if (imagenBanner) {
+    await conn.sendMessage(m.chat, {
+      image: imagenBanner,
+      caption: texto
+    }, { quoted: m })
+  } else {
+    // Si no se encuentra la imagen, se envía solo el texto para no romper el comando
+    await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
+  }
 }
 
 handler.help = ['owner']
