@@ -3,14 +3,16 @@
  * Comando: .autocierre
  *
  * SOLO PARA OWNERS. Cierra automáticamente los grupos (solo admins
- * pueden escribir) a las 12:30 PM hora Colombia, y los vuelve a abrir
- * a las 7:00 AM hora Colombia. Cada grupo se activa/desactiva por
- * separado desde un menú de botones.
+ * pueden escribir) y los vuelve a abrir a las horas que configures
+ * (por defecto 12:30 PM cierre / 7:00 AM apertura, hora Colombia).
+ * Cada grupo se activa/desactiva por separado desde un menú de botones.
  *
  * Uso:
- * .autocierre           → muestra el menú para activar/desactivar
- *                          el auto-cierre en cada grupo donde está el bot
- * .autocierre estado    → lista qué grupos tienen el auto-cierre activo
+ * .autocierre                     → menú para activar/desactivar el
+ *                                    auto-cierre en cada grupo
+ * .autocierre estado              → lista grupos activos + horas configuradas
+ * .autocierre hora cierre HH:MM   → cambia la hora de cierre
+ * .autocierre hora apertura HH:MM → cambia la hora de apertura
  *
  * IMPORTANTE:
  * Este plugin asume que el socket de conexión de Baileys está
@@ -27,9 +29,29 @@
 import { generateWAMessageFromContent, proto } from '@whiskeysockets/baileys'
 
 const ZONA_HORARIA = 'America/Bogota'
-const HORA_CIERRE = { hora: 12, minuto: 30 }
-const HORA_APERTURA = { hora: 7, minuto: 0 }
+const HORA_CIERRE_DEFAULT = { hora: 12, minuto: 30 }
+const HORA_APERTURA_DEFAULT = { hora: 7, minuto: 0 }
 const INTERVALO_CHEQUEO_MS = 30 * 1000 // revisa cada 30 segundos
+
+function obtenerHorasConfiguradas() {
+  if (!global.db.data.settings) global.db.data.settings = {}
+  const s = global.db.data.settings
+  return {
+    cierre: s.autocierreHoraCierre || HORA_CIERRE_DEFAULT,
+    apertura: s.autocierreHoraApertura || HORA_APERTURA_DEFAULT
+  }
+}
+
+function formatearHora({ hora, minuto }) {
+  return `${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}`
+}
+
+// Parsea "HH:MM" a { hora, minuto }, o null si no es válido
+function parsearHora(texto) {
+  const match = (texto || '').trim().match(/^([0-1]?\d|2[0-3]):([0-5]\d)$/)
+  if (!match) return null
+  return { hora: Number(match[1]), minuto: Number(match[2]) }
+}
 
 function decorar(texto) {
   return `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 ${texto.split('\n').join('\n│ 🍃 ')}\n╰───────────────⬣`
@@ -79,22 +101,22 @@ function chatConfig(jid) {
   return global.db.data.chats[jid]
 }
 
-async function cerrarGrupo(conn, jid) {
+async function cerrarGrupo(conn, jid, horas) {
   try {
     await conn.groupSettingUpdate(jid, 'announcement') // solo admins pueden escribir
     await conn.sendMessage(jid, {
-      text: decorar('🔒 Este grupo se cerró automáticamente (12:30 PM). Solo admins pueden escribir hasta las 7:00 AM.')
+      text: decorar(`🔒 Este grupo se cerró automáticamente (${formatearHora(horas.cierre)}). Solo admins pueden escribir hasta las ${formatearHora(horas.apertura)}.`)
     })
   } catch (e) {
     console.error('[autocierre] ERROR cerrando grupo', jid, e)
   }
 }
 
-async function abrirGrupo(conn, jid) {
+async function abrirGrupo(conn, jid, horas) {
   try {
     await conn.groupSettingUpdate(jid, 'not_announcement') // todos pueden escribir de nuevo
     await conn.sendMessage(jid, {
-      text: decorar('🔓 Este grupo se abrió automáticamente (7:00 AM). Ya todos pueden escribir.')
+      text: decorar(`🔓 Este grupo se abrió automáticamente (${formatearHora(horas.apertura)}). Ya todos pueden escribir.`)
     })
   } catch (e) {
     console.error('[autocierre] ERROR abriendo grupo', jid, e)
@@ -106,24 +128,24 @@ async function revisarHorario() {
   const conn = global.conn
   if (!conn) return
 
+  const horas = obtenerHorasConfiguradas()
   const { hora, minuto, fecha } = obtenerHoraColombia()
 
-  const esHoraCierre = hora === HORA_CIERRE.hora && minuto === HORA_CIERRE.minuto
-  const esHoraApertura = hora === HORA_APERTURA.hora && minuto === HORA_APERTURA.minuto
+  const esHoraCierre = hora === horas.cierre.hora && minuto === horas.cierre.minuto
+  const esHoraApertura = hora === horas.apertura.hora && minuto === horas.apertura.minuto
   if (!esHoraCierre && !esHoraApertura) return
 
   const marcaAccion = esHoraCierre ? `cierre_${fecha}` : `apertura_${fecha}`
   if (global.db.data.settings?.autocierreUltimaAccion === marcaAccion) return // ya se ejecutó hoy
 
-  if (!global.db.data.settings) global.db.data.settings = {}
   global.db.data.settings.autocierreUltimaAccion = marcaAccion
 
   const chats = global.db.data.chats || {}
   const gruposActivos = Object.keys(chats).filter(jid => jid.endsWith('@g.us') && chats[jid]?.autocierre)
 
   for (const jid of gruposActivos) {
-    if (esHoraCierre) await cerrarGrupo(conn, jid)
-    else await abrirGrupo(conn, jid)
+    if (esHoraCierre) await cerrarGrupo(conn, jid, horas)
+    else await abrirGrupo(conn, jid, horas)
     await new Promise(res => setTimeout(res, 800)) // pausa entre grupos para no saturar
   }
 }
@@ -134,20 +156,59 @@ if (!global.__autocierreSchedulerActivo) {
   setInterval(() => {
     revisarHorario().catch(e => console.error('[autocierre] ERROR en revisarHorario:', e))
   }, INTERVALO_CHEQUEO_MS)
-  console.log('[autocierre] Scheduler iniciado (cierre 12:30 PM / apertura 7:00 AM hora Colombia)')
+  console.log('[autocierre] Scheduler iniciado (usa .autocierre hora para configurar los horarios)')
 }
 
 const handler = async function (m, { conn, text, command }) {
-  const sub = (text || '').trim().toLowerCase()
+  const textoCompleto = (text || '').trim()
+  const sub = textoCompleto.toLowerCase()
+
+  // --- Configurar horas: .autocierre hora cierre 12:30 / .autocierre hora apertura 07:00 ---
+  if (sub.startsWith('hora')) {
+    const partes = textoCompleto.split(/\s+/) // ["hora", "cierre", "12:30"]
+    const tipo = (partes[1] || '').toLowerCase()
+    const horaTexto = partes[2]
+
+    if (!['cierre', 'apertura'].includes(tipo) || !horaTexto) {
+      const horas = obtenerHorasConfiguradas()
+      return conn.sendMessage(m.chat, {
+        text: decorar(
+          `Uso:\n.${command} hora cierre HH:MM\n.${command} hora apertura HH:MM\n\n` +
+          `Ejemplo:\n.${command} hora cierre 12:30\n.${command} hora apertura 07:00\n\n` +
+          `⏱️ Configuración actual:\n🔒 Cierre: ${formatearHora(horas.cierre)}\n🔓 Apertura: ${formatearHora(horas.apertura)}`
+        )
+      }, { quoted: m })
+    }
+
+    const horaParseada = parsearHora(horaTexto)
+    if (!horaParseada) {
+      return conn.sendMessage(m.chat, {
+        text: decorar('❌ Formato de hora inválido. Usa HH:MM en formato 24 horas (ej: 12:30 o 07:00).')
+      }, { quoted: m })
+    }
+
+    if (!global.db.data.settings) global.db.data.settings = {}
+    if (tipo === 'cierre') global.db.data.settings.autocierreHoraCierre = horaParseada
+    else global.db.data.settings.autocierreHoraApertura = horaParseada
+
+    const horasActualizadas = obtenerHorasConfiguradas()
+    return conn.sendMessage(m.chat, {
+      text: decorar(
+        `✅ Hora de ${tipo} actualizada a ${formatearHora(horaParseada)} (hora Colombia).\n\n` +
+        `⏱️ Configuración actual:\n🔒 Cierre: ${formatearHora(horasActualizadas.cierre)}\n🔓 Apertura: ${formatearHora(horasActualizadas.apertura)}`
+      )
+    }, { quoted: m })
+  }
 
   // --- Ver estado actual ---
   if (sub === 'estado') {
+    const horas = obtenerHorasConfiguradas()
     const chats = global.db.data.chats || {}
     const activos = Object.keys(chats).filter(jid => jid.endsWith('@g.us') && chats[jid]?.autocierre)
 
     if (!activos.length) {
       return conn.sendMessage(m.chat, {
-        text: decorar('No hay ningún grupo con auto-cierre activo.')
+        text: decorar(`No hay ningún grupo con auto-cierre activo.\n\n⏱️ Horas configuradas:\n🔒 Cierre: ${formatearHora(horas.cierre)}\n🔓 Apertura: ${formatearHora(horas.apertura)}`)
       }, { quoted: m })
     }
 
@@ -161,7 +222,10 @@ const handler = async function (m, { conn, text, command }) {
     }))
 
     return conn.sendMessage(m.chat, {
-      text: decorar(`Grupos con auto-cierre activo (${activos.length}):\n\n${nombres.join('\n')}`)
+      text: decorar(
+        `Grupos con auto-cierre activo (${activos.length}):\n\n${nombres.join('\n')}\n\n` +
+        `⏱️ Horas configuradas:\n🔒 Cierre: ${formatearHora(horas.cierre)}\n🔓 Apertura: ${formatearHora(horas.apertura)}`
+      )
     }, { quoted: m })
   }
 
@@ -193,10 +257,11 @@ const handler = async function (m, { conn, text, command }) {
     }
   })
 
+  const horasMenu = obtenerHorasConfiguradas()
   const interactiveMessage = proto.Message.InteractiveMessage.create({
     header: proto.Message.InteractiveMessage.Header.create({
       title: '🌿 SAITAMA-BOT · Auto-cierre de Grupos',
-      subtitle: 'Cierra 12:30 PM · Abre 7:00 AM (hora Colombia)',
+      subtitle: `Cierra ${formatearHora(horasMenu.cierre)} · Abre ${formatearHora(horasMenu.apertura)} (hora Colombia)`,
       hasMediaAttachment: false
     }),
     body: proto.Message.InteractiveMessage.Body.create({
@@ -222,7 +287,7 @@ const handler = async function (m, { conn, text, command }) {
 }
 
 handler.command = ['autocierre', 'cierregrupos']
-handler.help = ['autocierre (activa/desactiva el cierre automático 12:30-7:00 por grupo)']
+handler.help = ['autocierre (activa/desactiva el cierre automático por grupo, horas configurables)']
 handler.tags = ['owner']
 handler.owner = true // solo owners pueden usar este comando
 handler.rowner = true // y solo el/los owner(es) reales del bot
@@ -249,10 +314,11 @@ handler.before = async function (m, { conn }) {
     nombreGrupo = (await conn.groupMetadata(jid)).subject
   } catch {}
 
+  const horasToggle = obtenerHorasConfiguradas()
   await conn.sendMessage(m.chat, {
     text: decorar(
       config.autocierre
-        ? `🟢 Auto-cierre ACTIVADO para "${nombreGrupo}".\nSe cerrará a las 12:30 PM y se abrirá a las 7:00 AM (hora Colombia).`
+        ? `🟢 Auto-cierre ACTIVADO para "${nombreGrupo}".\nSe cerrará a las ${formatearHora(horasToggle.cierre)} y se abrirá a las ${formatearHora(horasToggle.apertura)} (hora Colombia).`
         : `⚪ Auto-cierre DESACTIVADO para "${nombreGrupo}".`
     )
   }, { quoted: m })
