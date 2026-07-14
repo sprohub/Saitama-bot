@@ -2,20 +2,24 @@
  * plugins/tools/stickerbt.js
  * Comando: .stickerbt
  *
- * Flujo:
- * 1) .stickerbt <palabra> busca packs en Sticker.ly y muestra un menú
- *    de botones con hasta 10 resultados.
- * 2) Al elegir un pack, se envían las miniaturas numeradas de sus
- *    stickers y aparece un SEGUNDO menú de botones para elegir cuál
- *    sticker enviar.
- * 3) Al elegir el sticker, se descarga, se convierte a webp, se le
- *    pone el pack name SAITAMA-PACK y se envía como sticker final.
+ * Busca packs de stickers en Sticker.ly (vía API de delirius.store)
+ * por palabra clave, muestra hasta 10 resultados en un menú de
+ * botones, y al elegir uno descarga y envía sus stickers (hasta 10),
+ * renombrando el "pack name" de cada uno a SAITAMA-PACK.
+ *
+ * Uso:
+ * .stickerbt my melody
+ * .stickerbt meme
  *
  * APIs usadas (verificadas en vivo, respuesta confirmada):
  * - Búsqueda: https://api.delirius.store/search/stickerly?query=<texto>
  *   → { status, data: [ { name, author, url, sticker_count, preview, ... } ] }
  * - Descarga: https://api.delirius.store/download/stickerly?url=<url_del_pack>
  *   → { status, data: { name, stickers: ["https://...png", ...] } }
+ *
+ * Los stickers de esta API llegan en .png, así que se convierten a
+ * .webp con ffmpeg antes de enviarlos (WhatsApp solo acepta webp
+ * para stickers).
  */
 
 import { generateWAMessageFromContent, proto } from '@whiskeysockets/baileys'
@@ -31,8 +35,8 @@ const execAsync = promisify(exec)
 
 const SEARCH_URL = 'https://api.delirius.store/search/stickerly'
 const DOWNLOAD_URL = 'https://api.delirius.store/download/stickerly'
+const MAX_STICKERS = 10
 const MAX_RESULTADOS = 10
-const MAX_STICKERS_POR_PACK = 10
 const PACK_NAME = 'SAITAMA-PACK'
 const AUTHOR_NAME = 'SAITAMA-BOT'
 
@@ -140,11 +144,42 @@ async function renombrarPack(bufferWebp, packname, author) {
   return img.save(null)
 }
 
-async function enviarUnSticker(conn, m, stickerUrl) {
-  const bufferOriginal = await descargarBuffer(stickerUrl)
-  const bufferWebp = await convertirAWebp(bufferOriginal)
-  const bufferFinal = await renombrarPack(bufferWebp, PACK_NAME, AUTHOR_NAME)
-  await conn.sendMessage(m.chat, { sticker: bufferFinal }, { quoted: m })
+async function enviarStickersDelPack(conn, m, packUrl) {
+  let stickerUrls = []
+  try {
+    stickerUrls = await descargarPack(packUrl)
+  } catch (e) {
+    console.error('[stickerbt] ERROR descargando el pack:', e)
+    return conn.sendMessage(m.chat, {
+      text: decorar('❌ No se pudo descargar el pack elegido.')
+    }, { quoted: m })
+  }
+
+  if (!stickerUrls.length) {
+    return conn.sendMessage(m.chat, {
+      text: decorar('😕 El pack no tiene stickers disponibles.')
+    }, { quoted: m })
+  }
+
+  let enviados = 0
+  for (const url of stickerUrls.slice(0, MAX_STICKERS)) {
+    try {
+      const bufferOriginal = await descargarBuffer(url)
+      const bufferWebp = await convertirAWebp(bufferOriginal)
+      const bufferFinal = await renombrarPack(bufferWebp, PACK_NAME, AUTHOR_NAME)
+      await conn.sendMessage(m.chat, { sticker: bufferFinal }, { quoted: m })
+      enviados++
+      await new Promise(res => setTimeout(res, 400))
+    } catch (e) {
+      console.error('[stickerbt] ERROR procesando sticker:', url, e)
+    }
+  }
+
+  if (enviados === 0) {
+    await conn.sendMessage(m.chat, {
+      text: decorar('❌ Encontré el pack pero ningún sticker se pudo enviar. Revisa que ffmpeg esté instalado.')
+    }, { quoted: m })
+  }
 }
 
 const handler = async function (m, { conn, text, command }) {
@@ -182,7 +217,6 @@ const handler = async function (m, { conn, text, command }) {
   const sessionId = `stbt_${m.sender}_${Date.now()}`
 
   global.__stickerbtPending[sessionId] = {
-    etapa: 'packs',
     resultados,
     sender: m.sender,
     timestamp: Date.now()
@@ -191,7 +225,7 @@ const handler = async function (m, { conn, text, command }) {
   const rows = resultados.map((pack, i) => ({
     title: (pack.name || 'Sin nombre').trim().slice(0, 60),
     description: `${pack.author || 'desconocido'} · ${pack.sticker_count ?? '?'} stickers${pack.isAnimated ? ' · animado' : ''}`,
-    id: `stbt_pack|${sessionId}|${i}`
+    id: `stbt_dl|${sessionId}|${i}`
   }))
 
   const interactiveMessage = proto.Message.InteractiveMessage.create({
@@ -201,7 +235,7 @@ const handler = async function (m, { conn, text, command }) {
       hasMediaAttachment: false
     }),
     body: proto.Message.InteractiveMessage.Body.create({
-      text: decorar('Elige un pack para ver sus stickers 👇')
+      text: decorar('Elige un pack para recibir sus stickers 👇')
     }),
     footer: proto.Message.InteractiveMessage.Footer.create({ text: '🍃 SAITAMA-BOT' }),
     nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
@@ -223,143 +257,40 @@ const handler = async function (m, { conn, text, command }) {
 }
 
 handler.command = ['stickerbt', 'stickerbuscar', 'stbt']
-handler.help = ['stickerbt <palabra> (busca en Sticker.ly, elige pack y luego elige un sticker)']
+handler.help = ['stickerbt <palabra> (busca en Sticker.ly y envía hasta 10 stickers como SAITAMA-PACK)']
 handler.tags = ['tools']
 
 handler.before = async function (m, { conn }) {
   const selectedId = extractSelectedId(m)
-  if (!selectedId) return false
+  if (!selectedId || !selectedId.startsWith('stbt_dl|')) return false
 
-  // --- Paso 1: eligió un PACK → mostrar miniaturas + segundo menú ---
-  if (selectedId.startsWith('stbt_pack|')) {
-    const [, sessionId, indexStr] = selectedId.split('|')
-    const session = global.__stickerbtPending[sessionId]
+  const [, sessionId, indexStr] = selectedId.split('|')
+  const session = global.__stickerbtPending[sessionId]
 
-    if (!session) {
-      await conn.sendMessage(m.chat, { text: decorar('⌛ Esta búsqueda expiró. Vuelve a usar .stickerbt.') }, { quoted: m })
-      return true
-    }
-    if (m.sender !== session.sender) {
-      await conn.sendMessage(m.chat, { text: decorar('❌ Solo quien hizo la búsqueda puede elegir.') }, { quoted: m })
-      return true
-    }
-
-    const pack = session.resultados[Number(indexStr)]
-    if (!pack) {
-      await conn.sendMessage(m.chat, { text: decorar('❌ No encontré ese resultado, busca de nuevo.') }, { quoted: m })
-      return true
-    }
-
-    await conn.sendMessage(m.chat, {
-      text: decorar(`🛠️ Cargando stickers de "${pack.name?.trim() || 'pack'}"...`)
-    }, { quoted: m })
-
-    let stickerUrls = []
-    try {
-      stickerUrls = await descargarPack(pack.url)
-    } catch (e) {
-      console.error('[stickerbt] ERROR descargando el pack:', e)
-      await conn.sendMessage(m.chat, { text: decorar('❌ No se pudo descargar el pack elegido.') }, { quoted: m })
-      return true
-    }
-
-    if (!stickerUrls.length) {
-      await conn.sendMessage(m.chat, { text: decorar('😕 Este pack no tiene stickers disponibles.') }, { quoted: m })
-      return true
-    }
-
-    const stickersLimitados = stickerUrls.slice(0, MAX_STICKERS_POR_PACK)
-
-    // Enviar miniaturas numeradas para que el usuario vea qué está eligiendo
-    for (let i = 0; i < stickersLimitados.length; i++) {
-      try {
-        await conn.sendMessage(m.chat, {
-          image: { url: stickersLimitados[i] },
-          caption: `#${i + 1}`
-        }, { quoted: m })
-      } catch (e) {
-        console.error('[stickerbt] ERROR enviando miniatura:', stickersLimitados[i], e)
-      }
-    }
-
-    // Guardar etapa 2 y mostrar segundo menú
-    global.__stickerbtPending[sessionId] = {
-      etapa: 'stickers',
-      stickerUrls: stickersLimitados,
-      packName: pack.name,
-      sender: m.sender,
-      timestamp: Date.now()
-    }
-
-    const rows = stickersLimitados.map((_, i) => ({
-      title: `Sticker #${i + 1}`,
-      description: 'Toca para enviarlo como sticker final',
-      id: `stbt_pick|${sessionId}|${i}`
-    }))
-
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: proto.Message.InteractiveMessage.Header.create({
-        title: '🌿 SAITAMA-BOT · Elegir Sticker',
-        subtitle: pack.name?.trim() || 'Pack elegido',
-        hasMediaAttachment: false
-      }),
-      body: proto.Message.InteractiveMessage.Body.create({
-        text: decorar('Mira las miniaturas de arriba y elige cuál quieres 👆')
-      }),
-      footer: proto.Message.InteractiveMessage.Footer.create({ text: '🍃 SAITAMA-BOT' }),
-      nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
-        buttons: [{
-          name: 'single_select',
-          buttonParamsJson: JSON.stringify({
-            title: '🖼️ Elegir sticker',
-            sections: [{ title: `${rows.length} stickers disponibles`, rows }]
-          })
-        }]
-      })
-    })
-
-    const waMsg = generateWAMessageFromContent(m.chat, {
-      viewOnceMessage: { message: { interactiveMessage } }
-    }, { quoted: m, userJid: conn.user.jid })
-
-    await conn.relayMessage(m.chat, waMsg.message, { messageId: waMsg.key.id })
+  if (!session) {
+    await conn.sendMessage(m.chat, { text: decorar('⌛ Esta sesión expiró. Vuelve a usar .stickerbt.') }, { quoted: m })
     return true
   }
 
-  // --- Paso 2: eligió un STICKER individual → enviarlo ---
-  if (selectedId.startsWith('stbt_pick|')) {
-    const [, sessionId, indexStr] = selectedId.split('|')
-    const session = global.__stickerbtPending[sessionId]
-
-    if (!session || session.etapa !== 'stickers') {
-      await conn.sendMessage(m.chat, { text: decorar('⌛ Esta selección expiró. Vuelve a usar .stickerbt.') }, { quoted: m })
-      return true
-    }
-    if (m.sender !== session.sender) {
-      await conn.sendMessage(m.chat, { text: decorar('❌ Solo quien hizo la búsqueda puede elegir.') }, { quoted: m })
-      return true
-    }
-
-    const stickerUrl = session.stickerUrls[Number(indexStr)]
-    if (!stickerUrl) {
-      await conn.sendMessage(m.chat, { text: decorar('❌ No encontré ese sticker, intenta de nuevo.') }, { quoted: m })
-      return true
-    }
-
-    try {
-      await enviarUnSticker(conn, m, stickerUrl)
-      delete global.__stickerbtPending[sessionId]
-    } catch (e) {
-      console.error('[stickerbt] ERROR enviando sticker final:', e)
-      await conn.sendMessage(m.chat, {
-        text: decorar('❌ No se pudo enviar el sticker. Revisa que ffmpeg esté instalado.')
-      }, { quoted: m })
-    }
-
+  if (m.sender !== session.sender) {
+    await conn.sendMessage(m.chat, { text: decorar('❌ Solo quien hizo la búsqueda puede elegir el pack.') }, { quoted: m })
     return true
   }
 
-  return false
+  const pack = session.resultados[Number(indexStr)]
+  if (!pack) {
+    await conn.sendMessage(m.chat, { text: decorar('❌ No encontré ese resultado, intenta buscar de nuevo.') }, { quoted: m })
+    return true
+  }
+
+  await conn.sendMessage(m.chat, {
+    text: decorar(`🛠️ Descargando "${pack.name?.trim() || 'pack'}"...`)
+  }, { quoted: m })
+
+  await enviarStickersDelPack(conn, m, pack.url)
+
+  delete global.__stickerbtPending[sessionId]
+  return true
 }
 
 export default handler
