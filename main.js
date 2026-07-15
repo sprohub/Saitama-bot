@@ -31,7 +31,7 @@ if (!fs.existsSync(process.env.TMPDIR)) {
 import './config.js';
 import { createRequire } from 'module';
 
-const { proto } = await import('@whiskeysockets/baileys');
+const { proto } = (await import('@whiskeysockets/baileys')).default;
 const {
   DisconnectReason,
   useMultiFileAuthState,
