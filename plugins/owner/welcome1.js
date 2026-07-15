@@ -3,7 +3,6 @@ import path from 'path'
 import { generateWAMessageFromContent, proto } from '@whiskeysockets/baileys'
 
 const settingsPath = path.resolve('./json/settings.json')
-const defaultImage = 'https://files.catbox.moe/avx0u1.jpg'
 const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
 
 function isOwner(m) {
@@ -64,6 +63,22 @@ async function gruposDelBot(conn) {
 // === Cuenta en cuántos de esos grupos el welcome está activo ===
 function contarGruposActivos(botNumber, grupos) {
   return grupos.filter((g) => getWelcome(botNumber, g.id)).length
+}
+
+// === Anti-duplicados: evita procesar el mismo evento de entrada/salida dos veces ===
+const eventosProcesados = new Map()
+const VENTANA_DEDUPE_MS = 10 * 1000
+
+function yaSeProceso(id) {
+  if (!id) return false
+  const ahora = Date.now()
+  // limpieza de entradas viejas
+  for (const [key, ts] of eventosProcesados) {
+    if (ahora - ts > VENTANA_DEDUPE_MS) eventosProcesados.delete(key)
+  }
+  if (eventosProcesados.has(id)) return true
+  eventosProcesados.set(id, ahora)
+  return false
 }
 
 // === Helpers de menú interactivo (mismo patrón que cphoto.js / stlist.js) ===
@@ -245,6 +260,9 @@ handler.before = async (m, { conn }) => {
   if (!getWelcome(botNumber, m.chat)) return false
   if (![27, 28, 32].includes(m.messageStubType)) return false
 
+  const idEvento = m.key?.id || `${m.chat}_${m.messageStubType}_${m.messageStubParameters?.[0] || m.sender}`
+  if (yaSeProceso(idEvento)) return false
+
   const settings = getChatConfig(botNumber, m.chat)
   const chat = settings[botNumber][m.chat]
 
@@ -257,7 +275,7 @@ handler.before = async (m, { conn }) => {
   try {
     profilePic = await conn.profilePictureUrl(m.chat, 'image')
   } catch {
-    profilePic = defaultImage
+    profilePic = null
   }
 
   // ✅ ENTRA AL GRUPO
@@ -282,7 +300,11 @@ handler.before = async (m, { conn }) => {
         `╰───────────────⬣`
     }
 
-    await conn.sendMessage(m.chat, { image: { url: profilePic }, caption: texto, mentions: [userId] })
+    if (profilePic) {
+      await conn.sendMessage(m.chat, { image: { url: profilePic }, caption: texto, mentions: [userId] })
+    } else {
+      await conn.sendMessage(m.chat, { text: texto, mentions: [userId] })
+    }
   }
 
   // ❌ SALE DEL GRUPO
