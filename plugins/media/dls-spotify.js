@@ -13,23 +13,23 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   if (!text) {
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: {
-        title: '🌿 SAITAMA-BOT · Spotify',
+        title: 'SAITAMA-BOT - SPOTIFY',
         subtitle: 'Busca y descarga música',
         hasMediaAttachment: false
       },
       body: {
-        text: decorar(`Busca música en Spotify\n\n${usedPrefix}${command} <nombre>\nEjemplo: ${usedPrefix}${command} Twice`)
+        text: decorar('Busca música en Spotify\n\n' + usedPrefix + command + ' <nombre>\nEjemplo: ' + usedPrefix + command + ' Twice')
       },
       footer: { text: '🍃 SAITAMA-BOT' },
       nativeFlowMessage: {
         buttons: [{
           name: 'single_select',
           buttonParamsJson: JSON.stringify({
-            title: '🎵 Spotify',
+            title: '🎵 SPOTIFY',
             sections: [{
-              title: '🔍 Buscar',
+              title: '🔍 BUSCAR',
               rows: [{
-                header: '🎧 Música',
+                header: '🎧 MÚSICA',
                 title: 'Buscar canción',
                 description: 'Ejemplo: Twice',
                 id: 'sp '
@@ -76,21 +76,21 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: {
-        title: '🌿 SAITAMA-BOT · Spotify',
+        title: 'SAITAMA-BOT - SPOTIFY',
         subtitle: 'Selecciona una canción',
         hasMediaAttachment: !!media,
         imageMessage: media ? media.imageMessage : undefined
       },
       body: {
-        text: decorar(`Búsqueda: ${text}\n\nElige una canción de la lista`)
+        text: decorar('Búsqueda: ' + text + '\n\nElige una canción')
       },
       footer: { text: '🍃 SAITAMA-BOT' },
       nativeFlowMessage: {
         buttons: [{
           name: 'single_select',
           buttonParamsJson: JSON.stringify({
-            title: '🎵 Resultados',
-            sections: [{ title: `📋 ${text.toUpperCase()}`, rows }]
+            title: '🎵 RESULTADOS',
+            sections: [{ title: '📋 ' + text.toUpperCase(), rows }]
           })
         }]
       }
@@ -105,7 +105,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   } catch (e) {
     console.log(e)
     await m.react('❌')
-    conn.sendMessage(m.chat, { text: decorar('No se encontraron resultados.') }, { quoted: m })
+    conn.sendMessage(m.chat, { text: decorar('No se encontraron resultados') }, { quoted: m })
   }
 }
 
@@ -132,7 +132,7 @@ handler.before = async (m, { conn }) => {
     let json = await res.json()
 
     if (!json.status || !json.data?.download) {
-      throw new Error('No se pudo descargar la canción')
+      throw new Error('No se pudo descargar')
     }
 
     await conn.sendMessage(m.chat, {
@@ -141,23 +141,17 @@ handler.before = async (m, { conn }) => {
       fileName: (json.data.title || titulo) + '.mp3'
     }, { quoted: m })
 
-    if (json.data.image) {
-      await conn.sendMessage(m.chat, {
-        image: { url: json.data.image },
-        caption: decorar(`Descarga completada\n\n🎧 ${json.data.title || titulo}\n👤 ${json.data.author || ''}`)
-      }, { quoted: m })
-    } else {
-      await conn.sendMessage(m.chat, {
-        text: decorar(`Descarga completada\n\n🎧 ${json.data.title || titulo}\n👤 ${json.data.author || ''}`)
-      }, { quoted: m })
-    }
+    await conn.sendMessage(m.chat, {
+      image: { url: json.data.image },
+      caption: decorar('Descarga completada\n\n🎧 » ' + (json.data.title || titulo) + '\n👤 » ' + (json.data.author || ''))
+    }, { quoted: m })
 
     await m.react('✅')
     return true
 
   } catch (e) {
     console.log(e)
-    await conn.sendMessage(m.chat, { text: decorar(`Error: ${e.message}`) }, { quoted: m })
+    await conn.sendMessage(m.chat, { text: decorar('Error: ' + e.message) }, { quoted: m })
     await m.react('❌')
     return true
   }
