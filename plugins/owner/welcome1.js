@@ -6,12 +6,10 @@ const settingsPath = path.resolve('./json/settings.json')
 const defaultImage = 'https://files.catbox.moe/avx0u1.jpg'
 const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
 
-// === DUEÑOS DEL BOT ===
-const OWNERS = ['573225396540', '573225814649']
-
 function isOwner(m) {
   const number = m.sender?.split('@')[0]
-  return m.fromMe || OWNERS.includes(number)
+  const owners = (global.owner || []).map(([num]) => num.replace(/[^0-9]/g, ''))
+  return m.fromMe || owners.includes(number)
 }
 
 // === UTILS JSON (mismo formato que tu archivo on/off original) ===
@@ -57,16 +55,15 @@ function setWelcome(botNumber, chatId, enable) {
   saveSettings(settings)
 }
 
-// === Detecta en qué grupos el bot es admin ===
-async function gruposDondeSoyAdmin(conn) {
+// === TODOS los grupos donde está el bot, sin importar si es admin ===
+async function gruposDelBot(conn) {
   const chats = await conn.groupFetchAllParticipating()
-  const grupos = Object.values(chats)
-  const botNumber = (conn.user?.id || '').split(':')[0].split('@')[0]
+  return Object.values(chats)
+}
 
-  return grupos.filter((g) => {
-    const yo = g.participants.find((p) => p.id.split('@')[0].split(':')[0] === botNumber)
-    return !!yo?.admin
-  })
+// === Cuenta en cuántos de esos grupos el welcome está activo ===
+function contarGruposActivos(botNumber, grupos) {
+  return grupos.filter((g) => getWelcome(botNumber, g.id)).length
 }
 
 // === Helpers de menú interactivo (mismo patrón que cphoto.js / stlist.js) ===
@@ -109,11 +106,12 @@ const handler = async (m, { conn }) => {
   }
 
   await m.reply(
-    `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Cargando grupos donde soy admin...\n╰───────────────⬣`
+    `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Cargando grupos...\n╰───────────────⬣`
   )
 
   const botNumber = conn.user?.jid || conn.user.id
-  const gruposAdmin = await gruposDondeSoyAdmin(conn)
+  const grupos = await gruposDelBot(conn)
+  const activosCount = contarGruposActivos(botNumber, grupos)
 
   const sections = []
 
@@ -130,18 +128,18 @@ const handler = async (m, { conn }) => {
     })
   }
 
-  // Sección: todos los grupos donde soy admin
+  // Sección: todos los grupos donde está el bot
   sections.push({
     title: '🌐 Todos los grupos',
     rows: [
-      { title: '🟢 Activar en todos', description: `${gruposAdmin.length} grupos donde soy admin`, id: 'welcome|on|all' },
-      { title: '🔴 Desactivar en todos', description: `${gruposAdmin.length} grupos donde soy admin`, id: 'welcome|off|all' }
+      { title: '🟢 Activar en todos', description: `${grupos.length} grupos donde está el bot`, id: 'welcome|on|all' },
+      { title: '🔴 Desactivar en todos', description: `${grupos.length} grupos donde está el bot`, id: 'welcome|off|all' }
     ]
   })
 
   // Secciones: grupos individuales (divididos de a 10 por límite de WhatsApp)
-  for (let i = 0; i < gruposAdmin.length; i += FILAS_POR_SECCION) {
-    const chunk = gruposAdmin.slice(i, i + FILAS_POR_SECCION)
+  for (let i = 0; i < grupos.length; i += FILAS_POR_SECCION) {
+    const chunk = grupos.slice(i, i + FILAS_POR_SECCION)
     const desde = i + 1
     const hasta = i + chunk.length
 
@@ -161,13 +159,14 @@ const handler = async (m, { conn }) => {
   const bodyText =
     `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
     `│ 👋 Menú de Bienvenida\n` +
-    `│ 🍃 Soy admin en ${gruposAdmin.length} grupo(s)\n` +
+    `│ 🍃 El bot está en ${grupos.length} grupo(s)\n` +
+    `│ 🍃 Welcome activo en ${activosCount} de ${grupos.length}\n` +
     `│ 🍃 Toca una opción para activar/desactivar\n` +
     `╰───────────────⬣`
 
   try {
     const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: { title: '🌿 SAITAMA-BOT — Welcome', subtitle: 'Bienvenida por grupo', hasMediaAttachment: false },
+      header: { title: '🌿 SAITAMA-BOT — Welcome', subtitle: `Activo en ${activosCount}/${grupos.length} grupos`, hasMediaAttachment: false },
       body: { text: bodyText },
       footer: { text: '🍃 SAITAMA-BOT 🌿' },
       nativeFlowMessage: {
@@ -215,11 +214,11 @@ handler.before = async (m, { conn }) => {
     const [, accion, destino] = id.split('|')
 
     if (destino === 'all') {
-      const gruposAdmin = await gruposDondeSoyAdmin(conn)
-      gruposAdmin.forEach((g) => setWelcome(botNumber, g.id, accion === 'on'))
+      const grupos = await gruposDelBot(conn)
+      grupos.forEach((g) => setWelcome(botNumber, g.id, accion === 'on'))
 
       await conn.sendMessage(m.chat, {
-        text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Bienvenida ${accion === 'on' ? 'activada ✅' : 'desactivada ❌'} en ${gruposAdmin.length} grupo(s).\n╰───────────────⬣`
+        text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Bienvenida ${accion === 'on' ? 'activada ✅' : 'desactivada ❌'} en ${grupos.length} grupo(s).\n╰───────────────⬣`
       }, { quoted: m })
       return true
     }
