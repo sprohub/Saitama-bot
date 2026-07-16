@@ -29,6 +29,16 @@ const tags = {
 }
 
 const cmdIcon = '🍃'
+const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
+
+// Divide un array en trozos de máximo `tamano` elementos
+function dividirEnTrozos(arr, tamano) {
+  const resultado = []
+  for (let i = 0; i < arr.length; i += tamano) {
+    resultado.push(arr.slice(i, i + tamano))
+  }
+  return resultado
+}
 
 function getHelp() {
   return Object.values(global.plugins)
@@ -59,9 +69,9 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
   )
 }
 
-// 📂 Nivel 1: solo lista de categorías
+// 📂 Nivel 1: solo lista de categorías (dividida en secciones de 10 si hace falta)
 function buildCategorySections(help) {
-  const rows = Object.keys(tags)
+  const todasLasFilas = Object.keys(tags)
     .filter(tag => help.some(menu => menu.tags?.includes(tag)))
     .map(tag => {
       const count = help.filter(menu => menu.tags?.includes(tag)).length
@@ -72,10 +82,14 @@ function buildCategorySections(help) {
       }
     })
 
-  return [{ title: '「 CATEGORÍAS 」', rows }]
+  const trozos = dividirEnTrozos(todasLasFilas, FILAS_POR_SECCION)
+  return trozos.map((rows, i) => ({
+    title: trozos.length > 1 ? `「 CATEGORÍAS 」· ${i + 1}/${trozos.length}` : '「 CATEGORÍAS 」',
+    rows
+  }))
 }
 
-// 📜 Nivel 2: comandos de una categoría específica
+// 📜 Nivel 2: comandos de una categoría específica (dividida en secciones de 10 si hace falta)
 function buildCommandSections(help, usedPrefix, tagSeleccionada) {
   const sections = []
 
@@ -85,7 +99,7 @@ function buildCommandSections(help, usedPrefix, tagSeleccionada) {
     const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
     if (!cmdsFiltrados.length) continue
 
-    const rows = cmdsFiltrados.flatMap(menu =>
+    const todasLasFilas = cmdsFiltrados.flatMap(menu =>
       menu.help.map(h => {
         const cmdFinal = menu.prefix ? h : `${usedPrefix}${h}`
         return {
@@ -96,9 +110,13 @@ function buildCommandSections(help, usedPrefix, tagSeleccionada) {
       })
     )
 
-    sections.push({
-      title: `「 ${tags[tag]} 」· ${cmdsFiltrados.length}`,
-      rows: rows.slice(0, 10)
+    const trozos = dividirEnTrozos(todasLasFilas, FILAS_POR_SECCION)
+    trozos.forEach((rows, i) => {
+      const rango = trozos.length > 1 ? ` (${i * FILAS_POR_SECCION + 1}-${i * FILAS_POR_SECCION + rows.length})` : ''
+      sections.push({
+        title: `「 ${tags[tag]} 」· ${todasLasFilas.length}${rango}`,
+        rows
+      })
     })
   }
 
