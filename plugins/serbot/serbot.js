@@ -8,7 +8,7 @@ import chalk from 'chalk'
 import util from 'util'
 import * as ws from 'ws'
 const { CONNECTING } = ws
-import { makeWASocket } from '../lib/simple.js'
+import { makeWASocket } from '../../lib/simple.js'
 import { fileURLToPath } from 'url'
 
 let rtx = `
@@ -252,10 +252,10 @@ export async function yukiJadiBot(options) {
     }
   }, 60000)
 
-  let handlerModule = await import('../handler.js')
+  let handlerModule = await import('../../handler.js')
   let creloadHandler = async function (restatConn) {
     try {
-      const Handler = await import(`../handler.js?update=${Date.now()}`).catch(console.error)
+      const Handler = await import(`../../handler.js?update=${Date.now()}`).catch(console.error)
       if (Object.keys(Handler || {}).length) handlerModule = Handler
 
     } catch (e) {
