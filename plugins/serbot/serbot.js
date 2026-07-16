@@ -57,6 +57,14 @@ let handler = async (m, { conn, args, usedPrefix, command, isOwner }) => {
   let pathYukiJadiBot = path.join(`./${JADI_BOT_DIR}/`, id)
   if (!fs.existsSync(pathYukiJadiBot)){
     fs.mkdirSync(pathYukiJadiBot, { recursive: true })
+  } else if (!args[0]) {
+    // 🧹 Si no se está restaurando una sesión (sin creds en base64), limpia
+    // cualquier credencial vieja/inválida para forzar un QR o código nuevo.
+    const credsPath = path.join(pathYukiJadiBot, 'creds.json')
+    if (fs.existsSync(credsPath)) {
+      fs.rmSync(pathYukiJadiBot, { recursive: true, force: true })
+      fs.mkdirSync(pathYukiJadiBot, { recursive: true })
+    }
   }
   yukiJBOptions.pathYukiJadiBot = pathYukiJadiBot
   yukiJBOptions.m = m
