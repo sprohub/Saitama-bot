@@ -10,8 +10,7 @@
     "plugins": "plugins"
   },
   "scripts": {
-  "start": "node build-edw.cjs && node index.js",
-  "build:edw": "node build-edw.cjs"
+  "start": "node index.js"
   },
   "homepage": "https://github.com/ElvigilanteDv/Hinata-Bot",
   "author": {
