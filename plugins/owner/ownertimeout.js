@@ -46,11 +46,37 @@ function formatearHora({ hora, minuto }) {
   return `${String(hora).padStart(2, '0')}:${String(minuto).padStart(2, '0')}`
 }
 
-// Parsea "HH:MM" a { hora, minuto }, o null si no es válido
+// Muestra la misma hora en formato 12h con AM/PM, para evitar confusiones
+function formatearHora12h({ hora, minuto }) {
+  const periodo = hora < 12 ? 'AM' : 'PM'
+  let hora12 = hora % 12
+  if (hora12 === 0) hora12 = 12
+  return `${hora12}:${String(minuto).padStart(2, '0')} ${periodo}`
+}
+
+// Muestra ambos formatos juntos, ej: "13:30 (1:30 PM)"
+function formatearHoraCompleta(h) {
+  return `${formatearHora(h)} (${formatearHora12h(h)})`
+}
+
+// Parsea "HH:MM", "H:MM am/pm", "HH:MM PM", etc. Devuelve { hora, minuto } en 24h, o null si es inválido
 function parsearHora(texto) {
-  const match = (texto || '').trim().match(/^([0-1]?\d|2[0-3]):([0-5]\d)$/)
+  const limpio = (texto || '').trim().toLowerCase()
+  const match = limpio.match(/^([0-1]?\d|2[0-3]):([0-5]\d)\s*(am|pm)?$/)
   if (!match) return null
-  return { hora: Number(match[1]), minuto: Number(match[2]) }
+
+  let hora = Number(match[1])
+  const minuto = Number(match[2])
+  const periodo = match[3]
+
+  if (periodo) {
+    // Formato 12h: 1-12 solamente tiene sentido con am/pm
+    if (hora < 1 || hora > 12) return null
+    if (periodo === 'pm' && hora !== 12) hora += 12
+    if (periodo === 'am' && hora === 12) hora = 0
+  }
+
+  return { hora, minuto }
 }
 
 function decorar(texto) {
@@ -209,6 +235,29 @@ const handler = async function (m, { conn, text, command }) {
   const textoCompleto = (text || '').trim()
   const sub = textoCompleto.toLowerCase()
 
+  // --- Explicación de cómo funciona el comando ---
+  if (sub === 'menu' || sub === 'ayuda' || sub === 'help') {
+    const horas = obtenerHorasConfiguradas()
+    const chats = global.db.data.chats || {}
+    const activos = Object.keys(chats).filter(jid => jid.endsWith('@g.us') && chats[jid]?.autocierre).length
+
+    return conn.sendMessage(m.chat, {
+      text: decorar(
+        `🔒 AUTO-CIERRE DE GRUPOS\n\n` +
+        `Cierra los grupos activados (solo admins pueden escribir) y los vuelve a abrir automáticamente, todos los días, a las horas que configures.\n\n` +
+        `📋 COMANDOS:\n\n` +
+        `.${command}\n→ Menú con botones para activar/desactivar el auto-cierre en cada grupo donde está el bot\n\n` +
+        `.${command} estado\n→ Lista los grupos activos y las horas configuradas\n\n` +
+        `.${command} hora cierre HH:MM\n.${command} hora apertura HH:MM\n→ Cambia las horas (acepta 24h o formato am/pm, ej: 13:30 o 1:30pm)\n\n` +
+        `📌 NOTAS:\n` +
+        `• Cada grupo se activa por separado, no afecta a los demás\n` +
+        `• El bot necesita ser admin en el grupo para poder cerrarlo/abrirlo\n` +
+        `• Solo el owner puede usar este comando\n\n` +
+        `⏱️ Configuración actual:\n🔒 Cierre: ${formatearHoraCompleta(horas.cierre)}\n🔓 Apertura: ${formatearHoraCompleta(horas.apertura)}\n🌐 Grupos activos ahora: ${activos}`
+      )
+    }, { quoted: m })
+  }
+
   // --- Configurar horas: .autocierre hora cierre 12:30 / .autocierre hora apertura 07:00 ---
   if (sub.startsWith('hora')) {
     const partes = textoCompleto.split(/\s+/) // ["hora", "cierre", "12:30"]
@@ -220,8 +269,8 @@ const handler = async function (m, { conn, text, command }) {
       return conn.sendMessage(m.chat, {
         text: decorar(
           `Uso:\n.${command} hora cierre HH:MM\n.${command} hora apertura HH:MM\n\n` +
-          `Ejemplo:\n.${command} hora cierre 12:30\n.${command} hora apertura 07:00\n\n` +
-          `⏱️ Configuración actual:\n🔒 Cierre: ${formatearHora(horas.cierre)}\n🔓 Apertura: ${formatearHora(horas.apertura)}`
+          `También acepta AM/PM:\n.${command} hora cierre 1:30pm\n.${command} hora apertura 7:30am\n\n` +
+          `⏱️ Configuración actual:\n🔒 Cierre: ${formatearHoraCompleta(horas.cierre)}\n🔓 Apertura: ${formatearHoraCompleta(horas.apertura)}`
         )
       }, { quoted: m })
     }
@@ -229,7 +278,7 @@ const handler = async function (m, { conn, text, command }) {
     const horaParseada = parsearHora(horaTexto)
     if (!horaParseada) {
       return conn.sendMessage(m.chat, {
-        text: decorar('❌ Formato de hora inválido. Usa HH:MM en formato 24 horas (ej: 12:30 o 07:00).')
+        text: decorar('❌ Formato de hora inválido. Usa HH:MM (24h) o H:MM am/pm (ej: 13:30, o 1:30pm).')
       }, { quoted: m })
     }
 
@@ -240,8 +289,8 @@ const handler = async function (m, { conn, text, command }) {
     const horasActualizadas = obtenerHorasConfiguradas()
     return conn.sendMessage(m.chat, {
       text: decorar(
-        `✅ Hora de ${tipo} actualizada a ${formatearHora(horaParseada)} (hora Colombia).\n\n` +
-        `⏱️ Configuración actual:\n🔒 Cierre: ${formatearHora(horasActualizadas.cierre)}\n🔓 Apertura: ${formatearHora(horasActualizadas.apertura)}`
+        `✅ Hora de ${tipo} actualizada a ${formatearHoraCompleta(horaParseada)} (hora Colombia).\n\n` +
+        `⏱️ Configuración actual:\n🔒 Cierre: ${formatearHoraCompleta(horasActualizadas.cierre)}\n🔓 Apertura: ${formatearHoraCompleta(horasActualizadas.apertura)}`
       )
     }, { quoted: m })
   }
@@ -254,7 +303,7 @@ const handler = async function (m, { conn, text, command }) {
 
     if (!activos.length) {
       return conn.sendMessage(m.chat, {
-        text: decorar(`No hay ningún grupo con auto-cierre activo.\n\n⏱️ Horas configuradas:\n🔒 Cierre: ${formatearHora(horas.cierre)}\n🔓 Apertura: ${formatearHora(horas.apertura)}`)
+        text: decorar(`No hay ningún grupo con auto-cierre activo.\n\n⏱️ Horas configuradas:\n🔒 Cierre: ${formatearHoraCompleta(horas.cierre)}\n🔓 Apertura: ${formatearHoraCompleta(horas.apertura)}`)
       }, { quoted: m })
     }
 
@@ -270,7 +319,7 @@ const handler = async function (m, { conn, text, command }) {
     return conn.sendMessage(m.chat, {
       text: decorar(
         `Grupos con auto-cierre activo (${activos.length}):\n\n${nombres.join('\n')}\n\n` +
-        `⏱️ Horas configuradas:\n🔒 Cierre: ${formatearHora(horas.cierre)}\n🔓 Apertura: ${formatearHora(horas.apertura)}`
+        `⏱️ Horas configuradas:\n🔒 Cierre: ${formatearHoraCompleta(horas.cierre)}\n🔓 Apertura: ${formatearHoraCompleta(horas.apertura)}`
       )
     }, { quoted: m })
   }
@@ -307,7 +356,7 @@ const handler = async function (m, { conn, text, command }) {
   const interactiveMessage = proto.Message.InteractiveMessage.create({
     header: proto.Message.InteractiveMessage.Header.create({
       title: '🌿 SAITAMA-BOT · Auto-cierre de Grupos',
-      subtitle: `Cierra ${formatearHora(horasMenu.cierre)} · Abre ${formatearHora(horasMenu.apertura)} (hora Colombia)`,
+      subtitle: `Cierra ${formatearHoraCompleta(horasMenu.cierre)} · Abre ${formatearHoraCompleta(horasMenu.apertura)}`,
       hasMediaAttachment: false
     }),
     body: proto.Message.InteractiveMessage.Body.create({
@@ -364,7 +413,7 @@ handler.before = async function (m, { conn }) {
   await conn.sendMessage(m.chat, {
     text: decorar(
       config.autocierre
-        ? `🟢 Auto-cierre ACTIVADO para "${nombreGrupo}".\nSe cerrará a las ${formatearHora(horasToggle.cierre)} y se abrirá a las ${formatearHora(horasToggle.apertura)} (hora Colombia).`
+        ? `🟢 Auto-cierre ACTIVADO para "${nombreGrupo}".\nSe cerrará a las ${formatearHoraCompleta(horasToggle.cierre)} y se abrirá a las ${formatearHoraCompleta(horasToggle.apertura)}.`
         : `⚪ Auto-cierre DESACTIVADO para "${nombreGrupo}".`
     )
   }, { quoted: m })
