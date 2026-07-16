@@ -209,7 +209,7 @@ export async function yukiJadiBot(options) {
         } catch (error) {
           console.error(chalk.bold.yellow(`Error 405 no se pudo enviar mensaje a: +${path.basename(pathYukiJadiBot)}`))
         }
-        fs.rmdirSync(pathYukiJadiBot, { recursive: true })
+        fs.rmSync(pathYukiJadiBot, { recursive: true, force: true })
       }
       if (reason === 500) {
         console.log(chalk.bold.magentaBright(`\n╭┄┄┄┄┄┄┄┄┄┄┄┄┄┄ • • • ┄┄┄┄┄┄┄┄┄┄┄┄┄┄⟡\n┆ Conexión perdida en la sesión (+${path.basename(pathYukiJadiBot)}). Borrando datos...\n╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄ • • • ┄┄┄┄┄┄┄┄┄┄┄┄┄┄⟡`))
@@ -223,7 +223,7 @@ export async function yukiJadiBot(options) {
       }
       if (reason === 403) {
         console.log(chalk.bold.magentaBright(`\n╭┄┄┄┄┄┄┄┄┄┄┄┄┄┄ • • • ┄┄┄┄┄┄┄┄┄┄┄┄┄┄⟡\n┆ Sesión cerrada o cuenta en soporte para la sesión (+${path.basename(pathYukiJadiBot)}).\n╰┄┄┄┄┄┄┄┄┄┄┄┄┄┄ • • • ┄┄┄┄┄┄┄┄┄┄┄┄┄┄⟡`))
-        fs.rmdirSync(pathYukiJadiBot, { recursive: true })
+        fs.rmSync(pathYukiJadiBot, { recursive: true, force: true })
       }
     }
     if (global.db.data == null) loadDatabase()
