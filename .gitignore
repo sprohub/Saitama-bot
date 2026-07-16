@@ -1,0 +1,6 @@
+﻿node_modules/
+sessions/
+json/settings.json
+package-lock.json
+*.log
+tmp/

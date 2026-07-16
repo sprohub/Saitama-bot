@@ -131,7 +131,7 @@ global.loadDatabase = async function loadDatabase() {
 global.authFile = `sessions`;
 const { state, saveCreds } = await useMultiFileAuthState(global.authFile);
 
-const { version } = await fetchLatestWaWebVersion();
+const { BAILEYS_VERSION } = await import('./utils/_version.js'); const version = BAILEYS_VERSION;
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const question = (texto) => new Promise((resolver) => rl.question(texto, resolver));
