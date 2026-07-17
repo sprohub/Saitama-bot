@@ -179,74 +179,12 @@ try {
   process.exit(1);
 }
 
+import { conectarSubBot } from './lib/serbot-connect.js'
+
 async function reconnectSubBot(botPath) {
   console.log(chalk.yellow(`👊 [SAITAMA] Despertando sub-bot: ${path.basename(botPath)}`));
   try {
-    const { state: subBotState, saveCreds: saveSubBotCreds } = await useMultiFileAuthState(botPath);
-
-    if (!subBotState.creds.registered) {
-      console.warn(chalk.yellow(`⚠️ [SAITAMA] Sub-bot en ${path.basename(botPath)} no está registrado`));
-      return;
-    }
-
-    const subBotConn = makeWASocket({
-      version: version,
-      logger,
-      printQRInTerminal: false,
-      auth: {
-        creds: subBotState.creds,
-        keys: makeCacheableSignalKeyStore(subBotState.keys, logger),
-      },
-      browser: Browsers.ubuntu('Chrome'),
-      markOnlineOnclientect: false,
-      generateHighQualityLinkPreview: true,
-      syncFullHistory: true,
-      retryRequestDelayMs: 10,
-      transactionOpts: { maxCommitRetries: 10, delayBetweenTriesMs: 10 },
-      maxMsgRetryCount: 15,
-      appStateMacVerification: {
-        patch: false,
-        snapshot: false,
-      },
-      getMessage: async (key) => '',
-    });
-
-    subBotConn.ev.on('connection.update', (update) => {
-      const { connection, lastDisconnect } = update;
-      if (connection === 'open') {
-        console.log(chalk.green(`✨ [SAITAMA] Sub-bot despertado: ${path.basename(botPath)}`));
-        const yaExiste = global.conns.some(c => c.user?.jid === subBotConn.user?.jid);
-        if (!yaExiste) {
-          global.conns.push(subBotConn);
-          console.log(chalk.green(`👊 [SAITAMA] Sub-bot fusionado: ${subBotConn.user?.jid}`));
-        }
-      } else if (connection === 'close') {
-        const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
-        console.error(chalk.red(`💥 [SAITAMA] Sub-bot caído en ${path.basename(botPath)}. Razón: ${reason}`));
-
-        if (reason === DisconnectReason.loggedOut || reason === 401) {
-          console.log(chalk.red(`❌ [SAITAMA] Desconexión permanente. Eliminando ${path.basename(botPath)}.`));
-          global.conns = global.conns.filter(conn => conn.user?.jid !== subBotConn.user?.jid);
-          try {
-            rmSync(botPath, { recursive: true, force: true });
-            console.log(chalk.green(`✅ [SAITAMA] Sub-bot eliminado: ${botPath}`));
-          } catch (e) {
-            console.error(chalk.red(`❌ [ERROR] No se pudo eliminar ${botPath}: ${e}`));
-          }
-        }
-      }
-    });
-
-    subBotConn.ev.on('creds.update', saveSubBotCreds);
-    subBotConn.handler = handler.bind(subBotConn);
-    subBotConn.ev.on('messages.upsert', subBotConn.handler);
-    console.log(chalk.blue(`👊 [SAITAMA] Manejador asignado a: ${path.basename(botPath)}`));
-
-    if (!global.subBots) {
-      global.subBots = {};
-    }
-    global.subBots[path.basename(botPath)] = subBotConn;
-
+    await conectarSubBot(botPath, { version, handlerRef: handler });
   } catch (e) {
     console.error(chalk.red(`💥 [ERROR] Error al despertar sub-bot en ${path.basename(botPath)}:`), e);
   }
