@@ -66,13 +66,14 @@ function contarGruposActivos(botNumber, grupos) {
 }
 
 // === Anti-duplicados: evita procesar el mismo evento de entrada/salida dos veces ===
+// (Solo funciona si ESTE es el ÚNICO archivo que escucha estos eventos.
+//  Si tienes otra copia de este plugin en otra ruta, bórrala primero.)
 const eventosProcesados = new Map()
 const VENTANA_DEDUPE_MS = 10 * 1000
 
 function yaSeProceso(id) {
   if (!id) return false
   const ahora = Date.now()
-  // limpieza de entradas viejas
   for (const [key, ts] of eventosProcesados) {
     if (ahora - ts > VENTANA_DEDUPE_MS) eventosProcesados.delete(key)
   }
@@ -81,7 +82,7 @@ function yaSeProceso(id) {
   return false
 }
 
-// === Helpers de menú interactivo (mismo patrón que cphoto.js / stlist.js) ===
+// === Helpers de menú interactivo ===
 function unwrapMessage(message) {
   const wrappers = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'documentWithCaptionMessage']
   let msg = message
@@ -130,7 +131,6 @@ const handler = async (m, { conn }) => {
 
   const sections = []
 
-  // Sección: este grupo (si el comando se usó dentro de uno)
   if (m.isGroup) {
     const enAqui = getWelcome(botNumber, m.chat)
     sections.push({
@@ -143,7 +143,6 @@ const handler = async (m, { conn }) => {
     })
   }
 
-  // Sección: todos los grupos donde está el bot
   sections.push({
     title: '🌐 Todos los grupos',
     rows: [
@@ -152,7 +151,6 @@ const handler = async (m, { conn }) => {
     ]
   })
 
-  // Secciones: grupos individuales (divididos de a 10 por límite de WhatsApp)
   for (let i = 0; i < grupos.length; i += FILAS_POR_SECCION) {
     const chunk = grupos.slice(i, i + FILAS_POR_SECCION)
     const desde = i + 1
@@ -328,7 +326,13 @@ handler.before = async (m, { conn }) => {
         `╰───────────────⬣`
     }
 
-    await conn.sendMessage(m.chat, { image: { url: profilePic }, caption: texto, mentions: [userId] })
+    // 🔧 FIX: antes mandaba { image: { url: profilePic } } SIEMPRE, incluso
+    // si profilePic era null → eso era lo que crasheaba Baileys.
+    if (profilePic) {
+      await conn.sendMessage(m.chat, { image: { url: profilePic }, caption: texto, mentions: [userId] })
+    } else {
+      await conn.sendMessage(m.chat, { text: texto, mentions: [userId] })
+    }
   }
 
   return false
