@@ -66,31 +66,9 @@ const handler = async (m, { conn }) => {
 }
 
 handler.command = ['reglas']
-// Permite que el comando responda con . / # @ además del prefijo global,
-// por si tu framework no incluye esos símbolos en el prefijo por defecto.
 handler.customPrefix = /^[.\/#@]/i
 handler.group = true
 handler.tags = ['group']
 handler.help = ['reglas']
 
 export default handler
-
-// === COMANDO OPCIONAL: .setreglas <texto> (solo admins) ===
-export const setHandler = async (m, { conn, text, isAdmin }) => {
-  if (!isAdmin) return m.reply('❌ Solo un admin puede cambiar las reglas.')
-  if (!text) return m.reply('✏️ Escribe el texto de las reglas. Usa @group para el nombre del grupo.')
-
-  const botNumber = conn.user?.jid || 'bot'
-  const settings = getChatConfig(botNumber, m.chat)
-  settings[botNumber][m.chat].sReglas = text
-  saveSettings(settings)
-
-  return m.reply('✅ Reglas actualizadas correctamente.')
-}
-
-setHandler.command = ['setreglas']
-setHandler.customPrefix = /^[.\/#@]/i
-setHandler.group = true
-setHandler.admin = true
-setHandler.tags = ['group']
-setHandler.help = ['setreglas <texto>']
