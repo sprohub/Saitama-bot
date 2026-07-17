@@ -1,5 +1,4 @@
 console.clear()
-console.log('👊⚡ SAITAMA BOT ⚡👊')
 
 import { join, dirname } from 'path'
 import { createRequire } from 'module'
@@ -7,9 +6,16 @@ import { fileURLToPath } from 'url'
 import { setupMaster, fork } from 'cluster'
 import { watchFile, unwatchFile } from 'fs'
 import cfonts from 'cfonts'
+import chalk from 'chalk'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(__dirname)
+
+// 🌿 Decoración tradicional (la misma que usan los plugins), en verde
+function decorarConsola(texto) {
+  const cuerpo = texto.split('\n').map(l => `│ ${l}`).join('\n')
+  return chalk.green(`╭─⪼ \n${cuerpo}\n╰───────────────⬣`)
+}
 
 cfonts.say('SAITAMA BOT', {
   font: 'block',
@@ -23,9 +29,7 @@ cfonts.say('SAITAMA BOT', {
   env: 'node'
 })
 
-console.log('\x1b[36m%s\x1b[0m', '═'.repeat(60))
-console.log('\x1b[33m%s\x1b[0m', '   👊 SAITAMA BOT - Modo Serio Activado 👊')
-console.log('\x1b[36m%s\x1b[0m', '═'.repeat(60))
+console.log(decorarConsola('🌿 SAITAMA BOT\n🍃 Modo Serio Activado'))
 
 cfonts.say('BRAYANRK & SPROHUB', {
   font: 'console',
@@ -34,8 +38,7 @@ cfonts.say('BRAYANRK & SPROHUB', {
   env: 'node'
 })
 
-console.log('\x1b[32m%s\x1b[0m', '\n「Un golpe. Un héroe. Serius Mode ON.」')
-console.log('\x1b[36m%s\x1b[0m', '═'.repeat(60) + '\n')
+console.log(decorarConsola('「Un golpe. Un héroe. Serius Mode ON.」'))
 
 let isWorking = false
 let restartCount = 0
@@ -48,8 +51,7 @@ async function launch(scripts) {
   for (const script of scripts) {
     const args = [join(__dirname, script), ...process.argv.slice(2)]
 
-    console.log('\x1b[35m%s\x1b[0m', `👊 Despertando a Saitama - Intento #${restartCount}`)
-    console.log('\x1b[33m%s\x1b[0m', '🌿 Entrenando 100 flexiones, 100 sentadillas, 10km... 🌿\n')
+    console.log(decorarConsola(`🌿 Despertando a Saitama - Intento #${restartCount}\n🍃 Entrenando 100 flexiones, 100 sentadillas, 10km...`))
 
     setupMaster({
       exec: args[0],
@@ -59,17 +61,16 @@ async function launch(scripts) {
     let child = fork()
 
     child.on('exit', (code) => {
-      console.log('\x1b[31m%s\x1b[0m', `\n⚠️ Saitama se ha desmayado (Código: ${code})`)
-
       if (code === 0) {
-        console.log('\x1b[32m%s\x1b[0m', '✅ SAITAMA BOT se ha dormido tranquilamente')
+        console.log(decorarConsola('✅ SAITAMA BOT se ha dormido tranquilamente'))
         return
       }
 
+      console.log(decorarConsola(`⚠️ Saitama se ha desmayado (Código: ${code})`))
+
       isWorking = false
 
-      console.log('\x1b[33m%s\x1b[0m', '🔄 Saitama está recuperando fuerzas...')
-      console.log('\x1b[36m%s\x1b[0m', '👊 ¡Un solo golpe y vuelve al combate! 👊\n')
+      console.log(decorarConsola('🔄 Saitama está recuperando fuerzas...\n👊 ¡Un solo golpe y vuelve al combate!'))
 
       setTimeout(() => {
         launch(scripts)
@@ -77,41 +78,33 @@ async function launch(scripts) {
 
       watchFile(args[0], () => {
         unwatchFile(args[0])
-        console.log('\x1b[35m%s\x1b[0m', '🔄 ¡Actualización detectada! Saitama se transforma...')
+        console.log(decorarConsola('🔄 ¡Actualización detectada! Saitama se transforma...'))
         launch(scripts)
       })
     })
 
     child.on('message', (msg) => {
       if (msg === 'ready') {
-        console.log('\x1b[32m%s\x1b[0m', '✨ SAITAMA BOT ESTÁ LISTO ✨')
-        console.log('\x1b[33m%s\x1b[0m', '👊 Modo Serio completamente activado 👊\n')
+        console.log(decorarConsola('✨ SAITAMA BOT ESTÁ LISTO ✨\n👊 Modo Serio completamente activado'))
       }
     })
   }
 }
 
-console.log('\x1b[36m%s\x1b[0m', '👊 Invocando a Saitama... 👊\n')
+console.log(decorarConsola('👊 Invocando a Saitama...'))
 
 launch(['main.js'])
 
 setTimeout(() => {
-  console.log('\x1b[35m%s\x1b[0m', `
-╔════════════════════════════════════╗
-║      ¡SAITAMA BOT HA DESPERTADO!     ║
-║         👊 MODO SERIO ON 👊          ║
-╚════════════════════════════════════╝
-  `)
+  console.log(decorarConsola('¡SAITAMA BOT HA DESPERTADO!\n👊 MODO SERIO ON 👊'))
 }, 2000)
 
 process.on('uncaughtException', (err) => {
-  console.log('\x1b[31m%s\x1b[0m', '💥 ¡El poder se descontroló! 💥')
-  console.log('\x1b[33m%s\x1b[0m', '🔄 Saitama está respirando hondo...')
+  console.log(decorarConsola('💥 ¡El poder se descontroló!\n🔄 Saitama está respirando hondo...'))
   console.error(err)
 })
 
 process.on('unhandledRejection', (err) => {
-  console.log('\x1b[31m%s\x1b[0m', '⚡ ¡Un golpe fallido! ⚡')
-  console.log('\x1b[33m%s\x1b[0m', '🔄 Saitama está recalculando su golpe...')
+  console.log(decorarConsola('⚡ ¡Un golpe fallido!\n🔄 Saitama está recalculando su golpe...'))
   console.error(err)
 })
