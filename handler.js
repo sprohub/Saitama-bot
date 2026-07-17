@@ -366,8 +366,10 @@ continue
 m.plugin = name
 
 // 🔐 Sistema de licencia por grupo: si el grupo no tiene una licencia
-// activa, solo se permiten los comandos de licencia y el owner.
-if (m.isGroup && !isROwner) {
+// activa, solo se permiten los comandos de licencia (para cualquiera,
+// incluido el owner — el owner también debe canjear un código,
+// solo que puede elegir la duración "infinito").
+if (m.isGroup) {
   const comandosLicencia = ['canjear', 'activarlicencia', 'codegrupo']
   if (!comandosLicencia.includes(command) && !grupoAutorizado(m.chat)) {
     conn.reply(m.chat, `🔒 Este grupo no tiene una licencia activa.\n\nPide un código al owner y actívalo con:\n${usedPrefix}canjear <codigo>`, m)
