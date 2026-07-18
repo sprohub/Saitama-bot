@@ -1,44 +1,63 @@
 // === COMANDO grupos / .grupos / /grupos / #grupos / @grupos ===
-// Muestra los grupos donde está el bot en un menú interactivo (botón),
-// igual de estilo que el menú principal.
 //
-// 🔒 SOLO PARA OWNERS. Este comando expone el link de invitación de
-// CADA grupo donde está el bot — incluidos los grupos de clientes que
-// pagaron por su licencia. Dejarlo abierto a cualquiera permitiría
-// que un cliente vea/entre al grupo de otro, o que cualquier persona
-// se una a cualquier grupo sin permiso.
+// 🔒 Dos niveles de acceso:
+// - OWNER REAL (tú): ve la lista COMPLETA de todos los grupos donde
+//   está el bot, con botones, igual que antes.
+// - OWNER LOCAL (cliente que canjeó licencia en su grupo): solo ve
+//   la info de SU PROPIO grupo — nunca la lista de los demás.
+// - Cualquier otra persona: sin acceso.
 
 import {
   generateWAMessageFromContent,
   proto
 } from '@whiskeysockets/baileys'
+import { esOwnerLocal } from '../../lib/licencias.js'
 
-function esOwner(m) {
+function decorar(texto) {
+  return `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 ${texto.split('\n').join('\n│ 🍃 ')}\n╰───────────────⬣`
+}
+
+function esOwnerReal(m) {
   const numero = m.sender?.split('@')[0]
   return m.fromMe || (global.owner || []).some(([num]) => num.replace(/[^0-9]/g, '') === numero)
 }
 
 const handler = async (m, { conn }) => {
-  if (!esOwner(m)) {
-    return m.reply(
-      `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
-      `│ 🍃 Solo el owner puede usar este comando.\n` +
-      `╰───────────────⬣`
-    )
+  const ownerReal = esOwnerReal(m)
+  const ownerLocal = m.isGroup && esOwnerLocal(m.chat, m.sender.split('@')[0])
+
+  if (!ownerReal && !ownerLocal) {
+    return m.reply(decorar('Solo el owner puede usar este comando.'))
   }
 
+  // ── Owner LOCAL: solo su propio grupo, sin lista de los demás ──
+  if (!ownerReal && ownerLocal) {
+    const metadata = await conn.groupMetadata(m.chat)
+    let link = null
+    try {
+      const code = await conn.groupInviteCode(m.chat)
+      link = `https://chat.whatsapp.com/${code}`
+    } catch {
+      // el bot no es admin en este grupo, no puede sacar el link
+    }
+
+    return conn.sendMessage(m.chat, {
+      text: decorar(
+        `🏠 ${metadata.subject}\n` +
+        `👥 Miembros: ${metadata.participants.length}\n` +
+        `🔗 ${link || 'No disponible (el bot no es admin aquí)'}`
+      )
+    }, { quoted: m })
+  }
+
+  // ── Owner REAL: lista completa de todos los grupos, con botones ──
   const groups = await conn.groupFetchAllParticipating()
   const groupList = Object.values(groups)
 
   if (groupList.length === 0) {
-    return m.reply(
-      `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
-      `│ El bot no está en ningún grupo todavía.\n` +
-      `╰───────────────⬣`
-    )
+    return m.reply(decorar('El bot no está en ningún grupo todavía.'))
   }
 
-  // Recolectamos el link de cada grupo
   const groupsInfo = []
   for (const group of groupList) {
     let link = null
@@ -55,14 +74,12 @@ const handler = async (m, { conn }) => {
     })
   }
 
-  const bodyText =
-    `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
-    `│ 📋 Grupos donde estoy: ${groupsInfo.length}\n` +
-    `│ 🍃 Toca el botón para ver el listado\n` +
-    `╰───────────────⬣`
+  const bodyText = decorar(
+    `📋 Grupos donde estoy: ${groupsInfo.length}\n` +
+    `🍃 Toca el botón para ver el listado`
+  )
 
-  // Construimos las filas del listado (una por grupo)
-  const rows = groupsInfo.map((g, i) => ({
+  const rows = groupsInfo.map((g) => ({
     title: `🌿 ${g.subject.length > 24 ? g.subject.slice(0, 24) + '…' : g.subject}`,
     description: `🍃 ${g.members} miembros ${g.link ? '• link disponible' : '• sin link (no admin)'}`,
     id: `grupo_link~${g.link || 'no_disponible'}`
@@ -82,12 +99,8 @@ const handler = async (m, { conn }) => {
         subtitle: `🌿 ${groupsInfo.length} grupos`,
         hasMediaAttachment: false
       },
-      body: {
-        text: bodyText
-      },
-      footer: {
-        text: '🍃 SAITAMA-BOT 🌿'
-      },
+      body: { text: bodyText },
+      footer: { text: '🍃 SAITAMA-BOT 🌿' },
       nativeFlowMessage: {
         buttons: [
           {
@@ -103,23 +116,15 @@ const handler = async (m, { conn }) => {
 
     const msg = generateWAMessageFromContent(
       m.chat,
-      {
-        viewOnceMessage: {
-          message: {
-            messageContextInfo: {},
-            interactiveMessage
-          }
-        }
-      },
+      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
       { quoted: m }
     )
 
     await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
   } catch (e) {
     console.log(e)
-    // Fallback si no se pueden renderizar botones: enviar solo texto
     const listText = groupsInfo
-      .map((g, i) =>
+      .map((g) =>
         `╭─⪼ 🌿 *${g.subject}*\n` +
         `│ 🍃 Miembros: ${g.members}\n` +
         `│ 🔗 ${g.link || 'No disponible (no soy admin)'}\n` +
@@ -130,10 +135,10 @@ const handler = async (m, { conn }) => {
   }
 }
 
-// Al seleccionar un grupo del menú, se envía el link a ese chat
+// Al seleccionar un grupo del menú, se envía el link (solo owner real llega aquí)
 handler.before = async (m, { conn }) => {
   if (m.isBaileys) return false
-  if (!esOwner(m)) return false
+  if (!esOwnerReal(m)) return false
 
   const content = m.message?.interactiveResponseMessage
     ? m.message
@@ -161,8 +166,8 @@ handler.before = async (m, { conn }) => {
 
   await conn.sendMessage(m.chat, {
     text: link === 'no_disponible'
-      ? `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No disponible, el bot no es admin en ese grupo.\n╰───────────────⬣`
-      : `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🔗 ${link}\n╰───────────────⬣`
+      ? decorar('No disponible, el bot no es admin en ese grupo.')
+      : decorar(`🔗 ${link}`)
   }, { quoted: m })
 
   return true
@@ -170,9 +175,7 @@ handler.before = async (m, { conn }) => {
 
 handler.command = ['grupos']
 handler.customPrefix = /^[.\/#@]?/i
-handler.tags = ['owner']
-handler.owner = true
-handler.rowner = true
+handler.tags = ['group']
 handler.help = ['grupos']
 
 export default handler
