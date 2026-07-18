@@ -1,13 +1,32 @@
 // === COMANDO grupos / .grupos / /grupos / #grupos / @grupos ===
 // Muestra los grupos donde está el bot en un menú interactivo (botón),
-// igual de estilo que el menú principal. Ahora cualquier persona puede usarlo.
+// igual de estilo que el menú principal.
+//
+// 🔒 SOLO PARA OWNERS. Este comando expone el link de invitación de
+// CADA grupo donde está el bot — incluidos los grupos de clientes que
+// pagaron por su licencia. Dejarlo abierto a cualquiera permitiría
+// que un cliente vea/entre al grupo de otro, o que cualquier persona
+// se una a cualquier grupo sin permiso.
 
 import {
   generateWAMessageFromContent,
   proto
 } from '@whiskeysockets/baileys'
 
+function esOwner(m) {
+  const numero = m.sender?.split('@')[0]
+  return m.fromMe || (global.owner || []).some(([num]) => num.replace(/[^0-9]/g, '') === numero)
+}
+
 const handler = async (m, { conn }) => {
+  if (!esOwner(m)) {
+    return m.reply(
+      `╭─⪼ 🌿 *SAITAMA-BOT*\n` +
+      `│ 🍃 Solo el owner puede usar este comando.\n` +
+      `╰───────────────⬣`
+    )
+  }
+
   const groups = await conn.groupFetchAllParticipating()
   const groupList = Object.values(groups)
 
@@ -114,6 +133,7 @@ const handler = async (m, { conn }) => {
 // Al seleccionar un grupo del menú, se envía el link a ese chat
 handler.before = async (m, { conn }) => {
   if (m.isBaileys) return false
+  if (!esOwner(m)) return false
 
   const content = m.message?.interactiveResponseMessage
     ? m.message
@@ -150,7 +170,9 @@ handler.before = async (m, { conn }) => {
 
 handler.command = ['grupos']
 handler.customPrefix = /^[.\/#@]?/i
-handler.tags = ['group']
+handler.tags = ['owner']
+handler.owner = true
+handler.rowner = true
 handler.help = ['grupos']
 
 export default handler
