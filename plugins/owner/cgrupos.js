@@ -1,17 +1,17 @@
 // === COMANDO grupos / .grupos / /grupos / #grupos / @grupos ===
 //
-// 🔒 Dos niveles de acceso:
-// - OWNER REAL (tú): ve la lista COMPLETA de todos los grupos donde
-//   está el bot, con botones, igual que antes.
-// - OWNER LOCAL (cliente que canjeó licencia en su grupo): solo ve
-//   la info de SU PROPIO grupo — nunca la lista de los demás.
+// 🔒 Tres niveles de acceso:
+// - OWNER REAL: ve solo los grupos cuya licencia ÉL generó con
+//   .codegrupo — no ve los grupos vendidos por otros owners.
+// - OWNER LOCAL (cliente con licencia canjeada en su grupo): solo ve
+//   la info de SU PROPIO grupo.
 // - Cualquier otra persona: sin acceso.
 
 import {
   generateWAMessageFromContent,
   proto
 } from '@whiskeysockets/baileys'
-import { esOwnerLocal } from '../../lib/licencias.js'
+import { esOwnerLocal, licenciasDeOwner } from '../../lib/licencias.js'
 
 function decorar(texto) {
   return `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 ${texto.split('\n').join('\n│ 🍃 ')}\n╰───────────────⬣`
@@ -30,7 +30,7 @@ const handler = async (m, { conn }) => {
     return m.reply(decorar('Solo el owner puede usar este comando.'))
   }
 
-  // ── Owner LOCAL: solo su propio grupo, sin lista de los demás ──
+  // ── Owner LOCAL: solo su propio grupo ──
   if (!ownerReal && ownerLocal) {
     const metadata = await conn.groupMetadata(m.chat)
     let link = null
@@ -50,32 +50,42 @@ const handler = async (m, { conn }) => {
     }, { quoted: m })
   }
 
-  // ── Owner REAL: lista completa de todos los grupos, con botones ──
-  const groups = await conn.groupFetchAllParticipating()
-  const groupList = Object.values(groups)
+  // ── Owner REAL: solo los grupos cuya licencia ÉL generó ──
+  const misLicencias = licenciasDeOwner(m.sender)
 
-  if (groupList.length === 0) {
-    return m.reply(decorar('El bot no está en ningún grupo todavía.'))
+  if (!misLicencias.length) {
+    return m.reply(decorar('Todavía no tienes ningún grupo con licencia generada por ti.'))
   }
 
   const groupsInfo = []
-  for (const group of groupList) {
+  for (const lic of misLicencias) {
+    let subject = lic.groupId
+    let members = 0
+    try {
+      const metadata = await conn.groupMetadata(lic.groupId)
+      subject = metadata.subject
+      members = metadata.participants.length
+    } catch {
+      continue // el bot ya no está en ese grupo, se omite
+    }
+
     let link = null
     try {
-      const code = await conn.groupInviteCode(group.id)
+      const code = await conn.groupInviteCode(lic.groupId)
       link = `https://chat.whatsapp.com/${code}`
     } catch {
       // el bot no es admin en ese grupo, no puede sacar el link
     }
-    groupsInfo.push({
-      subject: group.subject,
-      members: group.participants.length,
-      link
-    })
+
+    groupsInfo.push({ subject, members, link })
+  }
+
+  if (!groupsInfo.length) {
+    return m.reply(decorar('Todavía no tienes ningún grupo con licencia generada por ti.'))
   }
 
   const bodyText = decorar(
-    `📋 Grupos donde estoy: ${groupsInfo.length}\n` +
+    `📋 Tus grupos con licencia: ${groupsInfo.length}\n` +
     `🍃 Toca el botón para ver el listado`
   )
 
@@ -87,7 +97,7 @@ const handler = async (m, { conn }) => {
 
   const sections = [
     {
-      title: `「 🌿 GRUPOS 」· ${groupsInfo.length}`,
+      title: `「 🌿 TUS GRUPOS 」· ${groupsInfo.length}`,
       rows: rows.slice(0, 10) // límite de WhatsApp por sección
     }
   ]
@@ -96,7 +106,7 @@ const handler = async (m, { conn }) => {
     const interactiveMessage = proto.Message.InteractiveMessage.create({
       header: {
         title: '🌴 SAITAMA-BOT 🌴',
-        subtitle: `🌿 ${groupsInfo.length} grupos`,
+        subtitle: `🌿 ${groupsInfo.length} grupos tuyos`,
         hasMediaAttachment: false
       },
       body: { text: bodyText },
