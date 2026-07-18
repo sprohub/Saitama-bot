@@ -5,7 +5,7 @@ import path, { join } from 'path'
 import { unwatchFile, watchFile } from 'fs'
 import chalk from 'chalk'
 import fetch from 'node-fetch'
-import { grupoAutorizado, esOwnerLocal } from './lib/licencias.js'
+import { grupoAutorizado } from './lib/licencias.js'
 
 const { proto } = (await import('@whiskeysockets/baileys')).default
 const isNumber = x => typeof x === 'number' && !isNaN(x)
@@ -237,7 +237,6 @@ let _user = global.db.data && global.db.data.users && global.db.data.users[m.sen
 const detectwhat = m.sender.includes('@lid') ? '@lid' : '@s.whatsapp.net';
 const isROwner = [...global.owner.map(([number]) => number)].map(v => v.replace(/[^0-9]/g, '') + detectwhat).includes(m.sender)
 const isOwner = isROwner || m.fromMe
-const isGroupOwner = m.isGroup && esOwnerLocal(m.chat, m.sender.split('@')[0])
 const isMods = isROwner || global.mods.map(v => v.replace(/[^0-9]/g, '') + detectwhat).includes(m.sender)
 const isPrems = isROwner || global.prems.map(v => v.replace(/[^0-9]/g, '') + detectwhat).includes(m.sender) || _user.premium == true
 
@@ -410,7 +409,7 @@ if (plugin.rowner && !isROwner) {
 fail('rowner', m, this, usedPrefix, command) 
 continue
 }
-if (plugin.owner && !(isOwner || isGroupOwner)) { 
+if (plugin.owner && !isOwner) { 
 fail('owner', m, this, usedPrefix, command) 
 continue
 }
