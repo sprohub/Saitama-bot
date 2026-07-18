@@ -59,7 +59,7 @@ function extractSelectedId(content) {
 
 function construirMenuDuracion({ titulo, subtitulo, cuerpo, idPrefix }) {
   const rows = Object.entries(DURACIONES)
-    .filter(([key]) => idPrefix === 'codegrupo_gen' || key !== 'infinito') // los compradores normales no ven "infinito"
+    .filter(([key]) => idPrefix.startsWith('codegrupo_gen') || key !== 'infinito') // los compradores normales no ven "infinito"
     .map(([key, { label }]) => ({
       title: label,
       description: key === 'infinito' ? 'Licencia permanente' : `Vence en ${label.replace('📅 ', '')}`,
