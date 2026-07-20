@@ -16,6 +16,7 @@ const MAX_FRAMES    = 8      // límite de textos permitidos con "anímate"
 const FONT_CANDIDATES = [
   process.env.BRAT_FONT_PATH,
   path.join(process.cwd(), 'plugins', 'assets', 'brat-font.ttf'),
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
   '/data/data/com.termux/files/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
   '/data/data/com.termux/files/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
   '/system/fonts/Roboto-Bold.ttf',
