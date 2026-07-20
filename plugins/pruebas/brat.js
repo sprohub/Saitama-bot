@@ -1,6 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { spawn } from 'child_process'
+import WebP from 'node-webpmux'
+
+const STICKER_PACK_NAME   = 'SAITAMA-BOT'
+const STICKER_PACK_AUTHOR = 'Sprohub'
 
 const TEMP_DIR = path.join(process.cwd(), 'tmp')
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true })
@@ -131,6 +135,28 @@ async function renderFrame(text, outPath, fontPath) {
   }
 }
 
+async function writeExif(webpBuffer, packname, author) {
+  const img = new WebP.Image()
+  await img.load(webpBuffer)
+
+  const json = {
+    'sticker-pack-id': `saitama-bot-${Date.now()}`,
+    'sticker-pack-name': packname,
+    'sticker-pack-publisher': author,
+    emojis: ['🎨']
+  }
+  const exifAttr = Buffer.from([
+    0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00,
+    0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00
+  ])
+  const jsonBuffer = Buffer.from(JSON.stringify(json), 'utf-8')
+  const exif = Buffer.concat([exifAttr, jsonBuffer])
+  exif.writeUIntLE(jsonBuffer.length, 14, 4)
+
+  img.exif = exif
+  return img.save(null)
+}
+
 async function buildAnimatedSticker(frames, outPath) {
   const listPath = outPath.replace(/\.webp$/, '_list.txt')
   const lines = []
@@ -198,7 +224,9 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
         frameFiles.push(framePath)
       }
       await buildAnimatedSticker(frameFiles, stickerPath)
-      await conn.sendMessage(m.chat, { sticker: fs.readFileSync(stickerPath) }, { quoted: m })
+      const rawSticker = fs.readFileSync(stickerPath)
+      const finalSticker = await writeExif(rawSticker, STICKER_PACK_NAME, STICKER_PACK_AUTHOR)
+      await conn.sendMessage(m.chat, { sticker: finalSticker }, { quoted: m })
       await m.react('✅')
     } catch (e) {
       console.error('[BRAT ANIM ERROR]', e.message)
@@ -227,7 +255,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 }
 
 handler.help    = ['brat <texto>', 'brat texto1|texto2 anímate']
-handler.tags    = ['creador', 'sticker']
+handler.tags    = ['tools', 'sticker']
 handler.command = /^(brat)$/i
 handler.desc    = 'Genera una imagen o sticker animado estilo "brat" con fondo blanco'
 
