@@ -22,46 +22,36 @@ const tags = {
   info: 'ℹ️ Info'
 }
 
-const cmdIcon = '🍃'
-
 function getHelp() {
   return Object.values(global.plugins)
     .filter(p => !p.disabled)
     .map(p => ({
       help: Array.isArray(p.help) ? p.help : [p.help],
       tags: Array.isArray(p.tags) ? p.tags : [p.tags],
-      prefix: 'customPrefix' in p,
-      desc: p.desc || ''
+      prefix: 'customPrefix' in p
     }))
 }
 
-// 📜 Construye el menú completo en texto plano, todas las categorías y comandos
+// 📜 Construye el menú en texto plano, compacto y sin descripciones
+// (las descripciones alargan cada línea y rompen el wrap en móvil)
 function buildPlainTextMenu({ help, usedPrefix, totalreg, totalcmd, uptime, userTag }) {
   let texto =
-    `╭─🌴・・・・・・・・・・・╮\n` +
-    `│ 🐾 *MENÚ PRINCIPAL*\n` +
-    `│ 👤 @${userTag}\n` +
-    `│ 📦 ${totalcmd} cmds  🐒 ${totalreg} users\n` +
-    `│ ⏱️ ${uptime}\n` +
-    `╰・・・・・・・・・・・🌴─╯\n\n`
+    `🌴 *MENÚ PRINCIPAL*\n` +
+    `👤 @${userTag}\n` +
+    `📦 ${totalcmd} cmds · 🐒 ${totalreg} users · ⏱️ ${uptime}\n`
 
   for (let tag of Object.keys(tags)) {
     const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
     if (!cmdsFiltrados.length) continue
 
-    texto += `「 ${tags[tag]} 」\n`
-    for (let menu of cmdsFiltrados) {
-      for (let h of menu.help) {
-        const cmdFinal = menu.prefix ? h : `${usedPrefix}${h}`
-        texto += `${cmdIcon} ${cmdFinal}`
-        if (menu.desc) texto += ` - ${menu.desc}`
-        texto += `\n`
-      }
-    }
-    texto += `\n`
+    const comandos = cmdsFiltrados
+      .flatMap(menu => menu.help.map(h => menu.prefix ? h : `${usedPrefix}${h}`))
+      .join('  ')
+
+    texto += `\n*${tags[tag]}*\n${comandos}\n`
   }
 
-  texto += `🍃 Escribe cualquier comando directamente 🍃`
+  texto += `\n_Escribe cualquier comando directamente_`
   return texto
 }
 
@@ -105,6 +95,6 @@ handler.help = ['menu2']
 handler.tags = ['main']
 handler.command = /^(menu2)$/i
 handler.register = false
-handler.desc = 'Muestra el menú en texto plano con GIF'
+handler.desc = 'Menú para iPhone'
 
 export default handler
