@@ -4,7 +4,6 @@ import {
   prepareWAMessageMedia,
   proto
 } from '@whiskeysockets/baileys'
-import { generarTarjetaSpotify } from '../../lib/spotifyCard.js'
 
 function decorar(texto) {
   return `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 ${texto.split('\n').join('\n│ 🍃 ')}\n╰───────────────⬣`
@@ -142,30 +141,10 @@ handler.before = async (m, { conn }) => {
       fileName: (json.data.title || titulo) + '.mp3'
     }, { quoted: m })
 
-    let tarjeta = null
-    try {
-      tarjeta = await generarTarjetaSpotify({
-        imagenUrl: json.data.image,
-        titulo: json.data.title || titulo,
-        artista: json.data.author || 'Desconocido',
-        album: json.data.album,
-        duracion: json.data.duration
-      })
-    } catch (e) {
-      console.error('[spotify] ERROR generando la tarjeta visual:', e)
-    }
-
-    if (tarjeta) {
-      await conn.sendMessage(m.chat, {
-        image: tarjeta,
-        caption: decorar('Descarga completada\n\n🎧 » ' + (json.data.title || titulo) + '\n👤 » ' + (json.data.author || ''))
-      }, { quoted: m })
-    } else {
-      await conn.sendMessage(m.chat, {
-        image: { url: json.data.image },
-        caption: decorar('Descarga completada\n\n🎧 » ' + (json.data.title || titulo) + '\n👤 » ' + (json.data.author || ''))
-      }, { quoted: m })
-    }
+    await conn.sendMessage(m.chat, {
+      image: { url: json.data.image },
+      caption: decorar('Descarga completada\n\n🎧 » ' + (json.data.title || titulo) + '\n👤 » ' + (json.data.author || ''))
+    }, { quoted: m })
 
     await m.react('✅')
     return true
