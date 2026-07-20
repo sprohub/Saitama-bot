@@ -1,10 +1,4 @@
-import { exec } from 'child_process'
-import { promisify } from 'util'
-import fs from 'fs'
-import path from 'path'
-import { tmpdir } from 'os'
-
-const execPromise = promisify(exec)
+import { fixGifFromBuffer } from '../../lib/gifFix.js'
 
 let handler = async (m, { conn }) => {
   const quoted = m.quoted ? m.quoted : m
@@ -26,7 +20,7 @@ let handler = async (m, { conn }) => {
     }, { quoted: m })
   }
 
-  const waitMsg = await conn.sendMessage(m.chat, {
+  await conn.sendMessage(m.chat, {
     text: `╭━━⬣ *SAITAMA-BOT* ⚡
 │
 │ ⏳ _Convirtiendo video a GIF..._
@@ -34,19 +28,13 @@ let handler = async (m, { conn }) => {
 ╰━━━━━━━━━━━━━━━━━━━━━━⬣`
   }, { quoted: m })
 
-  const tempIn = path.join(tmpdir(), `vid_${Date.now()}.mp4`)
-  const tempOut = path.join(tmpdir(), `gif_${Date.now()}.gif`)
-
   try {
     const buffer = await quoted.download()
-    fs.writeFileSync(tempIn, buffer)
 
-    // Genera paleta de colores para mejor calidad, luego convierte a gif
-    await execPromise(
-      `ffmpeg -i "${tempIn}" -vf "fps=15,scale=320:-1:flags=lanczos" -y "${tempOut}"`
-    )
-
-    const gifBuffer = fs.readFileSync(tempOut)
+    // fixGifFromBuffer re-codifica el video a un mp4/gif-playback
+    // compatible con WhatsApp, incluso si el original viene dañado
+    // o con un formato/codec no soportado.
+    const gifBuffer = await fixGifFromBuffer(buffer)
 
     await conn.sendMessage(m.chat, {
       video: gifBuffer,
@@ -59,7 +47,7 @@ let handler = async (m, { conn }) => {
     }, { quoted: m })
 
   } catch (e) {
-    console.error(e)
+    console.log(e)
     await conn.sendMessage(m.chat, {
       text: `╭━━⬣ *SAITAMA-BOT* ⚡
 │
@@ -68,10 +56,6 @@ let handler = async (m, { conn }) => {
 │
 ╰━━━━━━━━━━━━━━━━━━━━━━⬣`
     }, { quoted: m })
-  } finally {
-    // Limpieza de archivos temporales
-    if (fs.existsSync(tempIn)) fs.unlinkSync(tempIn)
-    if (fs.existsSync(tempOut)) fs.unlinkSync(tempOut)
   }
 }
 
