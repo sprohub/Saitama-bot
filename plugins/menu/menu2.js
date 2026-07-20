@@ -101,8 +101,8 @@ let handler = async (m, { conn, usedPrefix }) => {
   }
 }
 
-handler.help = ['menu']
-handler.tags = ['main']
+handler.help = ['menu2']
+handler.tags = ['main2']
 handler.command = /^(menu)$/i
 handler.register = false
 handler.desc = 'Muestra el menú en texto plano con GIF'
