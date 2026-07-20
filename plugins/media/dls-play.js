@@ -151,81 +151,6 @@ async function sendVideo(conn, m, videoUrl, title) {
   return finalTitle
 }
 
-// ── Construye una tarjeta individual del carousel para un resultado de búsqueda
-async function _crearCardResultado(conn, v) {
-  let media = null
-  if (v.thumbnail) {
-    try { media = await prepareWAMessageMedia({ image: { url: v.thumbnail } }, { upload: conn.waUploadToServer }) } catch {}
-  }
-
-  const urlB64   = Buffer.from(v.url).toString('base64')
-  const titleB64 = Buffer.from(String(v.title || 'video')).toString('base64')
-  const author   = String(v.author?.name || 'Desconocido').slice(0, 30)
-  const duration = v.duration || '?'
-  const views    = Number(v.views || 0).toLocaleString()
-  const uploaded = v.ago || v.uploaded || ''
-
-  return proto.Message.InteractiveMessage.Card.create({
-    header: proto.Message.InteractiveMessage.Header.create({
-      title: String(v.title || 'Sin título').slice(0, 60),
-      subtitle: `👤 ${author}`,
-      hasMediaAttachment: !!media,
-      imageMessage: media?.imageMessage
-    }),
-    body: proto.Message.InteractiveMessage.Body.create({
-      text: `⏱️ ${duration}  |  👁️ ${views} vistas${uploaded ? `\n📅 ${uploaded}` : ''}\n\n> Elige el formato de descarga ⬇️`
-    }),
-    footer: proto.Message.InteractiveMessage.Footer.create({ text: '⫏⫏ SAITAMA BOT' }),
-    nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
-      buttons: [
-        {
-          name: 'quick_reply',
-          buttonParamsJson: JSON.stringify({
-            display_text: '🎵 Audio (MP3)',
-            id: `ytdl~audio~${urlB64}~${titleB64}`
-          })
-        },
-        {
-          name: 'quick_reply',
-          buttonParamsJson: JSON.stringify({
-            display_text: '🎬 Video (MP4)',
-            id: `ytdl~video~${urlB64}~${titleB64}`
-          })
-        }
-      ]
-    })
-  })
-}
-
-// ── Construye y envía el carousel completo de resultados
-async function _enviarCarouselResultados(conn, m, resultados, query) {
-  const cards = []
-  for (const v of resultados) {
-    if (!v?.url) continue
-    try { cards.push(await _crearCardResultado(conn, v)) } catch {}
-  }
-  if (!cards.length) throw new Error('No se pudieron construir los resultados')
-
-  const interactiveMessage = proto.Message.InteractiveMessage.create({
-    header: proto.Message.InteractiveMessage.Header.create({
-      title: 'SAITAMA BOT - YOUTUBE',
-      subtitle: `Resultados: ${query}`,
-      hasMediaAttachment: false
-    }),
-    body: proto.Message.InteractiveMessage.Body.create({
-      text: `╭━━⬣ *RESULTADOS* ⬣━━╮\n\n🔍 Búsqueda: *${query}*\n📋 ${cards.length} resultados encontrados\n\n> Desliza para ver más ➡️\n> ✅ ¡Completamente gratis!\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣`
-    }),
-    carouselMessage: proto.Message.InteractiveMessage.CarouselMessage.create({ cards })
-  })
-
-  const msg = generateWAMessageFromContent(
-    m.chat,
-    { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
-    { quoted: m }
-  )
-  await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
-}
-
 let handler = async (m, { conn, text, usedPrefix, command }) => {
   const msgKey = `main_${m.id || m.key?.id}`
   if (_processing.has(msgKey)) return
@@ -267,7 +192,26 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     if (!data.status || !data.data?.length) throw new Error('No se encontraron resultados')
 
     const resultados = data.data.slice(0, 10)
-    await _enviarCarouselResultados(conn, m, resultados, input)
+    let media = null
+    if (resultados[0]?.thumbnail) {
+      try { media = await prepareWAMessageMedia({ image: { url: resultados[0].thumbnail } }, { upload: conn.waUploadToServer }) } catch {}
+    }
+
+    const rows = resultados.map((v, i) => ({
+      header: String(v.author?.name || 'Desconocido').slice(0, 20),
+      title: String(v.title || '').slice(0, 35),
+      description: `⏱️ ${v.duration || '?'} | 👁️ ${Number(v.views || 0).toLocaleString()}`,
+      id: `ytsel~${Buffer.from(v.url).toString('base64')}~${Buffer.from(String(v.title || 'video')).toString('base64')}`
+    }))
+
+    const interactiveMessage = proto.Message.InteractiveMessage.create({
+      header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: `Resultados: ${input}`, hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
+      body: { text: `╭━━⬣ *RESULTADOS* ⬣━━╮\n\n🔍\n\n💫 » Búsqueda: *${input}*\n📋 ${resultados.length} resultados encontrados\n\n> Elige el que quieras descargar\n> ✅ ¡Gratis!\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` },
+      footer: { text: '⫏⫏ SAITAMA BOT ' },
+      nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '🎵 RESULTADOS', sections: [{ title: `📋 ${input.toUpperCase().slice(0, 24)}`, rows }] }) }] }
+    })
+    const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
+    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
     await m.react('✅')
   } catch (e) {
     await m.react('❌')
@@ -317,7 +261,6 @@ handler.before = async (m, { conn }) => {
     return true
   }
 
-  // Compatibilidad retro: por si algún flujo antiguo sigue mandando ytsel~
   if (id.startsWith('ytsel~')) {
     const parts = id.split('~')
     if (parts.length < 3) return true
