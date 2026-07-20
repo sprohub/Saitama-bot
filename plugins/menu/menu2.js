@@ -4,8 +4,15 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// 👉 GIF del menú (colócalo en lib/menu2.mp4)
-const menuGifPath = path.join(__dirname, '..', '..', 'lib', 'menu2.mp4')
+// 👉 GIFs del menú (colócalos en lib/menu2.mp4 y lib/menu2(1).mp4)
+const menuGifPaths = [
+  path.join(__dirname, '..', '..', 'lib', 'menu2.mp4'),
+  path.join(__dirname, '..', '..', 'lib', 'menu2(1).mp4')
+]
+
+function getRandomGifPath() {
+  return menuGifPaths[Math.floor(Math.random() * menuGifPaths.length)]
+}
 
 const tags = {
   main: '🌿 Principal',
@@ -32,8 +39,8 @@ function getHelp() {
     }))
 }
 
-// 📜 Construye el menú en texto plano, compacto y sin descripciones
-// (las descripciones alargan cada línea y rompen el wrap en móvil)
+// 📜 Construye el menú en texto plano, un comando por línea para que
+// quede alineado y no rompa el wrap en móvil
 function buildPlainTextMenu({ help, usedPrefix, totalreg, totalcmd, uptime, userTag }) {
   let texto =
     `🌴 *MENÚ PRINCIPAL*\n` +
@@ -44,11 +51,15 @@ function buildPlainTextMenu({ help, usedPrefix, totalreg, totalcmd, uptime, user
     const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
     if (!cmdsFiltrados.length) continue
 
-    const comandos = cmdsFiltrados
-      .flatMap(menu => menu.help.map(h => menu.prefix ? h : `${usedPrefix}${h}`))
-      .join('  ')
+    texto += `\n*${tags[tag]}*\n`
 
-    texto += `\n*${tags[tag]}*\n${comandos}\n`
+    const comandos = cmdsFiltrados.flatMap(menu =>
+      menu.help.map(h => menu.prefix ? h : `${usedPrefix}${h}`)
+    )
+
+    for (let cmd of comandos) {
+      texto += `▫️ ${cmd}\n`
+    }
   }
 
   texto += `\n_Escribe cualquier comando directamente_`
@@ -71,6 +82,8 @@ let handler = async (m, { conn, usedPrefix }) => {
     const userTag = who.split('@')[0]
 
     const texto = buildPlainTextMenu({ help, usedPrefix, totalreg, totalcmd, uptime, userTag })
+
+    const menuGifPath = getRandomGifPath()
 
     try {
       const gifBuffer = fs.readFileSync(menuGifPath)
