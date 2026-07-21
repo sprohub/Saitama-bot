@@ -7,10 +7,11 @@ const API_URL = 'https://api.evogb.org/generate/filters'
 // entorno (process.env.EVOGB_APIKEY) en vez de dejarla hardcodeada aquí.
 const EVOGB_APIKEY = 'evogb-8ZSpGAql'
 
-// Como no tenemos la doc exacta, probamos varios nombres de parámetro/campo
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+
+// Como no tenemos la doc exacta, probamos varios nombres de parámetro
 // comunes (español e inglés) hasta que la API deje de quejarse.
 const URL_PARAM_NAMES = ['url', 'link', 'imagen', 'imageUrl', 'image']
-const FILE_FIELD_NAMES = ['archivo', 'file', 'imagen', 'image', 'photo']
 
 function isImageResponse(res) {
   const ct = res.headers.get('content-type') || ''
@@ -33,27 +34,25 @@ async function tryByUrl(imageUrl) {
   throw new Error('Ningún nombre de parámetro de URL funcionó:\n' + errors.join('\n'))
 }
 
-async function tryByFile(buffer) {
-  const errors = []
-  for (const field of FILE_FIELD_NAMES) {
-    const form = new FormData()
-    form.append(field, buffer, { filename: 'image.jpg' })
-    form.append('apikey', EVOGB_APIKEY)
+// Subimos la imagen citada a catbox.moe (ya probado y funcional en el
+// plugin trash.js) para conseguir un link público, y así evitamos el
+// upload directo a Evogb que está dando problemas.
+async function uploadToCatbox(buffer) {
+  const form = new FormData()
+  form.append('reqtype', 'fileupload')
+  form.append('fileToUpload', buffer, { filename: 'image.jpg' })
 
-    const res = await fetch(`${API_URL}?apikey=${EVOGB_APIKEY}`, {
-      method: 'POST',
-      body: form,
-      headers: form.getHeaders()
-    })
-    if (isImageResponse(res)) {
-      console.log('[FILTERS] Campo de archivo correcto:', field)
-      return res
-    }
-    const rawText = await res.text()
-    console.error(`[FILTERS TRY file-field="${field}"]`, res.status, rawText.slice(0, 200))
-    errors.push(`${field}: ${rawText.slice(0, 100)}`)
+  const res = await fetch('https://catbox.moe/user/api.php', {
+    method: 'POST',
+    body: form,
+    headers: { ...form.getHeaders(), 'User-Agent': UA }
+  })
+
+  const resultText = (await res.text()).trim()
+  if (!res.ok || !resultText.startsWith('http')) {
+    throw new Error('catbox.moe: ' + resultText.slice(0, 150))
   }
-  throw new Error('Ningún nombre de campo de archivo funcionó:\n' + errors.join('\n'))
+  return resultText
 }
 
 let handler = async (m, { conn, text, usedPrefix, command }) => {
@@ -80,14 +79,14 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   await m.react('⏳')
 
   try {
-    let res
+    let imageUrl = raw
 
-    if (hasUrl) {
-      res = await tryByUrl(raw)
-    } else {
+    if (!hasUrl) {
       const buffer = await quoted.download()
-      res = await tryByFile(buffer)
+      imageUrl = await uploadToCatbox(buffer)
     }
+
+    const res = await tryByUrl(imageUrl)
 
     const resultBuffer = await res.buffer()
     if (!resultBuffer.length) throw new Error('respuesta vacía')
