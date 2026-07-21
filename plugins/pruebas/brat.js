@@ -13,7 +13,7 @@ const CANVAS_SIZE   = 640
 const FRAME_DURATION = 0.9   // segundos que dura cada texto en el modo animado
 const MAX_FRAMES    = 8      // límite de textos permitidos con "anímate"
 
-// ── Fuentes candidatas, en orden de preferencia.
+// ── Fuentes candidatas para texto normal, en orden de preferencia.
 // 1) Puedes forzar una con la variable de entorno BRAT_FONT_PATH
 // 2) Si subes una fuente propia al repo, ponla en plugins/assets/brat-font.ttf
 // 3) Si no, se intenta con fuentes comunes que suelen venir con Termux/fontconfig
@@ -27,8 +27,30 @@ const FONT_CANDIDATES = [
   '/system/fonts/RobotoCondensed-Bold.ttf'
 ].filter(Boolean)
 
-function findFont() {
-  for (const f of FONT_CANDIDATES) {
+// ── Fuentes candidatas con soporte de emoji (glifos monocromo, compatibles
+// con drawtext/fontcolor, a diferencia de las fuentes de emoji a color que
+// ffmpeg no puede pintar con fontcolor). Symbola y Noto Emoji cubren texto
+// latino básico + emojis en un solo archivo, así que sirven como fuente
+// única cuando el texto trae emojis.
+const EMOJI_FONT_CANDIDATES = [
+  process.env.BRAT_EMOJI_FONT_PATH,
+  path.join(process.cwd(), 'plugins', 'assets', 'brat-emoji-font.ttf'),
+  '/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf',
+  '/usr/share/fonts/truetype/symbola/Symbola.ttf',
+  '/data/data/com.termux/files/usr/share/fonts/TTF/Symbola.ttf',
+  '/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf',
+  '/system/fonts/NotoColorEmoji.ttf'
+].filter(Boolean)
+
+// Rango aproximado de emojis/pictográficos + variation selectors + ZWJ
+const EMOJI_REGEX = /[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\uFE0F\u200D]/u
+
+function hasEmoji(text) {
+  return EMOJI_REGEX.test(text)
+}
+
+function findFont(candidates) {
+  for (const f of candidates) {
     try { if (fs.existsSync(f)) return f } catch {}
   }
   return null
@@ -59,7 +81,7 @@ function runFfmpeg(args) {
 // Envuelve el texto en líneas y calcula un tamaño de fuente que quepa en el lienzo.
 // Es un cálculo aproximado (sin medir texto real), pero funciona bien para frases cortas/medias.
 function wrapAndFit(rawText) {
-  const text = String(rawText || '').trim().toLowerCase()
+  const text = String(rawText || '').trim()
   const words = text.split(/\s+/).filter(Boolean)
   if (!words.length) return { lines: ['brat'], fontSize: 90 }
 
@@ -106,8 +128,15 @@ function wrapAndFit(rawText) {
   return { lines, fontSize: minFont }
 }
 
-async function renderFrame(text, outPath, fontPath) {
-  const { lines, fontSize } = wrapAndFit(text)
+async function renderFrame(text, outPath, textFontPath, emojiFontPath) {
+  // El texto "brat" clásico va en minúsculas; si detectamos emoji preferimos
+  // no forzar lowercase agresivo sobre símbolos, pero sí sobre las letras.
+  const normalized = String(text || '')
+  const useEmojiFont = hasEmoji(normalized) && emojiFontPath
+  const fontPath = useEmojiFont ? emojiFontPath : textFontPath
+  const displayText = useEmojiFont ? normalized.trim() : normalized.toLowerCase()
+
+  const { lines, fontSize } = wrapAndFit(displayText)
   const txtPath = outPath.replace(/\.png$/, '.txt')
   fs.writeFileSync(txtPath, lines.join('\n'), 'utf8')
 
@@ -157,6 +186,20 @@ async function writeExif(webpBuffer, packname, author) {
   return img.save(null)
 }
 
+// Convierte un único frame PNG en un sticker webp estático (512x512)
+async function buildStaticSticker(framePath, outPath) {
+  const args = [
+    '-y',
+    '-i', framePath,
+    '-vf', 'scale=512:512:flags=lanczos,format=rgba',
+    '-c:v', 'libwebp',
+    '-lossless', '0',
+    '-quality', '90',
+    outPath
+  ]
+  await runFfmpeg(args)
+}
+
 async function buildAnimatedSticker(frames, outPath) {
   const listPath = outPath.replace(/\.webp$/, '_list.txt')
   const lines = []
@@ -186,17 +229,20 @@ async function buildAnimatedSticker(frames, outPath) {
 }
 
 let handler = async (m, { conn, text, usedPrefix, command }) => {
-  const fontPath = findFont()
+  const fontPath = findFont(FONT_CANDIDATES)
   if (!fontPath) {
     return conn.sendMessage(m.chat, {
       text: `❌ No encontré ninguna fuente .ttf para generar el brat.\n\n> Corre en Termux: fc-list | grep -i bold\n> Y pon la ruta en la variable BRAT_FONT_PATH, o sube una fuente a plugins/assets/brat-font.ttf`
     }, { quoted: m })
   }
+  // Fuente para emojis (opcional). Si no existe ninguna, simplemente los
+  // emojis se saltan/renderizan como tofu con la fuente normal.
+  const emojiFontPath = findFont(EMOJI_FONT_CANDIDATES)
 
   const raw = text?.trim()
   if (!raw) {
     return conn.sendMessage(m.chat, {
-      text: `🟢 *BRAT GENERATOR*\n\n> ${usedPrefix}${command} <texto>\n> Ejemplo: ${usedPrefix}${command} hola mundo\n\n💫 Modo animado (varios textos):\n> ${usedPrefix}${command} texto1|texto2|texto3 anímate`
+      text: `🟢 *BRAT GENERATOR*\n\n> ${usedPrefix}${command} <texto>\n> Ejemplo: ${usedPrefix}${command} hola mundo 😭\n\n💫 Modo animado (varios textos):\n> ${usedPrefix}${command} texto1|texto2|texto3 anímate`
     }, { quoted: m })
   }
 
@@ -220,7 +266,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     try {
       for (let i = 0; i < phrases.length; i++) {
         const framePath = path.join(TEMP_DIR, `brat_frame_${Date.now()}_${i}.png`)
-        await renderFrame(phrases[i], framePath, fontPath)
+        await renderFrame(phrases[i], framePath, fontPath, emojiFontPath)
         frameFiles.push(framePath)
       }
       await buildAnimatedSticker(frameFiles, stickerPath)
@@ -239,24 +285,29 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     return
   }
 
-  // ── MODO ESTÁTICO ──
-  const imgPath = path.join(TEMP_DIR, `brat_${Date.now()}.png`)
+  // ── MODO ESTÁTICO ── (ahora genera sticker, igual que el modo animado)
+  const framePath = path.join(TEMP_DIR, `brat_${Date.now()}.png`)
+  const stickerPath = path.join(TEMP_DIR, `brat_static_${Date.now()}.webp`)
   try {
-    await renderFrame(cleanInput, imgPath, fontPath)
-    await conn.sendMessage(m.chat, { image: fs.readFileSync(imgPath) }, { quoted: m })
+    await renderFrame(cleanInput, framePath, fontPath, emojiFontPath)
+    await buildStaticSticker(framePath, stickerPath)
+    const rawSticker = fs.readFileSync(stickerPath)
+    const finalSticker = await writeExif(rawSticker, STICKER_PACK_NAME, STICKER_PACK_AUTHOR)
+    await conn.sendMessage(m.chat, { sticker: finalSticker }, { quoted: m })
     await m.react('✅')
   } catch (e) {
     console.error('[BRAT ERROR]', e.message)
     await m.react('❌')
-    await conn.sendMessage(m.chat, { text: `❌ No se pudo generar la imagen.\n${e.message}` }, { quoted: m })
+    await conn.sendMessage(m.chat, { text: `❌ No se pudo generar el sticker.\n${e.message}` }, { quoted: m })
   } finally {
-    deleteFileSafe(imgPath)
+    deleteFileSafe(framePath)
+    deleteFileSafe(stickerPath)
   }
 }
 
 handler.help    = ['brat <texto>', 'brat texto1|texto2 anímate']
 handler.tags    = ['tools', 'sticker']
 handler.command = /^(brat)$/i
-handler.desc    = 'Genera una imagen o sticker animado estilo "brat" con fondo blanco'
+handler.desc    = 'Genera un sticker (estático o animado) estilo "brat" con fondo blanco, incluye emojis'
 
 export default handler
