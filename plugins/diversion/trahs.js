@@ -3,9 +3,10 @@ import FormData from 'form-data'
 
 const API_URL = 'https://api.delirius.store/canvas/trash'
 
-// Sube un buffer a catbox.moe y devuelve la URL pública directa.
-// catbox.moe requiere multipart/form-data real (no un buffer crudo),
-// por eso usamos el paquete 'form-data'.
+// Cabecera User-Agent "normal": varios de estos hosts filtran/bloquean
+// peticiones que llegan sin un UA de navegador válido.
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+
 async function uploadToCatbox(buffer) {
   const form = new FormData()
   form.append('reqtype', 'fileupload')
@@ -14,16 +15,18 @@ async function uploadToCatbox(buffer) {
   const res = await fetch('https://catbox.moe/user/api.php', {
     method: 'POST',
     body: form,
-    headers: form.getHeaders()
+    headers: { ...form.getHeaders(), 'User-Agent': UA }
   })
 
   const resultText = (await res.text()).trim()
-
   if (!res.ok || !resultText.startsWith('http')) {
-    throw new Error('catbox.moe no devolvió una URL válida: ' + resultText.slice(0, 200))
+    throw new Error('catbox.moe: ' + resultText.slice(0, 150))
   }
-
   return resultText
+}
+
+async function uploadImage(buffer) {
+  return uploadToCatbox(buffer)
 }
 
 let handler = async (m, { conn, text }) => {
@@ -65,7 +68,7 @@ let handler = async (m, { conn, text }) => {
       }
 
       try {
-        imageUrl = await uploadToCatbox(buffer)
+        imageUrl = await uploadImage(buffer)
       } catch (e) {
         throw new Error('Fallo al subir la imagen: ' + e.message)
       }
