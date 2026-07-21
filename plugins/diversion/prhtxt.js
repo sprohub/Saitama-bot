@@ -61,7 +61,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 }
 
 handler.help = ['phub <usuario> | <texto>']
-handler.tags = ['tools']
+handler.tags = ['diversion']
 handler.command = /^(phub)$/i
 handler.desc = 'Genera una miniatura estilo PHub con usuario y texto'
 
