@@ -1,66 +1,25 @@
 import fetch from 'node-fetch'
-import FormData from 'form-data'
 
 const API_URL = 'https://api.delirius.store/canvas/phub'
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
-
-async function uploadToCatbox(buffer) {
-  const form = new FormData()
-  form.append('reqtype', 'fileupload')
-  form.append('fileToUpload', buffer, { filename: 'image.jpg' })
-
-  const res = await fetch('https://catbox.moe/user/api.php', {
-    method: 'POST',
-    body: form,
-    headers: { ...form.getHeaders(), 'User-Agent': UA }
-  })
-
-  const resultText = (await res.text()).trim()
-  if (!res.ok || !resultText.startsWith('http')) {
-    throw new Error('catbox.moe: ' + resultText.slice(0, 150))
-  }
-  return resultText
-}
+// Imagen de perfil fija (siempre la misma, sin pedir foto ni link)
+const FIXED_IMAGE = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_640.png'
 
 let handler = async (m, { conn, text, usedPrefix, command }) => {
-  const quoted = m.quoted ? m.quoted : null
-  const mime = quoted ? (quoted.msg || quoted).mimetype || '' : ''
-  const hasQuotedImage = /image/.test(mime)
-
   const raw = text?.trim() || ''
-  const parts = raw.split('|').map(s => s.trim()).filter(Boolean)
+  const [username, phrase] = raw.split('|').map(s => s.trim())
 
-  let imageUrl, username, phrase
-
-  if (hasQuotedImage) {
-    // Citando imagen: solo se necesitan usuario y texto
-    ;[username, phrase] = parts
-  } else {
-    // Sin cita: se necesita link, usuario y texto
-    ;[imageUrl, username, phrase] = parts
-  }
-
-  const isValid = hasQuotedImage
-    ? (username && phrase)
-    : (imageUrl && /^https?:\/\//i.test(imageUrl) && username && phrase)
-
-  if (!isValid) {
+  if (!username || !phrase) {
     return conn.sendMessage(m.chat, {
       text: `╭─⪼ 🌿 *SAITAMA PHUB*
 │
 │ 🍃 » Genera una miniatura estilo PHub
 │
-│ 📝 » Citando una imagen:
+│ 📝 » Uso:
 │ ${usedPrefix}${command} <usuario> | <texto>
-│
-│ 📝 » Con link directo:
-│ ${usedPrefix}${command} <link> | <usuario> | <texto>
 │
 │ 📝 » Ejemplo:
 │ ${usedPrefix}${command} delirius | Bienvenido a la API
-│
-│ ⚠️ » Los datos van separados por " | "
 │
 ╰───────────────⬣`
     }, { quoted: m })
@@ -69,22 +28,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   await m.react('⏳')
 
   try {
-    if (hasQuotedImage) {
-      let buffer
-      try {
-        buffer = await quoted.download()
-      } catch (e) {
-        throw new Error('No se pudo descargar la imagen citada: ' + e.message)
-      }
-
-      try {
-        imageUrl = await uploadToCatbox(buffer)
-      } catch (e) {
-        throw new Error('Fallo al subir la imagen: ' + e.message)
-      }
-    }
-
-    const apiUrl = `${API_URL}?image=${encodeURIComponent(imageUrl)}&username=${encodeURIComponent(username)}&text=${encodeURIComponent(phrase)}`
+    const apiUrl = `${API_URL}?image=${encodeURIComponent(FIXED_IMAGE)}&username=${encodeURIComponent(username)}&text=${encodeURIComponent(phrase)}`
     const res = await fetch(apiUrl)
     if (!res.ok) throw new Error(`código ${res.status}`)
 
@@ -109,16 +53,16 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
       text: `╭─⪼ 🌿 *SAITAMA PHUB*
 │
 │ ❌ » Error al generar la imagen
-│ 🔁 » Verifica los datos e intenta de nuevo
+│ 🔁 » Intenta de nuevo
 │
 ╰───────────────⬣`
     }, { quoted: m })
   }
 }
 
-handler.help = ['phub <usuario> | <texto>', 'phub <link> | <usuario> | <texto>']
+handler.help = ['phub <usuario> | <texto>']
 handler.tags = ['tools']
 handler.command = /^(phub)$/i
-handler.desc = 'Genera una miniatura estilo PHub (citando imagen o por link)'
+handler.desc = 'Genera una miniatura estilo PHub con usuario y texto'
 
 export default handler
