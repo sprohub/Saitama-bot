@@ -35,10 +35,13 @@ const tags = {
 }
 
 const cmdIcon = '🍃'
-const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
+// ⚠️ WhatsApp limita a 10 FILAS TOTALES por mensaje interactivo (no 10 por
+// sección). Por eso paginamos: 9 comandos/categorías reales + 1 fila de
+// "más" cuando hace falta, en vez de repartir en varias secciones de 10.
+const PAGE_SIZE = 9
 
-// Divide un array en trozos de máximo `tamano` elementos
-function dividirEnTrozos(arr, tamano) {
+// Divide un array en páginas de máximo `tamano` elementos
+function paginar(arr, tamano) {
   const resultado = []
   for (let i = 0; i < arr.length; i += tamano) {
     resultado.push(arr.slice(i, i + tamano))
@@ -57,6 +60,8 @@ function getHelp() {
     }))
 }
 
+const CANAL_URL = 'https://whatsapp.com/channel/0029VbDIRNeEQIalr0dmwQ05'
+
 function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
   let titulo = tagSeleccionada
     ? tags[tagSeleccionada].split(' ').slice(1).join(' ')
@@ -66,12 +71,13 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
     `╭─⪼ 🌿 *${titulo}*\n` +
     `│ 👤 @${user}\n` +
     `│ 📦 ${totalcmd} cmds · 🐒 ${totalreg} users · ⏱️ ${uptime}\n` +
+    `│ 📢 Canal: ${CANAL_URL}\n` +
     `╰───────────────⬣`
   )
 }
 
-// 📂 Nivel 1: solo lista de categorías (dividida en secciones de 10 si hace falta)
-function buildCategorySections(help) {
+// 📂 Nivel 1: lista de categorías, paginada (máx. 10 filas totales por mensaje)
+function buildCategorySections(help, page = 0) {
   const todasLasFilas = Object.keys(tags)
     .filter(tag => help.some(menu => menu.tags?.includes(tag)))
     .map(tag => {
@@ -83,49 +89,68 @@ function buildCategorySections(help) {
       }
     })
 
-  const trozos = dividirEnTrozos(todasLasFilas, FILAS_POR_SECCION)
-  return trozos.map((rows, i) => ({
-    title: trozos.length > 1 ? `CATEGORÍAS · ${i + 1}/${trozos.length}` : 'CATEGORÍAS',
-    rows
-  }))
-}
+  if (todasLasFilas.length <= 10) {
+    return [{ title: 'CATEGORÍAS', rows: todasLasFilas }]
+  }
 
-// 📜 Nivel 2: comandos de una categoría específica (dividida en secciones de 10 si hace falta)
-function buildCommandSections(help, usedPrefix, tagSeleccionada) {
-  const sections = []
+  const paginas = paginar(todasLasFilas, PAGE_SIZE)
+  const rows = [...paginas[page]]
+  const hayMas = page + 1 < paginas.length
 
-  for (let tag of Object.keys(tags)) {
-    if (tagSeleccionada && tag !== tagSeleccionada) continue
-
-    const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tag))
-    if (!cmdsFiltrados.length) continue
-
-    const todasLasFilas = cmdsFiltrados.flatMap(menu =>
-      menu.help.map(h => {
-        const cmdFinal = menu.prefix ? h : `${usedPrefix}${h}`
-        return {
-          title: `${cmdIcon} ${cmdFinal}`,
-          description: menu.desc ? menu.desc.slice(0, 68) : '',
-          id: `menu_cmd~${tag}~${cmdFinal}`
-        }
-      })
-    )
-
-    const trozos = dividirEnTrozos(todasLasFilas, FILAS_POR_SECCION)
-    trozos.forEach((rows, i) => {
-      const rango = trozos.length > 1 ? ` (${i * FILAS_POR_SECCION + 1}-${i * FILAS_POR_SECCION + rows.length})` : ''
-      sections.push({
-        title: `${tags[tag]} · ${todasLasFilas.length}${rango}`,
-        rows
-      })
+  if (hayMas) {
+    rows.push({
+      title: '▶️ Más categorías',
+      description: `Página ${page + 2} de ${paginas.length}`,
+      id: `menu_catpage~${page + 1}`
     })
   }
 
-  return sections
+  return [{
+    title: `CATEGORÍAS · ${page + 1}/${paginas.length}`,
+    rows
+  }]
 }
 
-// 🧱 Construye el mensaje interactivo completo (usado tanto por el handler principal como por el botón "volver")
-async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada }) {
+// 📜 Nivel 2: comandos de una categoría específica, paginados
+function buildCommandSections(help, usedPrefix, tagSeleccionada, page = 0) {
+  const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tagSeleccionada))
+  if (!cmdsFiltrados.length) return []
+
+  const todasLasFilas = cmdsFiltrados.flatMap(menu =>
+    menu.help.map(h => {
+      const cmdFinal = menu.prefix ? h : `${usedPrefix}${h}`
+      return {
+        title: `${cmdIcon} ${cmdFinal}`,
+        description: menu.desc ? menu.desc.slice(0, 68) : '',
+        id: `menu_cmd~${tagSeleccionada}~${cmdFinal}`
+      }
+    })
+  )
+
+  if (todasLasFilas.length <= 10) {
+    return [{ title: tags[tagSeleccionada], rows: todasLasFilas }]
+  }
+
+  const paginas = paginar(todasLasFilas, PAGE_SIZE)
+  const rows = [...paginas[page]]
+  const hayMas = page + 1 < paginas.length
+
+  if (hayMas) {
+    rows.push({
+      title: '▶️ Más comandos',
+      description: `Página ${page + 2} de ${paginas.length}`,
+      id: `menu_page~${tagSeleccionada}~${page + 1}`
+    })
+  }
+
+  return [{
+    title: `${tags[tagSeleccionada]} · ${page + 1}/${paginas.length}`,
+    rows
+  }]
+}
+
+// 🧱 Construye el mensaje interactivo completo (usado tanto por el handler principal como por los botones de categoría/paginación)
+async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada, page = 0 }) {
   let who = m.sender
   let user = global.db.data.users[who]
   if (!user) {
@@ -152,8 +177,8 @@ async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada }) {
   }
 
   const sections = tagSeleccionada
-    ? buildCommandSections(help, usedPrefix, tagSeleccionada)
-    : buildCategorySections(help)
+    ? buildCommandSections(help, usedPrefix, tagSeleccionada, page)
+    : buildCategorySections(help, page)
 
   if (!sections.length || sections.every(s => !s.rows.length)) return null
 
@@ -176,6 +201,14 @@ async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada }) {
         {
           name: 'single_select',
           buttonParamsJson: JSON.stringify({ title: buttonTitle, sections })
+        },
+        {
+          name: 'cta_url',
+          buttonParamsJson: JSON.stringify({
+            display_text: '📢 Canal Oficial',
+            url: CANAL_URL,
+            merchant_url: CANAL_URL
+          })
         }
       ]
     }
@@ -276,6 +309,23 @@ handler.before = async (m, { conn }) => {
   const id = extractSelectedId(content)
   if (!id) return false
 
+  // 📂 Tocaron "más categorías" → mostrar la siguiente página de categorías
+  if (id.startsWith('menu_catpage~')) {
+    const page = parseInt(id.split('~')[1], 10) || 0
+    const usedPrefix = (global.prefix instanceof RegExp ? '.' : global.prefix) || '.'
+    const interactiveMessage = await buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada: null, page })
+
+    if (!interactiveMessage) return true
+
+    const msg = generateWAMessageFromContent(
+      m.chat,
+      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
+      { quoted: m }
+    )
+    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+    return true
+  }
+
   // 📂 Tocaron una categoría → mostrar submenú con sus comandos
   if (id.startsWith('menu_cat~')) {
     const tag = id.split('~')[1]
@@ -290,6 +340,26 @@ handler.before = async (m, { conn }) => {
       }, { quoted: m })
       return true
     }
+
+    const msg = generateWAMessageFromContent(
+      m.chat,
+      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
+      { quoted: m }
+    )
+    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+    return true
+  }
+
+  // 📜 Tocaron "más comandos" dentro de una categoría → siguiente página
+  if (id.startsWith('menu_page~')) {
+    const [, tag, pageStr] = id.split('~')
+    if (!tag || !tags[tag]) return false
+    const page = parseInt(pageStr, 10) || 0
+
+    const usedPrefix = (global.prefix instanceof RegExp ? '.' : global.prefix) || '.'
+    const interactiveMessage = await buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada: tag, page })
+
+    if (!interactiveMessage) return true
 
     const msg = generateWAMessageFromContent(
       m.chat,
