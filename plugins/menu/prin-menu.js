@@ -6,12 +6,18 @@ import {
   prepareWAMessageMedia,
   proto
 } from '@whiskeysockets/baileys'
-import { xpRange } from '../../lib/levelling.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// 👉 Imagen única del menú (colócala en lib/menu.jpg)
-const menuImagePath = path.join(__dirname, '..', '..', 'lib', 'menu.jpg')
+// 👉 Gifs del menú, se elige uno al azar en cada ejecución
+const menuGifPaths = [
+  path.join(__dirname, '..', '..', 'lib', 'menu2.mp4'),
+  path.join(__dirname, '..', '..', 'lib', 'menu2(1).mp4')
+]
+
+function getRandomGifPath() {
+  return menuGifPaths[Math.floor(Math.random() * menuGifPaths.length)]
+}
 
 const tags = {
   main: '🌿 Principal',
@@ -57,15 +63,10 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
     : 'MENÚ PRINCIPAL'
 
   return (
-    `╭─🌴・・・・・・・・・・・╮\n` +
-    `│ 🐾 *${titulo}*\n` +
+    `╭─⪼ 🌿 *${titulo}*\n` +
     `│ 👤 @${user}\n` +
-    `│ 📦 ${totalcmd} cmds  🐒 ${totalreg} users\n` +
-    `│ ⏱️ ${uptime}\n` +
-    `╰・・・・・・・・・・・🌴─╯\n` +
-    (tagSeleccionada
-      ? `🍃 Toca un comando para ejecutarlo 🍃`
-      : `🍃 Toca una categoría para ver sus comandos 🍃`)
+    `│ 📦 ${totalcmd} cmds · 🐒 ${totalreg} users · ⏱️ ${uptime}\n` +
+    `╰───────────────⬣`
   )
 }
 
@@ -77,14 +78,14 @@ function buildCategorySections(help) {
       const count = help.filter(menu => menu.tags?.includes(tag)).length
       return {
         title: tags[tag],
-        description: `📦 ${count} comando${count === 1 ? '' : 's'}`,
+        description: `${count} comando${count === 1 ? '' : 's'}`,
         id: `menu_cat~${tag}`
       }
     })
 
   const trozos = dividirEnTrozos(todasLasFilas, FILAS_POR_SECCION)
   return trozos.map((rows, i) => ({
-    title: trozos.length > 1 ? `「 CATEGORÍAS 」· ${i + 1}/${trozos.length}` : '「 CATEGORÍAS 」',
+    title: trozos.length > 1 ? `CATEGORÍAS · ${i + 1}/${trozos.length}` : 'CATEGORÍAS',
     rows
   }))
 }
@@ -104,7 +105,7 @@ function buildCommandSections(help, usedPrefix, tagSeleccionada) {
         const cmdFinal = menu.prefix ? h : `${usedPrefix}${h}`
         return {
           title: `${cmdIcon} ${cmdFinal}`,
-          description: menu.desc ? `🐆 ${menu.desc.slice(0, 68)}` : '🐆 Sin descripción',
+          description: menu.desc ? menu.desc.slice(0, 68) : '',
           id: `menu_cmd~${tag}~${cmdFinal}`
         }
       })
@@ -114,7 +115,7 @@ function buildCommandSections(help, usedPrefix, tagSeleccionada) {
     trozos.forEach((rows, i) => {
       const rango = trozos.length > 1 ? ` (${i * FILAS_POR_SECCION + 1}-${i * FILAS_POR_SECCION + rows.length})` : ''
       sections.push({
-        title: `「 ${tags[tag]} 」· ${todasLasFilas.length}${rango}`,
+        title: `${tags[tag]} · ${todasLasFilas.length}${rango}`,
         rows
       })
     })
@@ -141,13 +142,13 @@ async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada }) {
 
   let media = null
   try {
-    const bannerBuffer = fs.readFileSync(menuImagePath)
+    const gifBuffer = fs.readFileSync(getRandomGifPath())
     media = await prepareWAMessageMedia(
-      { image: bannerBuffer },
+      { video: gifBuffer, gifPlayback: true },
       { upload: conn.waUploadToServer }
     )
   } catch (e) {
-    console.error('[menu] No se encontró la imagen en', menuImagePath, e)
+    console.error('[menu] No se pudo cargar el gif del menú', e)
   }
 
   const sections = tagSeleccionada
@@ -158,21 +159,18 @@ async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada }) {
 
   const bodyText = buildBodyText({ totalreg, totalcmd, uptime, user: userTag, tagSeleccionada })
 
-  const subtitleText = tagSeleccionada
-    ? tags[tagSeleccionada]
-    : `🌿 ${totalcmd} cmds • 🐒 ${totalreg} users`
+  const subtitleText = tagSeleccionada ? tags[tagSeleccionada] : `${totalcmd} cmds`
 
-  const buttonTitle = tagSeleccionada ? '🌿 VER COMANDOS' : '🌿 VER CATEGORÍAS'
+  const buttonTitle = tagSeleccionada ? 'VER COMANDOS' : 'VER CATEGORÍAS'
 
   return proto.Message.InteractiveMessage.create({
     header: {
-      title: '🌴 SAITAMA BOT 🌴',
+      title: 'SAITAMA BOT',
       subtitle: subtitleText,
       hasMediaAttachment: !!media,
-      imageMessage: media?.imageMessage
+      videoMessage: media?.videoMessage
     },
     body: { text: bodyText },
-    footer: { text: '🐆 SAITAMA BOT • v1.0 🌿' },
     nativeFlowMessage: {
       buttons: [
         {
@@ -201,11 +199,7 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
 
     if (!interactiveMessage) {
       return conn.sendMessage(m.chat, {
-        text:
-          `╭─🌴・・・・・・・╮\n` +
-          `│ 🐒 *Ups...*\n` +
-          `│ 🍃 No se encontraron comandos.\n` +
-          `╰・・・・・・・🌴─╯`
+        text: `╭─⪼ 🌿 *SAITAMA BOT*\n│ 🍃 No se encontraron comandos.\n╰───────────────⬣`
       }, { quoted: m })
     }
 
