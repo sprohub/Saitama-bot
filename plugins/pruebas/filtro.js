@@ -1,5 +1,6 @@
-ñimport axios from 'axios'
+import axios from 'axios'
 import fetch from 'node-fetch'
+import FormData from 'form-data'
 
 const API_URL = 'https://api.evogb.org/generate/filters'
 
@@ -33,17 +34,18 @@ const FILTER_ALIASES = {
 const FILTER_LIST = [...new Set(Object.values(FILTER_ALIASES))].join(', ')
 
 // ── Subida de la imagen a imgbb ──
-// imgbb espera el archivo en base64 dentro de un form-urlencoded/multipart
-// con el campo "image", y la key como parámetro de query.
+// Usamos multipart/form-data (el método que muestra la documentación
+// oficial de imgbb en su ejemplo de curl), en vez de form urlencoded.
 async function uploadBufferToImgbb(buffer) {
   const base64Image = buffer.toString('base64')
 
-  const body = new URLSearchParams()
-  body.append('image', base64Image)
+  const form = new FormData()
+  form.append('image', base64Image)
 
   const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, {
     method: 'POST',
-    body
+    body: form,
+    headers: form.getHeaders()
   })
 
   const json = await res.json()
