@@ -71,7 +71,7 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
     `╭─⪼ 🌿 *${titulo}*\n` +
     `│ 👤 @${user}\n` +
     `│ 📦 ${totalcmd} cmds · 🐒 ${totalreg} users · ⏱️ ${uptime}\n` +
-    `│ 📢 Canal: ${CANAL_URL}\n` +
+    `│  Canal: ${CANAL_URL}\n` +
     `╰───────────────⬣`
   )
 }
@@ -205,7 +205,7 @@ async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada, page
         {
           name: 'cta_url',
           buttonParamsJson: JSON.stringify({
-            display_text: '📢 Canal Oficial',
+            display_text: ' Canal Oficial',
             url: CANAL_URL,
             merchant_url: CANAL_URL
           })
