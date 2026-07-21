@@ -3,13 +3,24 @@ import fetch from 'node-fetch'
 let handler = async (m, { conn, text }) => {
   if (!text) {
     return conn.sendMessage(m.chat, {
-      text: '📥 「 SAITAMA MEDIAFIRE 」 📥\n\n💥 » Descarga archivos de MediaFire\n\n> #mediafire <link>\n> #mf <link>'
+      text: `╭─⪼ 🌿 *SAITAMA MEDIAFIRE*
+│
+│ 🍃 » Descarga archivos de MediaFire
+│
+│ 📝 » ${'#mediafire <link>'}
+│ 📝 » ${'#mf <link>'}
+│
+╰───────────────⬣`
     }, { quoted: m })
   }
 
   if (!text.includes('mediafire.com')) {
     return conn.sendMessage(m.chat, {
-      text: '📥 「 HINATA MEDIAFIRE 」 📥\n\n💫 » Solo links de MediaFire'
+      text: `╭─⪼ 🌿 *SAITAMA MEDIAFIRE*
+│
+│ 🍃 » Solo se aceptan links de MediaFire
+│
+╰───────────────⬣`
     }, { quoted: m })
   }
 
@@ -26,12 +37,16 @@ let handler = async (m, { conn, text }) => {
 
     let { filename, size, uploaded, extension, link } = json.data
 
-    let texto = '⭐  SAITAMA MEDIAFIRE  ⭐\n\n'
-    texto += '📁 » *' + filename + '*\n'
-    texto += '📦 » Tamaño: ' + size + '\n'
-    texto += '📅 » Subido: ' + uploaded + '\n'
-    texto += '📄 » Formato: .' + extension + '\n\n'
-    texto += '> Enviando archivo...'
+    let texto = `╭─⪼ 🌿 *SAITAMA MEDIAFIRE*
+│
+│ 📁 » ${filename}
+│ 📦 » Tamaño: ${size}
+│ 📅 » Subido: ${uploaded}
+│ 📄 » Formato: .${extension}
+│
+│ 🍃 » Enviando archivo...
+│
+╰───────────────⬣`
 
     await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
 
@@ -53,7 +68,14 @@ let handler = async (m, { conn, text }) => {
   } catch (e) {
     console.log(e)
     await m.react('❌')
-    conn.sendMessage(m.chat, { text: '❌ Error al descargar' }, { quoted: m })
+    conn.sendMessage(m.chat, {
+      text: `╭─⪼ 🌿 *SAITAMA MEDIAFIRE*
+│
+│ ❌ » Error al descargar
+│ 🔁 » Verifica el link e intenta de nuevo
+│
+╰───────────────⬣`
+    }, { quoted: m })
   }
 }
 
