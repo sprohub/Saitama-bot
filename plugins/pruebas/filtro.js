@@ -1,14 +1,13 @@
-import axios from 'axios'
+ñimport axios from 'axios'
 import fetch from 'node-fetch'
-import FormData from 'form-data'
 
 const API_URL = 'https://api.evogb.org/generate/filters'
 
-// 🔑 Mejor práctica: mover esto a una variable de entorno
-// (process.env.EVOGB_KEY) en vez de dejarla hardcodeada.
+// 🔑 Mejor práctica: mover esto a variables de entorno
+// (process.env.EVOGB_KEY / process.env.IMGBB_KEY) en vez de dejarlas
+// hardcodeadas.
 const API_KEY = 'evogb-8ZSpGAql'
-
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+const IMGBB_KEY = '8b13527e17adb66cca92698afa5cedd3'
 
 // ── Alias en español → valor real que espera la API (filterType) ──
 const FILTER_ALIASES = {
@@ -33,28 +32,27 @@ const FILTER_ALIASES = {
 
 const FILTER_LIST = [...new Set(Object.values(FILTER_ALIASES))].join(', ')
 
-// ── Subida de la imagen a un host público ──
-// El código de referencia usa imgbb (uploadBufferToImgbb). Como no
-// tenemos una API key de imgbb, usamos catbox.moe con la misma firma
-// de función para que el resto del código quede idéntico al original.
-// Si consigues una key de imgbb, solo hay que reemplazar el cuerpo de
-// esta función por la llamada a https://api.imgbb.com/1/upload.
+// ── Subida de la imagen a imgbb ──
+// imgbb espera el archivo en base64 dentro de un form-urlencoded/multipart
+// con el campo "image", y la key como parámetro de query.
 async function uploadBufferToImgbb(buffer) {
-  const form = new FormData()
-  form.append('reqtype', 'fileupload')
-  form.append('fileToUpload', buffer, { filename: 'image.jpg' })
+  const base64Image = buffer.toString('base64')
 
-  const res = await fetch('https://catbox.moe/user/api.php', {
+  const body = new URLSearchParams()
+  body.append('image', base64Image)
+
+  const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, {
     method: 'POST',
-    body: form,
-    headers: { ...form.getHeaders(), 'User-Agent': UA }
+    body
   })
 
-  const resultText = (await res.text()).trim()
-  if (!res.ok || !resultText.startsWith('http')) {
-    throw new Error('Fallo al subir la imagen: ' + resultText.slice(0, 150))
+  const json = await res.json()
+
+  if (!res.ok || !json?.success || !json?.data?.url) {
+    throw new Error('Fallo al subir la imagen a imgbb: ' + JSON.stringify(json).slice(0, 200))
   }
-  return resultText
+
+  return json.data.url
 }
 
 // ── Llamada a la API (method: url, filterType + parámetros numéricos) ──
