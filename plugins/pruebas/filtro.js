@@ -7,6 +7,55 @@ const API_URL = 'https://api.evogb.org/generate/filters'
 // entorno (process.env.EVOGB_APIKEY) en vez de dejarla hardcodeada aquí.
 const EVOGB_APIKEY = 'evogb-8ZSpGAql'
 
+// Como no tenemos la doc exacta, probamos varios nombres de parámetro/campo
+// comunes (español e inglés) hasta que la API deje de quejarse.
+const URL_PARAM_NAMES = ['url', 'link', 'imagen', 'imageUrl', 'image']
+const FILE_FIELD_NAMES = ['archivo', 'file', 'imagen', 'image', 'photo']
+
+function isImageResponse(res) {
+  const ct = res.headers.get('content-type') || ''
+  return res.ok && !ct.includes('application/json') && !ct.includes('text/html')
+}
+
+async function tryByUrl(imageUrl) {
+  const errors = []
+  for (const param of URL_PARAM_NAMES) {
+    const apiUrl = `${API_URL}?${param}=${encodeURIComponent(imageUrl)}&apikey=${EVOGB_APIKEY}`
+    const res = await fetch(apiUrl)
+    if (isImageResponse(res)) {
+      console.log('[FILTERS] Parámetro de URL correcto:', param)
+      return res
+    }
+    const rawText = await res.text()
+    console.error(`[FILTERS TRY url-param="${param}"]`, res.status, rawText.slice(0, 200))
+    errors.push(`${param}: ${rawText.slice(0, 100)}`)
+  }
+  throw new Error('Ningún nombre de parámetro de URL funcionó:\n' + errors.join('\n'))
+}
+
+async function tryByFile(buffer) {
+  const errors = []
+  for (const field of FILE_FIELD_NAMES) {
+    const form = new FormData()
+    form.append(field, buffer, { filename: 'image.jpg' })
+    form.append('apikey', EVOGB_APIKEY)
+
+    const res = await fetch(`${API_URL}?apikey=${EVOGB_APIKEY}`, {
+      method: 'POST',
+      body: form,
+      headers: form.getHeaders()
+    })
+    if (isImageResponse(res)) {
+      console.log('[FILTERS] Campo de archivo correcto:', field)
+      return res
+    }
+    const rawText = await res.text()
+    console.error(`[FILTERS TRY file-field="${field}"]`, res.status, rawText.slice(0, 200))
+    errors.push(`${field}: ${rawText.slice(0, 100)}`)
+  }
+  throw new Error('Ningún nombre de campo de archivo funcionó:\n' + errors.join('\n'))
+}
+
 let handler = async (m, { conn, text, usedPrefix, command }) => {
   const quoted = m.quoted ? m.quoted : m
   const mime = (quoted.msg || quoted).mimetype || ''
@@ -34,38 +83,11 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     let res
 
     if (hasUrl) {
-      // Modo 1: URL directa por query string
-      const apiUrl = `${API_URL}?url=${encodeURIComponent(raw)}&apikey=${EVOGB_APIKEY}`
-      res = await fetch(apiUrl)
+      res = await tryByUrl(raw)
     } else {
-      // Modo 2: subir el archivo directo con multipart/form-data.
-      // Mando la apikey tanto en el query string como en el form,
-      // por si la API la espera en uno u otro lugar.
       const buffer = await quoted.download()
-      const form = new FormData()
-      form.append('file', buffer, { filename: 'image.jpg' })
-      form.append('apikey', EVOGB_APIKEY)
-
-      res = await fetch(`${API_URL}?apikey=${EVOGB_APIKEY}`, {
-        method: 'POST',
-        body: form,
-        headers: form.getHeaders()
-      })
+      res = await tryByFile(buffer)
     }
-
-    const contentType = res.headers.get('content-type') || ''
-
-    // Si la API responde con JSON en vez de imagen, es que hubo un error
-    // (falta de parámetro, key inválida, etc.)
-    if (contentType.includes('application/json') || contentType.includes('text/html')) {
-      const rawText = await res.text()
-      console.error('[FILTERS RAW RESPONSE]', res.status, rawText.slice(0, 500))
-      let message = rawText
-      try { message = JSON.parse(rawText).message || rawText } catch {}
-      throw new Error(message.slice(0, 200))
-    }
-
-    if (!res.ok) throw new Error(`código ${res.status}`)
 
     const resultBuffer = await res.buffer()
     if (!resultBuffer.length) throw new Error('respuesta vacía')
