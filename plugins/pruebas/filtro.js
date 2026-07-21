@@ -1,43 +1,45 @@
+import axios from 'axios'
 import fetch from 'node-fetch'
 import FormData from 'form-data'
 
 const API_URL = 'https://api.evogb.org/generate/filters'
 
-// 🔑 Tu API key de Evogb. Mejor práctica: muévela a una variable de
-// entorno (process.env.EVOGB_APIKEY) en vez de dejarla hardcodeada aquí.
-const EVOGB_APIKEY = 'evogb-8ZSpGAql'
+// 🔑 Mejor práctica: mover esto a una variable de entorno
+// (process.env.EVOGB_KEY) en vez de dejarla hardcodeada.
+const API_KEY = 'evogb-8ZSpGAql'
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 
-// Como no tenemos la doc exacta, probamos varios nombres de parámetro
-// comunes (español e inglés) hasta que la API deje de quejarse.
-const URL_PARAM_NAMES = ['url', 'link', 'imagen', 'imageUrl', 'image']
-
-function isImageResponse(res) {
-  const ct = res.headers.get('content-type') || ''
-  return res.ok && !ct.includes('application/json') && !ct.includes('text/html')
+// ── Alias en español → valor real que espera la API (filterType) ──
+const FILTER_ALIASES = {
+  blur: 'blur',
+  desenfoque: 'blur',
+  pixel: 'pixelate',
+  pixelado: 'pixelate',
+  wave: 'wave',
+  ondas: 'wave',
+  glitch: 'glitch',
+  sticker: 'sticker',
+  gay: 'gay',
+  arcoiris: 'gay',
+  gris: 'greyscale',
+  grises: 'greyscale',
+  grayscale: 'greyscale',
+  greyscale: 'greyscale',
+  invertir: 'invert',
+  invert: 'invert',
+  sepia: 'sepia'
 }
 
-async function tryByUrl(imageUrl) {
-  const errors = []
-  for (const param of URL_PARAM_NAMES) {
-    const apiUrl = `${API_URL}?${param}=${encodeURIComponent(imageUrl)}&apikey=${EVOGB_APIKEY}`
-    const res = await fetch(apiUrl)
-    if (isImageResponse(res)) {
-      console.log('[FILTERS] Parámetro de URL correcto:', param)
-      return res
-    }
-    const rawText = await res.text()
-    console.error(`[FILTERS TRY url-param="${param}"]`, res.status, rawText.slice(0, 200))
-    errors.push(`${param}: ${rawText.slice(0, 100)}`)
-  }
-  throw new Error('Ningún nombre de parámetro de URL funcionó:\n' + errors.join('\n'))
-}
+const FILTER_LIST = [...new Set(Object.values(FILTER_ALIASES))].join(', ')
 
-// Subimos la imagen citada a catbox.moe (ya probado y funcional en el
-// plugin trash.js) para conseguir un link público, y así evitamos el
-// upload directo a Evogb que está dando problemas.
-async function uploadToCatbox(buffer) {
+// ── Subida de la imagen a un host público ──
+// El código de referencia usa imgbb (uploadBufferToImgbb). Como no
+// tenemos una API key de imgbb, usamos catbox.moe con la misma firma
+// de función para que el resto del código quede idéntico al original.
+// Si consigues una key de imgbb, solo hay que reemplazar el cuerpo de
+// esta función por la llamada a https://api.imgbb.com/1/upload.
+async function uploadBufferToImgbb(buffer) {
   const form = new FormData()
   form.append('reqtype', 'fileupload')
   form.append('fileToUpload', buffer, { filename: 'image.jpg' })
@@ -50,9 +52,60 @@ async function uploadToCatbox(buffer) {
 
   const resultText = (await res.text()).trim()
   if (!res.ok || !resultText.startsWith('http')) {
-    throw new Error('catbox.moe: ' + resultText.slice(0, 150))
+    throw new Error('Fallo al subir la imagen: ' + resultText.slice(0, 150))
   }
   return resultText
+}
+
+// ── Llamada a la API (method: url, filterType + parámetros numéricos) ──
+// Idéntica a la del código de referencia.
+async function generateFilteredImage({ imageUrl, filterType, level }) {
+  const response = await axios.get(API_URL, {
+    params: {
+      method: 'url',
+      url: imageUrl,
+      filterType,
+      level,
+      pixelSize: level,
+      amplitude: level,
+      frequency: level,
+      intensity: level,
+      borderSize: level,
+      key: API_KEY
+    },
+    timeout: 60000,
+    responseType: 'arraybuffer',
+    validateStatus: () => true
+  })
+
+  const contentType = (response.headers['content-type'] || '').toLowerCase()
+
+  if (response.status >= 400) {
+    let errMsg = `HTTP ${response.status}`
+    try {
+      const parsed = JSON.parse(Buffer.from(response.data).toString('utf8'))
+      errMsg = parsed?.message || parsed?.error || parsed?.detail || errMsg
+    } catch {}
+    throw new Error(errMsg)
+  }
+
+  // Caso 1: la API devuelve la imagen binaria directa
+  if (contentType.includes('image/') || contentType.includes('octet-stream')) {
+    return Buffer.from(response.data)
+  }
+
+  // Caso 2: la API devuelve JSON con una URL a la imagen generada
+  if (contentType.includes('application/json')) {
+    const parsed = JSON.parse(Buffer.from(response.data).toString('utf8'))
+    const resultUrl = parsed?.url || parsed?.data?.url || parsed?.result
+    if (!resultUrl) throw new Error('La API respondió JSON sin URL de imagen (formato inesperado).')
+
+    const imgRes = await axios.get(resultUrl, { responseType: 'arraybuffer', timeout: 60000 })
+    return Buffer.from(imgRes.data)
+  }
+
+  // Tipo de respuesta desconocido: devolvemos igual el buffer crudo por si acaso
+  return Buffer.from(response.data)
 }
 
 let handler = async (m, { conn, text, usedPrefix, command }) => {
@@ -60,42 +113,45 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   const mime = (quoted.msg || quoted).mimetype || ''
   const isImage = /image/.test(mime)
 
-  const raw = text?.trim()
-  const hasUrl = raw && /^https?:\/\//i.test(raw)
+  const args = text?.trim().split(/\s+/).filter(Boolean) || []
+  const filterArg = (args[0] || '').toLowerCase()
+  const filterType = FILTER_ALIASES[filterArg]
 
-  if (!hasUrl && !isImage) {
+  if (!filterType || !isImage) {
     return conn.sendMessage(m.chat, {
       text: `╭─⪼ 🌿 *SAITAMA FILTERS*
 │
 │ 🍃 » Aplica un filtro a una imagen
 │
-│ 📝 » Cita una imagen y envía el comando
-│ 📝 » O usa: ${usedPrefix}${command} <link de imagen>
+│ 📝 » Cita una imagen y escribe:
+│ ${usedPrefix}${command} <filtro> [nivel]
+│
+│ 📝 » Ejemplo:
+│ ${usedPrefix}${command} sepia
+│ ${usedPrefix}${command} pixel 20
+│
+│ 🎨 » Filtros disponibles:
+│ ${FILTER_LIST}
 │
 ╰───────────────⬣`
     }, { quoted: m })
   }
 
-  await m.react('⏳')
+  const levelArg = args[1]
+  const level = /^\d+$/.test(levelArg) ? parseInt(levelArg, 10) : 10
+
+  await m.react('🎨')
 
   try {
-    let imageUrl = raw
-
-    if (!hasUrl) {
-      const buffer = await quoted.download()
-      imageUrl = await uploadToCatbox(buffer)
-    }
-
-    const res = await tryByUrl(imageUrl)
-
-    const resultBuffer = await res.buffer()
-    if (!resultBuffer.length) throw new Error('respuesta vacía')
+    const buffer = await quoted.download()
+    const imageUrl = await uploadBufferToImgbb(buffer)
+    const resultBuffer = await generateFilteredImage({ imageUrl, filterType, level })
 
     await conn.sendMessage(m.chat, {
       image: resultBuffer,
       caption: `╭─⪼ 🌿 *SAITAMA FILTERS*
 │
-│ ✅ » Filtro aplicado
+│ ✅ » Filtro "${filterType}" aplicado
 │
 ╰───────────────⬣`
     }, { quoted: m })
@@ -103,7 +159,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     await m.react('✅')
 
   } catch (e) {
-    console.error('[FILTERS ERROR]', e.message)
+    console.error('[FILTERS ERROR]', filterType, e.message)
     await m.react('❌')
     await conn.sendMessage(m.chat, {
       text: `╭─⪼ 🌿 *SAITAMA FILTERS*
@@ -116,9 +172,9 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   }
 }
 
-handler.help = ['filters', 'filters <url>']
+handler.help = ['filters <filtro> [nivel]']
 handler.tags = ['tools']
-handler.command = /^(filters|filtro)$/i
-handler.desc = 'Aplica un filtro a una imagen (citada o por link)'
+handler.command = /^(filters|filtro|imgfilter)$/i
+handler.desc = 'Aplica un filtro a una imagen citada (blur, pixel, wave, glitch, sticker, gay, grises, invertir, sepia)'
 
 export default handler
