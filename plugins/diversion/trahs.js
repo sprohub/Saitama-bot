@@ -1,6 +1,30 @@
 import fetch from 'node-fetch'
+import FormData from 'form-data'
 
 const API_URL = 'https://api.delirius.store/canvas/trash'
+
+// Sube un buffer a catbox.moe y devuelve la URL pública directa.
+// catbox.moe requiere multipart/form-data real (no un buffer crudo),
+// por eso usamos el paquete 'form-data'.
+async function uploadToCatbox(buffer) {
+  const form = new FormData()
+  form.append('reqtype', 'fileupload')
+  form.append('fileToUpload', buffer, { filename: 'image.jpg' })
+
+  const res = await fetch('https://catbox.moe/user/api.php', {
+    method: 'POST',
+    body: form,
+    headers: form.getHeaders()
+  })
+
+  const resultText = (await res.text()).trim()
+
+  if (!res.ok || !resultText.startsWith('http')) {
+    throw new Error('catbox.moe no devolvió una URL válida: ' + resultText.slice(0, 200))
+  }
+
+  return resultText
+}
 
 let handler = async (m, { conn, text }) => {
   const quoted = m.quoted ? m.quoted : m
@@ -31,27 +55,32 @@ let handler = async (m, { conn, text }) => {
 
   try {
     // Si no vino URL directa, descargamos la imagen citada y la subimos
-    // a un host temporal para poder pasarle una URL a la API.
+    // a catbox.moe para obtener una URL pública que la API pueda leer.
     if (!imageUrl) {
-      const buffer = await quoted.download()
-      const uploadRes = await fetch('https://telegra.ph/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: buffer
-      })
-      const uploadJson = await uploadRes.json()
-      if (!Array.isArray(uploadJson) || !uploadJson[0]?.src) {
-        throw new Error('No se pudo subir la imagen para procesarla')
+      let buffer
+      try {
+        buffer = await quoted.download()
+      } catch (e) {
+        throw new Error('No se pudo descargar la imagen citada: ' + e.message)
       }
-      imageUrl = 'https://telegra.ph' + uploadJson[0].src
+
+      try {
+        imageUrl = await uploadToCatbox(buffer)
+      } catch (e) {
+        throw new Error('Fallo al subir la imagen: ' + e.message)
+      }
     }
 
-    const apiUrl = `${API_URL}?url=${encodeURIComponent(imageUrl)}`
-    const res = await fetch(apiUrl)
-    if (!res.ok) throw new Error(`La API respondió ${res.status}`)
-
-    const resultBuffer = await res.buffer()
-    if (!resultBuffer.length) throw new Error('La API devolvió una imagen vacía')
+    let resultBuffer
+    try {
+      const apiUrl = `${API_URL}?url=${encodeURIComponent(imageUrl)}`
+      const res = await fetch(apiUrl)
+      if (!res.ok) throw new Error(`código ${res.status}`)
+      resultBuffer = await res.buffer()
+      if (!resultBuffer.length) throw new Error('respuesta vacía')
+    } catch (e) {
+      throw new Error('Fallo al llamar la API trash: ' + e.message)
+    }
 
     await conn.sendMessage(m.chat, {
       image: resultBuffer,
@@ -65,7 +94,8 @@ let handler = async (m, { conn, text }) => {
     await m.react('✅')
 
   } catch (e) {
-    console.log(e)
+    // Log detallado en consola para depurar sin exponer el error crudo al usuario
+    console.error('[TRASH ERROR]', e.message)
     await m.react('❌')
     await conn.sendMessage(m.chat, {
       text: `╭─⪼ 🌿 *SAITAMA TRASH*
