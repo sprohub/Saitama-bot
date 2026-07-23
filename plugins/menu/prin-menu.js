@@ -35,14 +35,13 @@ const tags = {
 }
 
 const cmdIcon = '🍃'
-// ⚠️ WhatsApp limita a 10 FILAS TOTALES por mensaje interactivo (no 10 por
-// sección). Por eso, cuando hay más de 10, se manda MÁS DE UN MENSAJE
-// seguido (uno por página) en vez de un botón "ver más" — así lo ves
-// todo sin tocar nada extra.
-const PAGE_SIZE = 10
+const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
+const MAX_COMANDOS_POR_CATEGORIA = 200 // tope de seguridad por categoría
 
-// Divide un array en páginas de máximo `tamano` elementos
-function paginar(arr, tamano) {
+const CANAL_URL = 'https://whatsapp.com/channel/0029VbDIRNeEQIalr0dmwQ05'
+
+// Divide un array en trozos de máximo `tamano` elementos
+function dividirEnTrozos(arr, tamano) {
   const resultado = []
   for (let i = 0; i < arr.length; i += tamano) {
     resultado.push(arr.slice(i, i + tamano))
@@ -61,8 +60,6 @@ function getHelp() {
     }))
 }
 
-const CANAL_URL = 'https://whatsapp.com/channel/0029VbDIRNeEQIalr0dmwQ05'
-
 function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
   let titulo = tagSeleccionada
     ? tags[tagSeleccionada].split(' ').slice(1).join(' ')
@@ -77,8 +74,8 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
   )
 }
 
-// 📂 Nivel 1: todas las filas de categorías, ya divididas en páginas de 10
-function paginasDeCategorias(help) {
+// 📂 Nivel 1: lista de categorías (dividida en secciones de 10 si hace falta)
+function buildCategorySections(help) {
   const todasLasFilas = Object.keys(tags)
     .filter(tag => help.some(menu => menu.tags?.includes(tag)))
     .map(tag => {
@@ -90,15 +87,19 @@ function paginasDeCategorias(help) {
       }
     })
 
-  return paginar(todasLasFilas, PAGE_SIZE)
+  const trozos = dividirEnTrozos(todasLasFilas, FILAS_POR_SECCION)
+  return trozos.map((rows, i) => ({
+    title: trozos.length > 1 ? `CATEGORÍAS · ${i + 1}/${trozos.length}` : 'CATEGORÍAS',
+    rows
+  }))
 }
 
-// 📜 Nivel 2: todas las filas de comandos de una categoría, en páginas de 10
-function paginasDeComandos(help, usedPrefix, tagSeleccionada) {
+// 📜 Nivel 2: comandos de una categoría específica (dividida en secciones de 10)
+function buildCommandSections(help, usedPrefix, tagSeleccionada) {
   const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tagSeleccionada))
   if (!cmdsFiltrados.length) return []
 
-  const todasLasFilas = cmdsFiltrados.flatMap(menu =>
+  const todasLasFilasCompletas = cmdsFiltrados.flatMap(menu =>
     menu.help.map(h => {
       const cmdFinal = menu.prefix ? h : `${usedPrefix}${h}`
       return {
@@ -109,17 +110,28 @@ function paginasDeComandos(help, usedPrefix, tagSeleccionada) {
     })
   )
 
-  return paginar(todasLasFilas, PAGE_SIZE)
+  if (todasLasFilasCompletas.length > MAX_COMANDOS_POR_CATEGORIA) {
+    console.warn(`[menu] La categoría "${tagSeleccionada}" tiene ${todasLasFilasCompletas.length} comandos, se muestran solo los primeros ${MAX_COMANDOS_POR_CATEGORIA}.`)
+  }
+  const todasLasFilas = todasLasFilasCompletas.slice(0, MAX_COMANDOS_POR_CATEGORIA)
+
+  const trozos = dividirEnTrozos(todasLasFilas, FILAS_POR_SECCION)
+  return trozos.map((rows, i) => ({
+    title: trozos.length > 1 ? `${tags[tagSeleccionada]} · ${i + 1}/${trozos.length}` : tags[tagSeleccionada],
+    rows
+  }))
 }
 
-// 🧱 Construye UN mensaje interactivo a partir de una página de filas ya lista
-async function construirMensajeDePagina(m, conn, { usedPrefix, tagSeleccionada, rows, paginaActual, totalPaginas }) {
+// 🧱 Construye el mensaje interactivo completo (un solo botón single_select, sin cta_url)
+async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada }) {
   let who = m.sender
   let user = global.db.data.users[who]
   if (!user) {
     user = { exp: 0, level: 0 }
     global.db.data.users[who] = user
   }
+
+  const help = getHelp()
 
   const totalreg = Object.keys(global.db.data.users).length
   const totalcmd = Object.keys(global.plugins).length
@@ -137,13 +149,15 @@ async function construirMensajeDePagina(m, conn, { usedPrefix, tagSeleccionada, 
     console.error('[menu] No se pudo cargar el gif del menú', e)
   }
 
+  const sections = tagSeleccionada
+    ? buildCommandSections(help, usedPrefix, tagSeleccionada)
+    : buildCategorySections(help)
+
+  if (!sections.length || sections.every(s => !s.rows.length)) return null
+
   const bodyText = buildBodyText({ totalreg, totalcmd, uptime, user: userTag, tagSeleccionada })
-  const subtitleBase = tagSeleccionada ? tags[tagSeleccionada] : `${totalcmd} cmds`
-  const subtitleText = totalPaginas > 1 ? `${subtitleBase} · pág. ${paginaActual + 1}/${totalPaginas}` : subtitleBase
+  const subtitleText = tagSeleccionada ? tags[tagSeleccionada] : `${totalcmd} cmds`
   const buttonTitle = tagSeleccionada ? 'VER COMANDOS' : 'VER CATEGORÍAS'
-  const seccionTitulo = tagSeleccionada
-    ? (totalPaginas > 1 ? `${tags[tagSeleccionada]} · ${paginaActual + 1}/${totalPaginas}` : tags[tagSeleccionada])
-    : (totalPaginas > 1 ? `CATEGORÍAS · ${paginaActual + 1}/${totalPaginas}` : 'CATEGORÍAS')
 
   return proto.Message.InteractiveMessage.create({
     header: {
@@ -152,56 +166,16 @@ async function construirMensajeDePagina(m, conn, { usedPrefix, tagSeleccionada, 
       hasMediaAttachment: !!media,
       videoMessage: media?.videoMessage
     },
-    body: { text: paginaActual === 0 ? bodyText : `╭─⪼ 🌿 *continuación*\n╰───────────────⬣` },
+    body: { text: bodyText },
     nativeFlowMessage: {
       buttons: [
         {
           name: 'single_select',
-          buttonParamsJson: JSON.stringify({ title: buttonTitle, sections: [{ title: seccionTitulo, rows }] })
-        },
-        ...(paginaActual === 0 ? [{
-          name: 'cta_url',
-          buttonParamsJson: JSON.stringify({
-            display_text: ' Canal Oficial',
-            url: CANAL_URL,
-            merchant_url: CANAL_URL
-          })
-        }] : [])
+          buttonParamsJson: JSON.stringify({ title: buttonTitle, sections })
+        }
       ]
     }
   })
-}
-
-// 📬 Manda TODAS las páginas seguidas (una detrás de otra), sin botón "más"
-async function enviarMenuCompleto(m, conn, { usedPrefix, tagSeleccionada }) {
-  const help = getHelp()
-  const paginas = tagSeleccionada
-    ? paginasDeComandos(help, usedPrefix, tagSeleccionada)
-    : paginasDeCategorias(help)
-
-  if (!paginas.length) return false
-
-  for (let i = 0; i < paginas.length; i++) {
-    const interactiveMessage = await construirMensajeDePagina(m, conn, {
-      usedPrefix,
-      tagSeleccionada,
-      rows: paginas[i],
-      paginaActual: i,
-      totalPaginas: paginas.length
-    })
-
-    const msg = generateWAMessageFromContent(
-      m.chat,
-      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
-      { quoted: m }
-    )
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
-
-    // pequeña pausa entre mensajes para no saturar ni que lleguen desordenados
-    if (i < paginas.length - 1) await new Promise(res => setTimeout(res, 600))
-  }
-
-  return true
 }
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
@@ -217,13 +191,21 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }
     }
 
-    const enviado = await enviarMenuCompleto(m, conn, { usedPrefix: _p, tagSeleccionada })
+    const interactiveMessage = await buildMenuInteractive(m, conn, { usedPrefix: _p, tagSeleccionada })
 
-    if (!enviado) {
+    if (!interactiveMessage) {
       return conn.sendMessage(m.chat, {
         text: `╭─⪼ 🌿 *SAITAMA BOT*\n│ 🍃 No se encontraron comandos.\n╰───────────────⬣`
       }, { quoted: m })
     }
+
+    const msg = generateWAMessageFromContent(
+      m.chat,
+      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
+      { quoted: m }
+    )
+
+    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
 
   } catch (e) {
     console.log(e)
@@ -290,19 +272,27 @@ handler.before = async (m, { conn }) => {
   const id = extractSelectedId(content)
   if (!id) return false
 
-  // 📂 Tocaron una categoría → mandar TODAS las páginas de sus comandos
+  // 📂 Tocaron una categoría → mostrar submenú con sus comandos
   if (id.startsWith('menu_cat~')) {
     const tag = id.split('~')[1]
     if (!tag || !tags[tag]) return false
 
     const usedPrefix = (global.prefix instanceof RegExp ? '.' : global.prefix) || '.'
-    const enviado = await enviarMenuCompleto(m, conn, { usedPrefix, tagSeleccionada: tag })
+    const interactiveMessage = await buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada: tag })
 
-    if (!enviado) {
+    if (!interactiveMessage) {
       await conn.sendMessage(m.chat, {
         text: `╭─⪼ 🌿 *SAITAMA BOT*\n│ 🍃 Esa categoría no tiene comandos.\n╰───────────────⬣`
       }, { quoted: m })
+      return true
     }
+
+    const msg = generateWAMessageFromContent(
+      m.chat,
+      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
+      { quoted: m }
+    )
+    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
     return true
   }
 
