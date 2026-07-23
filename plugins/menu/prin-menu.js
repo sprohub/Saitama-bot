@@ -36,9 +36,10 @@ const tags = {
 
 const cmdIcon = '🍃'
 // ⚠️ WhatsApp limita a 10 FILAS TOTALES por mensaje interactivo (no 10 por
-// sección). Por eso paginamos: 9 comandos/categorías reales + 1 fila de
-// "más" cuando hace falta, en vez de repartir en varias secciones de 10.
-const PAGE_SIZE = 9
+// sección). Por eso, cuando hay más de 10, se manda MÁS DE UN MENSAJE
+// seguido (uno por página) en vez de un botón "ver más" — así lo ves
+// todo sin tocar nada extra.
+const PAGE_SIZE = 10
 
 // Divide un array en páginas de máximo `tamano` elementos
 function paginar(arr, tamano) {
@@ -76,8 +77,8 @@ function buildBodyText({ totalreg, totalcmd, uptime, user, tagSeleccionada }) {
   )
 }
 
-// 📂 Nivel 1: lista de categorías, paginada (máx. 10 filas totales por mensaje)
-function buildCategorySections(help, page = 0) {
+// 📂 Nivel 1: todas las filas de categorías, ya divididas en páginas de 10
+function paginasDeCategorias(help) {
   const todasLasFilas = Object.keys(tags)
     .filter(tag => help.some(menu => menu.tags?.includes(tag)))
     .map(tag => {
@@ -89,30 +90,11 @@ function buildCategorySections(help, page = 0) {
       }
     })
 
-  if (todasLasFilas.length <= 10) {
-    return [{ title: 'CATEGORÍAS', rows: todasLasFilas }]
-  }
-
-  const paginas = paginar(todasLasFilas, PAGE_SIZE)
-  const rows = [...paginas[page]]
-  const hayMas = page + 1 < paginas.length
-
-  if (hayMas) {
-    rows.push({
-      title: '▶️ Más categorías',
-      description: `Página ${page + 2} de ${paginas.length}`,
-      id: `menu_catpage~${page + 1}`
-    })
-  }
-
-  return [{
-    title: `CATEGORÍAS · ${page + 1}/${paginas.length}`,
-    rows
-  }]
+  return paginar(todasLasFilas, PAGE_SIZE)
 }
 
-// 📜 Nivel 2: comandos de una categoría específica, paginados
-function buildCommandSections(help, usedPrefix, tagSeleccionada, page = 0) {
+// 📜 Nivel 2: todas las filas de comandos de una categoría, en páginas de 10
+function paginasDeComandos(help, usedPrefix, tagSeleccionada) {
   const cmdsFiltrados = help.filter(menu => menu.tags?.includes(tagSeleccionada))
   if (!cmdsFiltrados.length) return []
 
@@ -127,38 +109,17 @@ function buildCommandSections(help, usedPrefix, tagSeleccionada, page = 0) {
     })
   )
 
-  if (todasLasFilas.length <= 10) {
-    return [{ title: tags[tagSeleccionada], rows: todasLasFilas }]
-  }
-
-  const paginas = paginar(todasLasFilas, PAGE_SIZE)
-  const rows = [...paginas[page]]
-  const hayMas = page + 1 < paginas.length
-
-  if (hayMas) {
-    rows.push({
-      title: '▶️ Más comandos',
-      description: `Página ${page + 2} de ${paginas.length}`,
-      id: `menu_page~${tagSeleccionada}~${page + 1}`
-    })
-  }
-
-  return [{
-    title: `${tags[tagSeleccionada]} · ${page + 1}/${paginas.length}`,
-    rows
-  }]
+  return paginar(todasLasFilas, PAGE_SIZE)
 }
 
-// 🧱 Construye el mensaje interactivo completo (usado tanto por el handler principal como por los botones de categoría/paginación)
-async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada, page = 0 }) {
+// 🧱 Construye UN mensaje interactivo a partir de una página de filas ya lista
+async function construirMensajeDePagina(m, conn, { usedPrefix, tagSeleccionada, rows, paginaActual, totalPaginas }) {
   let who = m.sender
   let user = global.db.data.users[who]
   if (!user) {
     user = { exp: 0, level: 0 }
     global.db.data.users[who] = user
   }
-
-  const help = getHelp()
 
   const totalreg = Object.keys(global.db.data.users).length
   const totalcmd = Object.keys(global.plugins).length
@@ -176,17 +137,13 @@ async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada, page
     console.error('[menu] No se pudo cargar el gif del menú', e)
   }
 
-  const sections = tagSeleccionada
-    ? buildCommandSections(help, usedPrefix, tagSeleccionada, page)
-    : buildCategorySections(help, page)
-
-  if (!sections.length || sections.every(s => !s.rows.length)) return null
-
   const bodyText = buildBodyText({ totalreg, totalcmd, uptime, user: userTag, tagSeleccionada })
-
-  const subtitleText = tagSeleccionada ? tags[tagSeleccionada] : `${totalcmd} cmds`
-
+  const subtitleBase = tagSeleccionada ? tags[tagSeleccionada] : `${totalcmd} cmds`
+  const subtitleText = totalPaginas > 1 ? `${subtitleBase} · pág. ${paginaActual + 1}/${totalPaginas}` : subtitleBase
   const buttonTitle = tagSeleccionada ? 'VER COMANDOS' : 'VER CATEGORÍAS'
+  const seccionTitulo = tagSeleccionada
+    ? (totalPaginas > 1 ? `${tags[tagSeleccionada]} · ${paginaActual + 1}/${totalPaginas}` : tags[tagSeleccionada])
+    : (totalPaginas > 1 ? `CATEGORÍAS · ${paginaActual + 1}/${totalPaginas}` : 'CATEGORÍAS')
 
   return proto.Message.InteractiveMessage.create({
     header: {
@@ -195,24 +152,56 @@ async function buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada, page
       hasMediaAttachment: !!media,
       videoMessage: media?.videoMessage
     },
-    body: { text: bodyText },
+    body: { text: paginaActual === 0 ? bodyText : `╭─⪼ 🌿 *continuación*\n╰───────────────⬣` },
     nativeFlowMessage: {
       buttons: [
         {
           name: 'single_select',
-          buttonParamsJson: JSON.stringify({ title: buttonTitle, sections })
+          buttonParamsJson: JSON.stringify({ title: buttonTitle, sections: [{ title: seccionTitulo, rows }] })
         },
-        {
+        ...(paginaActual === 0 ? [{
           name: 'cta_url',
           buttonParamsJson: JSON.stringify({
             display_text: ' Canal Oficial',
             url: CANAL_URL,
             merchant_url: CANAL_URL
           })
-        }
+        }] : [])
       ]
     }
   })
+}
+
+// 📬 Manda TODAS las páginas seguidas (una detrás de otra), sin botón "más"
+async function enviarMenuCompleto(m, conn, { usedPrefix, tagSeleccionada }) {
+  const help = getHelp()
+  const paginas = tagSeleccionada
+    ? paginasDeComandos(help, usedPrefix, tagSeleccionada)
+    : paginasDeCategorias(help)
+
+  if (!paginas.length) return false
+
+  for (let i = 0; i < paginas.length; i++) {
+    const interactiveMessage = await construirMensajeDePagina(m, conn, {
+      usedPrefix,
+      tagSeleccionada,
+      rows: paginas[i],
+      paginaActual: i,
+      totalPaginas: paginas.length
+    })
+
+    const msg = generateWAMessageFromContent(
+      m.chat,
+      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
+      { quoted: m }
+    )
+    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+
+    // pequeña pausa entre mensajes para no saturar ni que lleguen desordenados
+    if (i < paginas.length - 1) await new Promise(res => setTimeout(res, 600))
+  }
+
+  return true
 }
 
 let handler = async (m, { conn, usedPrefix: _p, command }) => {
@@ -228,21 +217,13 @@ let handler = async (m, { conn, usedPrefix: _p, command }) => {
       }
     }
 
-    const interactiveMessage = await buildMenuInteractive(m, conn, { usedPrefix: _p, tagSeleccionada })
+    const enviado = await enviarMenuCompleto(m, conn, { usedPrefix: _p, tagSeleccionada })
 
-    if (!interactiveMessage) {
+    if (!enviado) {
       return conn.sendMessage(m.chat, {
         text: `╭─⪼ 🌿 *SAITAMA BOT*\n│ 🍃 No se encontraron comandos.\n╰───────────────⬣`
       }, { quoted: m })
     }
-
-    const msg = generateWAMessageFromContent(
-      m.chat,
-      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
-      { quoted: m }
-    )
-
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
 
   } catch (e) {
     console.log(e)
@@ -309,64 +290,19 @@ handler.before = async (m, { conn }) => {
   const id = extractSelectedId(content)
   if (!id) return false
 
-  // 📂 Tocaron "más categorías" → mostrar la siguiente página de categorías
-  if (id.startsWith('menu_catpage~')) {
-    const page = parseInt(id.split('~')[1], 10) || 0
-    const usedPrefix = (global.prefix instanceof RegExp ? '.' : global.prefix) || '.'
-    const interactiveMessage = await buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada: null, page })
-
-    if (!interactiveMessage) return true
-
-    const msg = generateWAMessageFromContent(
-      m.chat,
-      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
-      { quoted: m }
-    )
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
-    return true
-  }
-
-  // 📂 Tocaron una categoría → mostrar submenú con sus comandos
+  // 📂 Tocaron una categoría → mandar TODAS las páginas de sus comandos
   if (id.startsWith('menu_cat~')) {
     const tag = id.split('~')[1]
     if (!tag || !tags[tag]) return false
 
     const usedPrefix = (global.prefix instanceof RegExp ? '.' : global.prefix) || '.'
-    const interactiveMessage = await buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada: tag })
+    const enviado = await enviarMenuCompleto(m, conn, { usedPrefix, tagSeleccionada: tag })
 
-    if (!interactiveMessage) {
+    if (!enviado) {
       await conn.sendMessage(m.chat, {
         text: `╭─⪼ 🌿 *SAITAMA BOT*\n│ 🍃 Esa categoría no tiene comandos.\n╰───────────────⬣`
       }, { quoted: m })
-      return true
     }
-
-    const msg = generateWAMessageFromContent(
-      m.chat,
-      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
-      { quoted: m }
-    )
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
-    return true
-  }
-
-  // 📜 Tocaron "más comandos" dentro de una categoría → siguiente página
-  if (id.startsWith('menu_page~')) {
-    const [, tag, pageStr] = id.split('~')
-    if (!tag || !tags[tag]) return false
-    const page = parseInt(pageStr, 10) || 0
-
-    const usedPrefix = (global.prefix instanceof RegExp ? '.' : global.prefix) || '.'
-    const interactiveMessage = await buildMenuInteractive(m, conn, { usedPrefix, tagSeleccionada: tag, page })
-
-    if (!interactiveMessage) return true
-
-    const msg = generateWAMessageFromContent(
-      m.chat,
-      { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } },
-      { quoted: m }
-    )
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
     return true
   }
 
