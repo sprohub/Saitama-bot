@@ -1,47 +1,36 @@
-import { leerRegistro, buscarSubbotsPorNumero, detenerProcesoSubbot, eliminarSubbot } from '../../lib/subbots.js';
+import { listarSubbots, eliminarSubbot } from '../../lib/subbots.js';
 
-const handler = async (m, { conn, args, usedPrefix }) => {
-  const entrada = (args[0] || '').trim();
-  const registro = leerRegistro();
-
-  if (!entrada) {
-    return conn.sendMessage(m.chat, {
-      text: `Uso: ${usedPrefix}delsubbot <id o numero>\nEj: ${usedPrefix}delsubbot 573001234567\nUsa ${usedPrefix}listsubbots para ver los disponibles.`
-    }, { quoted: m });
-  }
-
-  let id = registro.subbots[entrada] ? entrada : null;
+const handler = async (m, { conn, args, isROwner, usedPrefix }) => {
+  const id = (args[0] || '').trim();
 
   if (!id) {
-    const coincidencias = buscarSubbotsPorNumero(entrada);
-    if (coincidencias.length === 1) {
-      id = coincidencias[0][0];
-    } else if (coincidencias.length > 1) {
-      const lista = coincidencias.map(([subId, info]) => `▸ ${subId} (${info.numero})`).join('\n');
-      return conn.sendMessage(m.chat, {
-        text: `Ese numero tiene *${coincidencias.length}* subbots asociados, especifica el ID:\n${lista}`
-      }, { quoted: m });
-    }
-  }
-
-  if (!id || !registro.subbots[id]) {
     return conn.sendMessage(m.chat, {
-      text: `No encontre ningun subbot con ese ID o numero.\nUsa ${usedPrefix}listsubbots para ver los disponibles.`
+      text: `Uso: ${usedPrefix}delsubbot <id>\n\nUsa ${usedPrefix}listsubbots para ver los IDs disponibles.`
     }, { quoted: m });
   }
 
-  const info = registro.subbots[id];
-  await detenerProcesoSubbot(info.nombreProceso);
-  eliminarSubbot(id);
+  const todos = listarSubbots();
+  const subbot = todos.find(s => s.id === id);
 
-  await conn.sendMessage(m.chat, {
-    text: `🗑️ Subbot *${id}* (${info.numero}) eliminado (proceso detenido y sesion borrada). Los demas subbots y el bot principal no fueron afectados.`
-  }, { quoted: m });
+  if (!subbot) {
+    return conn.sendMessage(m.chat, { text: `No se encontro ningun subbot con el ID: ${id}` }, { quoted: m });
+  }
+
+  if (!isROwner && subbot.owner !== m.sender) {
+    return conn.sendMessage(m.chat, { text: 'Ese subbot no te pertenece.' }, { quoted: m });
+  }
+
+  const ok = eliminarSubbot(id);
+
+  if (ok) {
+    return conn.sendMessage(m.chat, { text: `✅ Subbot ${id} eliminado correctamente.` }, { quoted: m });
+  } else {
+    return conn.sendMessage(m.chat, { text: `❌ No se pudo eliminar el subbot ${id}.` }, { quoted: m });
+  }
 };
 
-handler.help = ['delsubbot <id o numero>'];
+handler.help = ['delsubbot <id>'];
 handler.tags = ['owner'];
-handler.command = /^delsubbot$/i;
-handler.owner = true;
+handler.command = /^(delsubbot|eliminarsubbot)$/i;
 
 export default handler;
