@@ -113,14 +113,10 @@ function extractSelectedId(content) {
 // ═══════════════════════════════════════════
 //  RESOLUCIÓN DE @lid → número de teléfono real
 // ═══════════════════════════════════════════
-// WhatsApp a veces identifica a un participante con un "LID"
-// (jid@lid) en vez del número real (jid@s.whatsapp.net).
-// Baileys reciente guarda un mapeo interno LID↔número real.
 async function resolverJidReal(conn, jid) {
   if (!jid) return { jidReal: jid, resuelto: false }
   if (!jid.endsWith('@lid')) return { jidReal: jid, resuelto: true }
 
-  // 1) Intento vía signalRepository.lidMapping (Baileys @whiskeysockets reciente)
   try {
     const mapeo = conn.signalRepository?.lidMapping
     if (mapeo?.getPNForLID) {
@@ -134,7 +130,6 @@ async function resolverJidReal(conn, jid) {
     console.log('[welcome][DEBUG] fallo resolviendo LID vía signalRepository:', e?.message)
   }
 
-  // 2) Intento vía store de contactos (algunos forks guardan lid <-> jid ahí)
   try {
     const contacto = conn.store?.contacts?.[jid] || conn.contacts?.[jid]
     if (contacto?.jid && contacto.jid !== jid) {
@@ -143,7 +138,6 @@ async function resolverJidReal(conn, jid) {
     }
   } catch {}
 
-  // No se pudo resolver: se devuelve el LID original (sin garantía de que funcione en profilePictureUrl)
   console.log('[welcome][DEBUG] no se pudo resolver el LID, se usa tal cual:', jid)
   return { jidReal: jid, resuelto: false }
 }
@@ -154,13 +148,12 @@ function obtenerNombreVisible(conn, jidReal, resuelto) {
     if (contacto?.notify) return contacto.notify
     if (contacto?.name) return contacto.name
   } catch {}
-  // Si no se pudo resolver el LID a un número real, no mostramos el LID como si fuera un número
   if (!resuelto) return 'Miembro'
   return '+' + jidReal.split('@')[0]
 }
 
 // ═══════════════════════════════════════════
-//  GENERADOR DE IMAGEN (bienvenida / despedida)
+//  GENERADOR DE IMAGEN — estilo NEON AZUL/NEGRO
 // ═══════════════════════════════════════════
 
 async function cargarImagenSegura(fuente) {
@@ -172,7 +165,6 @@ async function cargarImagenSegura(fuente) {
   }
 }
 
-// Dibuja un rectángulo con esquinas redondeadas
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
@@ -183,12 +175,11 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-// Pseudo-blur: reduce y agranda la imagen varias veces (rápido, sin dependencias nativas de blur)
+// Pseudo-blur: reduce y agranda la imagen varias veces
 function dibujarFondoDesenfocado(ctx, img, W, H) {
   const off = createCanvas(W, H)
   const octx = off.getContext('2d')
 
-  // Cubre todo el lienzo manteniendo proporción (cover)
   const escala = Math.max(W / img.width, H / img.height)
   const iw = img.width * escala
   const ih = img.height * escala
@@ -196,7 +187,6 @@ function dibujarFondoDesenfocado(ctx, img, W, H) {
   const iy = (H - ih) / 2
   octx.drawImage(img, ix, iy, iw, ih)
 
-  // Pases de reducción/ampliación para simular desenfoque
   let src = off
   const pasos = [0.5, 0.25, 0.12]
   for (const factor of pasos) {
@@ -218,9 +208,9 @@ function dibujarFondoDesenfocado(ctx, img, W, H) {
 }
 
 function formatFecha(fecha) {
-  const dias = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+  const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
   const d = fecha.getDate().toString().padStart(2, '0')
-  const mes = dias[fecha.getMonth()]
+  const mes = meses[fecha.getMonth()]
   const anio = fecha.getFullYear()
   return `${d} ${mes.charAt(0).toUpperCase() + mes.slice(1)} ${anio}`
 }
@@ -231,8 +221,45 @@ function formatHora(fecha) {
   return `${h}:${min}`
 }
 
+// Dibuja una línea de "circuito" decorativa (estética tech/neon)
+function dibujarCircuitos(ctx, W, H, color) {
+  ctx.save()
+  ctx.strokeStyle = color
+  ctx.globalAlpha = 0.18
+  ctx.lineWidth = 2
+  const seed = 7
+  let x = 40
+  for (let i = 0; i < 14; i++) {
+    const y = 60 + ((i * 53 + seed * 17) % (H - 120))
+    const largo = 60 + ((i * 37) % 180)
+    const horizontal = i % 2 === 0
+    ctx.beginPath()
+    if (horizontal) {
+      ctx.moveTo(x + (i * 40) % (W - 200), y)
+      ctx.lineTo(x + (i * 40) % (W - 200) + largo, y)
+    } else {
+      ctx.moveTo(W - 40 - (i * 25) % 150, y)
+      ctx.lineTo(W - 40 - (i * 25) % 150, y + largo)
+    }
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+// Texto con efecto neón (glow)
+function textoNeon(ctx, texto, x, y, colorGlow, colorTexto, blur = 18) {
+  ctx.save()
+  ctx.shadowColor = colorGlow
+  ctx.shadowBlur = blur
+  ctx.fillStyle = colorTexto
+  ctx.fillText(texto, x, y)
+  ctx.shadowBlur = blur * 0.6
+  ctx.fillText(texto, x, y)
+  ctx.restore()
+}
+
 /**
- * Genera la imagen de bienvenida/despedida.
+ * Genera la imagen de bienvenida/despedida — estilo NEON AZUL/NEGRO.
  * tipo: 'bienvenida' | 'despedida'
  */
 async function generarImagenEvento({ tipo, numero, userPicUrl, groupPicUrl, groupName, miembros, mensaje }) {
@@ -242,75 +269,104 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupPicUrl, grou
   const ctx = canvas.getContext('2d')
 
   const esBienvenida = tipo === 'bienvenida'
-  const morado = '#b39ddb'
-  const moradoClaro = '#d8c8f5'
 
-  // ── Fondo: foto del grupo desenfocada, o degradado si no hay ──
+  // Paleta neón
+  const cianNeon = '#00eaff'
+  const azulNeon = '#0077ff'
+  const azulClaro = '#8fd9ff'
+  const blanco = '#ffffff'
+
+  // ── Fondo: negro puro + foto del grupo desenfocada y teñida de azul ──
+  ctx.fillStyle = '#050810'
+  ctx.fillRect(0, 0, W, H)
+
   const imgGrupo = await cargarImagenSegura(groupPicUrl)
   if (imgGrupo) {
     dibujarFondoDesenfocado(ctx, imgGrupo, W, H)
+    // Tinte azul/negro encima de la foto para que combine con el estilo neón
+    ctx.fillStyle = 'rgba(3,6,15,0.72)'
+    ctx.fillRect(0, 0, W, H)
+    ctx.fillStyle = 'rgba(0,100,255,0.10)'
+    ctx.fillRect(0, 0, W, H)
   } else {
     const grad = ctx.createLinearGradient(0, 0, W, H)
-    grad.addColorStop(0, '#1a0f24')
-    grad.addColorStop(1, '#241018')
+    grad.addColorStop(0, '#020409')
+    grad.addColorStop(0.5, '#04101f')
+    grad.addColorStop(1, '#000000')
     ctx.fillStyle = grad
     ctx.fillRect(0, 0, W, H)
   }
 
-  // Capa oscura general para legibilidad
-  ctx.fillStyle = 'rgba(10,5,15,0.55)'
-  ctx.fillRect(0, 0, W, H)
+  // Circuitos decorativos
+  dibujarCircuitos(ctx, W, H, cianNeon)
 
-  // ── Título (nombre del grupo) arriba a la izquierda ──
-  ctx.fillStyle = moradoClaro
-  ctx.font = 'bold 46px sans-serif'
-  ctx.textBaseline = 'alphabetic'
+  // Línea de degradado neón en el borde superior
+  const lineaTop = ctx.createLinearGradient(0, 0, W, 0)
+  lineaTop.addColorStop(0, 'rgba(0,234,255,0)')
+  lineaTop.addColorStop(0.5, 'rgba(0,234,255,0.9)')
+  lineaTop.addColorStop(1, 'rgba(0,234,255,0)')
+  ctx.fillStyle = lineaTop
+  ctx.fillRect(0, 0, W, 4)
+
+  // ── Título (nombre del grupo) arriba a la izquierda, con glow ──
+  ctx.textAlign = 'left'
+  ctx.font = 'bold 44px sans-serif'
   const tituloGrupo = groupName.length > 22 ? groupName.slice(0, 22) + '…' : groupName
-  ctx.fillText(tituloGrupo, 60, 90)
+  textoNeon(ctx, tituloGrupo, 60, 90, cianNeon, blanco, 20)
 
   // ── Tarjeta principal ──
   const cardX = 60
   const cardY = 150
   const cardW = 680
   const cardH = 630
-  ctx.fillStyle = 'rgba(15,8,20,0.72)'
-  roundRect(ctx, cardX, cardY, cardW, cardH, 28)
+
+  ctx.save()
+  ctx.fillStyle = 'rgba(3,8,18,0.75)'
+  roundRect(ctx, cardX, cardY, cardW, cardH, 26)
   ctx.fill()
-  ctx.strokeStyle = 'rgba(179,157,219,0.25)'
-  ctx.lineWidth = 2
-  roundRect(ctx, cardX, cardY, cardW, cardH, 28)
+
+  // Borde neón con glow
+  ctx.shadowColor = azulNeon
+  ctx.shadowBlur = 22
+  ctx.strokeStyle = cianNeon
+  ctx.lineWidth = 2.5
+  roundRect(ctx, cardX, cardY, cardW, cardH, 26)
   ctx.stroke()
+  ctx.restore()
 
   const centerX = cardX + cardW / 2
+  ctx.textAlign = 'center'
 
   // Encabezado
-  ctx.textAlign = 'center'
-  ctx.fillStyle = morado
   ctx.font = 'bold 26px sans-serif'
-  ctx.fillText(esBienvenida ? '¡BIENVENIDO/A!' : 'HASTA PRONTO', centerX, cardY + 60)
+  textoNeon(ctx, esBienvenida ? '¡BIENVENIDO/A!' : 'HASTA PRONTO', centerX, cardY + 60, cianNeon, azulClaro, 14)
 
-  // Número
-  ctx.fillStyle = '#ffffff'
-  ctx.font = 'bold 46px sans-serif'
-  ctx.fillText(`+${numero}`, centerX, cardY + 125)
+  // Número / etiqueta del usuario
+  ctx.font = 'bold 44px sans-serif'
+  textoNeon(ctx, numero, centerX, cardY + 125, cianNeon, blanco, 16)
 
   // Subtítulo
-  ctx.fillStyle = '#cfc4d8'
+  ctx.fillStyle = '#a9c9e0'
   ctx.font = '24px sans-serif'
+  ctx.shadowBlur = 0
   ctx.fillText(esBienvenida ? 'Se unió al grupo' : 'Ha salido del grupo', centerX, cardY + 165)
 
-  // Línea divisoria
-  ctx.strokeStyle = 'rgba(179,157,219,0.3)'
+  // Línea divisoria neón
+  const divisoria = ctx.createLinearGradient(cardX + 40, 0, cardX + cardW - 40, 0)
+  divisoria.addColorStop(0, 'rgba(0,234,255,0)')
+  divisoria.addColorStop(0.5, 'rgba(0,234,255,0.6)')
+  divisoria.addColorStop(1, 'rgba(0,234,255,0)')
+  ctx.strokeStyle = divisoria
   ctx.beginPath()
   ctx.moveTo(cardX + 40, cardY + 205)
   ctx.lineTo(cardX + cardW - 40, cardY + 205)
   ctx.stroke()
 
   // Grupo
-  ctx.fillStyle = morado
+  ctx.fillStyle = cianNeon
   ctx.font = 'bold 20px sans-serif'
   ctx.fillText('GRUPO', centerX, cardY + 260)
-  ctx.fillStyle = '#ffffff'
+  ctx.fillStyle = blanco
   ctx.font = 'bold 32px sans-serif'
   ctx.fillText(tituloGrupo, centerX, cardY + 300)
 
@@ -325,31 +381,31 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupPicUrl, grou
   const colAncho = cardW / 3
   columnas.forEach((col, i) => {
     const cx = cardX + colAncho * i + colAncho / 2
-    ctx.fillStyle = morado
+    ctx.fillStyle = cianNeon
     ctx.font = 'bold 18px sans-serif'
     ctx.fillText(col.label, cx, colY)
-    ctx.fillStyle = '#ffffff'
+    ctx.fillStyle = blanco
     ctx.font = 'bold 26px sans-serif'
     ctx.fillText(col.valor, cx, colY + 36)
   })
 
-  // Caja de frase (quote)
+  // Caja de frase
   const quoteY = cardY + cardH - 130
   const quoteH = 95
-  ctx.fillStyle = 'rgba(179,157,219,0.08)'
+  ctx.fillStyle = 'rgba(0,150,255,0.07)'
   roundRect(ctx, cardX + 30, quoteY, cardW - 60, quoteH, 14)
   ctx.fill()
-  ctx.strokeStyle = 'rgba(179,157,219,0.2)'
+  ctx.strokeStyle = 'rgba(0,234,255,0.35)'
+  ctx.lineWidth = 1.5
   roundRect(ctx, cardX + 30, quoteY, cardW - 60, quoteH, 14)
   ctx.stroke()
 
-  ctx.fillStyle = '#e5dbee'
+  ctx.fillStyle = '#d8ecff'
   ctx.font = 'italic 20px sans-serif'
   const frase = mensaje || (esBienvenida
-    ? 'Un nuevo discípulo se une al dojo. ¡Entrena duro!'
-    : 'Gracias por haber sido parte de esta familia. Las puertas siempre estarán abiertas.')
+    ? 'Conectado a la red. Bienvenido al sistema.'
+    : 'Conexión finalizada. La red siempre te recordará.')
 
-  // Envuelve el texto en varias líneas dentro de la caja
   const palabras = frase.split(' ')
   let linea = ''
   const lineasFinal = []
@@ -370,7 +426,7 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupPicUrl, grou
     ctx.fillText(l, centerX, inicioY + i * lineaAltura)
   })
 
-  // ── Foto de perfil del usuario (círculo a la derecha) ──
+  // ── Foto de perfil del usuario (círculo neón a la derecha) ──
   const imgUser = await cargarImagenSegura(userPicUrl)
   const circR = 240
   const circX = W - 340
@@ -387,16 +443,29 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupPicUrl, grou
     const ih = imgUser.height * escala
     ctx.drawImage(imgUser, circX - iw / 2, circY - ih / 2, iw, ih)
   } else {
-    ctx.fillStyle = '#3a2a45'
+    const gradCirc = ctx.createLinearGradient(circX - circR, circY - circR, circX + circR, circY + circR)
+    gradCirc.addColorStop(0, '#041018')
+    gradCirc.addColorStop(1, '#0a1f33')
+    ctx.fillStyle = gradCirc
     ctx.fillRect(circX - circR, circY - circR, circR * 2, circR * 2)
   }
   ctx.restore()
 
-  // Borde del círculo
+  // Doble anillo neón
+  ctx.save()
+  ctx.shadowColor = cianNeon
+  ctx.shadowBlur = 30
   ctx.beginPath()
   ctx.arc(circX, circY, circR, 0, Math.PI * 2)
-  ctx.lineWidth = 8
-  ctx.strokeStyle = moradoClaro
+  ctx.lineWidth = 6
+  ctx.strokeStyle = cianNeon
+  ctx.stroke()
+  ctx.restore()
+
+  ctx.beginPath()
+  ctx.arc(circX, circY, circR + 12, 0, Math.PI * 2)
+  ctx.lineWidth = 1.5
+  ctx.strokeStyle = 'rgba(0,234,255,0.35)'
   ctx.stroke()
 
   return canvas.toBuffer('image/png')
@@ -559,42 +628,4 @@ handler.before = async (m, { conn }) => {
   const groupSize = groupMetadata.participants.length
   const userIdOriginal = m.messageStubParameters?.[0] || m.sender
 
-  // 🔧 LOG TEMPORAL DE DEPURACIÓN — borrar cuando ya no se necesite
-  console.log('[welcome][DEBUG] userId recibido:', userIdOriginal)
-  console.log('[welcome][DEBUG] tipo de evento (stub):', m.messageStubType)
-  console.log('[welcome][DEBUG] parámetros completos:', JSON.stringify(m.messageStubParameters))
-  // 🔧 FIN LOG TEMPORAL
-
-  const { jidReal, resuelto } = await resolverJidReal(conn, userIdOriginal)
-  const userId = jidReal // se usa este para menciones y foto de perfil
-  const userNumero = obtenerNombreVisible(conn, jidReal, resuelto)
-
-  let userPicUrl
-  try {
-    userPicUrl = await conn.profilePictureUrl(userId, 'image')
-  } catch (e) {
-    console.log('[welcome][DEBUG] fallo profilePictureUrl para', userId, ':', e?.message)
-    userPicUrl = null
-  }
-
-  let groupPicUrl
-  try {
-    groupPicUrl = await conn.profilePictureUrl(m.chat, 'image')
-  } catch {
-    groupPicUrl = null
-  }
-
-  const esEntrada = m.messageStubType === 27
-  const mensajePersonalizado = esEntrada ? chat.sWelcome : chat.sBye
-  const mensajeFinal = mensajePersonalizado
-    ? mensajePersonalizado
-        .replace(/@user/g, resuelto ? `@${userNumero.replace('+', '')}` : userNumero)
-        .replace(/@group/g, groupMetadata.subject)
-        .replace(/@members/g, groupSize)
-    : null
-
-  // userNumero ya viene formateado como "+57..." si se pudo resolver, o "Miembro" si no.
-  // La mención (@...) de WhatsApp solo funciona bien con un número real, así que
-  // si no se resolvió el LID, se omite del texto para no romper el resaltado.
-  const etiquetaUsuario = resuelto ? `@${userNumero.replace('+', '')}` : userNumero
-  
+  console.
