@@ -511,6 +511,12 @@ handler.before = async (m, { conn }) => {
   const userId = m.messageStubParameters?.[0] || m.sender
   const userNumero = userId.split('@')[0]
 
+  // 🔧 LOG TEMPORAL DE DEPURACIÓN — borrar cuando ya no se necesite
+  console.log('[welcome][DEBUG] userId recibido:', userId)
+  console.log('[welcome][DEBUG] tipo de evento (stub):', m.messageStubType)
+  console.log('[welcome][DEBUG] parámetros completos:', JSON.stringify(m.messageStubParameters))
+  // 🔧 FIN LOG TEMPORAL
+
   let userPicUrl
   try {
     userPicUrl = await conn.profilePictureUrl(userId, 'image')
