@@ -111,6 +111,55 @@ function extractSelectedId(content) {
 }
 
 // ═══════════════════════════════════════════
+//  RESOLUCIÓN DE @lid → número de teléfono real
+// ═══════════════════════════════════════════
+// WhatsApp a veces identifica a un participante con un "LID"
+// (jid@lid) en vez del número real (jid@s.whatsapp.net).
+// Baileys reciente guarda un mapeo interno LID↔número real.
+async function resolverJidReal(conn, jid) {
+  if (!jid) return { jidReal: jid, resuelto: false }
+  if (!jid.endsWith('@lid')) return { jidReal: jid, resuelto: true }
+
+  // 1) Intento vía signalRepository.lidMapping (Baileys @whiskeysockets reciente)
+  try {
+    const mapeo = conn.signalRepository?.lidMapping
+    if (mapeo?.getPNForLID) {
+      const real = await mapeo.getPNForLID(jid)
+      if (real) {
+        console.log('[welcome][DEBUG] LID resuelto vía signalRepository:', jid, '->', real)
+        return { jidReal: real, resuelto: true }
+      }
+    }
+  } catch (e) {
+    console.log('[welcome][DEBUG] fallo resolviendo LID vía signalRepository:', e?.message)
+  }
+
+  // 2) Intento vía store de contactos (algunos forks guardan lid <-> jid ahí)
+  try {
+    const contacto = conn.store?.contacts?.[jid] || conn.contacts?.[jid]
+    if (contacto?.jid && contacto.jid !== jid) {
+      console.log('[welcome][DEBUG] LID resuelto vía store.contacts:', jid, '->', contacto.jid)
+      return { jidReal: contacto.jid, resuelto: true }
+    }
+  } catch {}
+
+  // No se pudo resolver: se devuelve el LID original (sin garantía de que funcione en profilePictureUrl)
+  console.log('[welcome][DEBUG] no se pudo resolver el LID, se usa tal cual:', jid)
+  return { jidReal: jid, resuelto: false }
+}
+
+function obtenerNombreVisible(conn, jidReal, resuelto) {
+  try {
+    const contacto = conn.store?.contacts?.[jidReal] || conn.contacts?.[jidReal]
+    if (contacto?.notify) return contacto.notify
+    if (contacto?.name) return contacto.name
+  } catch {}
+  // Si no se pudo resolver el LID a un número real, no mostramos el LID como si fuera un número
+  if (!resuelto) return 'Miembro'
+  return '+' + jidReal.split('@')[0]
+}
+
+// ═══════════════════════════════════════════
 //  GENERADOR DE IMAGEN (bienvenida / despedida)
 // ═══════════════════════════════════════════
 
@@ -508,19 +557,23 @@ handler.before = async (m, { conn }) => {
 
   const groupMetadata = await conn.groupMetadata(m.chat)
   const groupSize = groupMetadata.participants.length
-  const userId = m.messageStubParameters?.[0] || m.sender
-  const userNumero = userId.split('@')[0]
+  const userIdOriginal = m.messageStubParameters?.[0] || m.sender
 
   // 🔧 LOG TEMPORAL DE DEPURACIÓN — borrar cuando ya no se necesite
-  console.log('[welcome][DEBUG] userId recibido:', userId)
+  console.log('[welcome][DEBUG] userId recibido:', userIdOriginal)
   console.log('[welcome][DEBUG] tipo de evento (stub):', m.messageStubType)
   console.log('[welcome][DEBUG] parámetros completos:', JSON.stringify(m.messageStubParameters))
   // 🔧 FIN LOG TEMPORAL
 
+  const { jidReal, resuelto } = await resolverJidReal(conn, userIdOriginal)
+  const userId = jidReal // se usa este para menciones y foto de perfil
+  const userNumero = obtenerNombreVisible(conn, jidReal, resuelto)
+
   let userPicUrl
   try {
     userPicUrl = await conn.profilePictureUrl(userId, 'image')
-  } catch {
+  } catch (e) {
+    console.log('[welcome][DEBUG] fallo profilePictureUrl para', userId, ':', e?.message)
     userPicUrl = null
   }
 
@@ -535,38 +588,13 @@ handler.before = async (m, { conn }) => {
   const mensajePersonalizado = esEntrada ? chat.sWelcome : chat.sBye
   const mensajeFinal = mensajePersonalizado
     ? mensajePersonalizado
-        .replace(/@user/g, '@' + userNumero)
+        .replace(/@user/g, resuelto ? `@${userNumero.replace('+', '')}` : userNumero)
         .replace(/@group/g, groupMetadata.subject)
         .replace(/@members/g, groupSize)
     : null
 
-  try {
-    const imagenBuffer = await generarImagenEvento({
-      tipo: esEntrada ? 'bienvenida' : 'despedida',
-      numero: userNumero,
-      userPicUrl,
-      groupPicUrl,
-      groupName: groupMetadata.subject,
-      miembros: groupSize,
-      mensaje: mensajeFinal
-    })
-
-    await conn.sendMessage(m.chat, {
-      image: imagenBuffer,
-      caption: esEntrada
-        ? `🌿 @${userNumero} se unió al grupo.`
-        : `🍃 @${userNumero} salió del grupo.`,
-      mentions: [userId]
-    })
-  } catch (e) {
-    console.log('[welcome] error generando imagen, se envía solo texto:', e)
-    const texto = esEntrada
-      ? `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 👋 ¡Bienvenido/a!\n│\n│ 👤 @${userNumero}\n│ 🏠 Grupo: ${groupMetadata.subject}\n│ 👥 Miembros: ${groupSize}\n╰───────────────⬣`
-      : `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 💨 ¡Hasta luego!\n│\n│ 👤 @${userNumero}\n│ 🏠 Grupo: ${groupMetadata.subject}\n│ 👥 Miembros restantes: ${groupSize}\n╰───────────────⬣`
-    await conn.sendMessage(m.chat, { text: texto, mentions: [userId] })
-  }
-
-  return false
-}
-
-export default handler
+  // userNumero ya viene formateado como "+57..." si se pudo resolver, o "Miembro" si no.
+  // La mención (@...) de WhatsApp solo funciona bien con un número real, así que
+  // si no se resolvió el LID, se omite del texto para no romper el resaltado.
+  const etiquetaUsuario = resuelto ? `@${userNumero.replace('+', '')}` : userNumero
+  
