@@ -16,7 +16,7 @@
 <br/>
 
 <p>
-  <img src="https://img.shields.io/badge/version-2.0-FFD700?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMyAyLjA1VjRoMXYyaC0xdjEuMDVBOC4wMSA4LjAxIDAgMCAxIDIwIDEzaDF2MmgtMXYuOThBOC4wMSA4LjAxIDAgMCAxIDEzIDIxLjk1VjIzaC0ydi0xLjA1QTguMDEgOC4wMSAwIDAgMSA0IDE2SDN2LTJoMXYtLjk4QTguMDEgOC4wMSAwIDAgMSAxMSA0LjA1VjJoMnoiLz48L3N2Zz4=&labelColor=0D0D0D"/>
+  <img src="https://img.shields.io/badge/version-2.1-FFD700?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMyAyLjA1VjRoMXYyaC0xdjEuMDVBOC4wMSA4LjAxIDAgMCAxIDIwIDEzaDF2MmgtMXYuOThBOC4wMSA4LjAxIDAgMCAxIDEzIDIxLjk1VjIzaC0ydi0xLjA1QTguMDEgOC4wMSAwIDAgMSA0IDE2SDN2LTJoMXYtLjk4QTguMDEgOC4wMSAwIDAgMSAxMSA0LjA1VjJoMnoiLz48L3N2Zz4=&labelColor=0D0D0D"/>
   <img src="https://img.shields.io/badge/status-ONLINE-25D366?style=for-the-badge&logo=whatsapp&logoColor=white&labelColor=0D0D0D"/>
   <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white&labelColor=0D0D0D"/>
   <img src="https://img.shields.io/badge/WhatsApp_Bot-25D366?style=for-the-badge&logo=whatsapp&logoColor=white&labelColor=0D0D0D"/>
@@ -24,8 +24,8 @@
 </p>
 
 <p>
-  <img src="https://img.shields.io/badge/comandos-80%2B-FF3333?style=for-the-badge&labelColor=0D0D0D"/>
-  <img src="https://img.shields.io/badge/categorías-7-9B59B6?style=for-the-badge&labelColor=0D0D0D"/>
+  <img src="https://img.shields.io/badge/comandos-85%2B-FF3333?style=for-the-badge&labelColor=0D0D0D"/>
+  <img src="https://img.shields.io/badge/categorías-8-9B59B6?style=for-the-badge&labelColor=0D0D0D"/>
   <img src="https://img.shields.io/badge/uptime-24%2F7-FFD700?style=for-the-badge&labelColor=0D0D0D"/>
   <img src="https://img.shields.io/badge/licencia-MIT-00FFFF?style=for-the-badge&labelColor=0D0D0D"/>
 </p>
@@ -62,7 +62,7 @@
 
 ## `01` — Descripción
 
-**SAITAMA BOT** es un bot multifunción para WhatsApp de nivel épico, inspirado en el héroe más poderoso del mundo: Saitama. Desarrollado por el equipo **DravenHacks**, combina un sistema RPG completo, descargas de media, inteligencia artificial, moderación de grupos y entretenimiento — todo desde un único bot, en un único golpe.
+**SAITAMA BOT** es un bot multifunción para WhatsApp de nivel épico, inspirado en el héroe más poderoso del mundo: Saitama. Desarrollado por el equipo **DravenHacks**, combina un sistema RPG completo, descargas de media, inteligencia artificial, moderación de grupos, utilidades de sistema con reportes visuales y entretenimiento — todo desde un único bot, en un único golpe.
 
 > Un golpe. Un comando. El poder de Saitama en tu grupo de WhatsApp.
 
@@ -158,6 +158,23 @@ Interacciones con GIFs animados de anime, juegos grupales, confesiones anónimas
 
 </td>
 </tr>
+<tr>
+<td width="50%" colspan="2">
+
+### 🖥️ Utilidades & Sistema
+Monitoreo del bot y del servidor con reportes generados como imagen en tiempo real: latencia, velocidad de internet, estado del servidor y transcripción de notas de voz.
+
+```
+› .ping         ↳ Reporte de latencia y RAM
+› .speedtest    ↳ Velocidad real de internet
+› .serverd      ↳ Estado del servidor (estilo terminal)
+› .speechtotext ↳ Transcribe notas de voz
+› .welcome      ↳ Menú de bienvenida por grupo
+› .pp           ↳ Roba la foto de perfil
+```
+
+</td>
+</tr>
 </table>
 
 <br/>
@@ -212,10 +229,11 @@ Edita el archivo `.env` con las siguientes variables:
 
 ```env
 # ─────────────────────────────────────────────
-#   SAITAMA BOT — Variables de Entorno v2.0
+#   SAITAMA BOT — Variables de Entorno v2.1
 # ─────────────────────────────────────────────
 
 GROQ_API_KEY=        # API Key de Groq para IA
+OPENAI_API_KEY=       # API Key de OpenAI (Whisper) para .speechtotext
 PREFIX=.             # Prefijo de comandos (por defecto: .)
 OWNER_NUMBER=        # Número del dueño (con código de país)
 BOT_NAME=SAITAMA BOT # Nombre del bot
@@ -226,6 +244,7 @@ BOT_NAME=SAITAMA BOT # Nombre del bot
 | Variable | Descripción | Requerido |
 |---|---|:---:|
 | `GROQ_API_KEY` | Clave de acceso para IA mediante Groq | ✦ |
+| `OPENAI_API_KEY` | Clave de OpenAI (Whisper) usada por `.speechtotext` | — |
 | `PREFIX` | Caracter de prefijo para comandos | ✦ |
 | `OWNER_NUMBER` | Número del propietario del bot | ✦ |
 | `BOT_NAME` | Nombre del bot en mensajes | — |
@@ -238,7 +257,7 @@ BOT_NAME=SAITAMA BOT # Nombre del bot
 
 ## `05` — Comandos
 
-> **80+ comandos** organizados en **7 categorías**
+> **85+ comandos** organizados en **8 categorías**
 
 <br/>
 
@@ -278,7 +297,7 @@ BOT_NAME=SAITAMA BOT # Nombre del bot
 </details>
 
 <details>
-<summary><strong>◈ Gacha — 6 comandos</strong></summary>
+<summary><strong>◈ Gacha — 7 comandos</strong></summary>
 
 <br/>
 
@@ -387,9 +406,25 @@ BOT_NAME=SAITAMA BOT # Nombre del bot
 | `.confesar` | Envía una confesión anónima |
 | `.gay` | Medidor de gayómetro divertido |
 | `.facto` | Dato random curioso |
-| `.pp` | Medidor gracioso |
+| `.pp` | Roba y muestra la foto de perfil de alguien |
 | `.quien` | ¿Quién en el grupo es más...? |
 | `.retos` | Retos aleatorios para el grupo |
+
+</details>
+
+<details open>
+<summary><strong>🖥️ Utilidades & Sistema — 6 comandos</strong></summary>
+
+<br/>
+
+| Comando | Descripción |
+|---|---|
+| `.ping` | Reporte visual de latencia, RAM y CPU del bot |
+| `.speedtest` | Mide la velocidad real de descarga/subida de internet |
+| `.serverd` | Estado del servidor (OS, CPU, RAM, disco) estilo terminal |
+| `.speechtotext` | Transcribe una nota de voz a texto (requiere `OPENAI_API_KEY`) |
+| `.welcome` | Menú interactivo para activar/desactivar bienvenidas por grupo |
+| `.stt` / `.transcribir` | Alias de `.speechtotext` |
 
 </details>
 
@@ -410,6 +445,8 @@ BOT_NAME=SAITAMA BOT # Nombre del bot
 | **Runtime** | ![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white) | Motor principal del bot |
 | **Framework WA** | ![Baileys](https://img.shields.io/badge/Baileys-25D366?style=flat-square&logo=whatsapp&logoColor=white) | Conexión WhatsApp Web |
 | **IA** | ![Groq](https://img.shields.io/badge/Groq_API-00E5FF?style=flat-square) | Motor de inteligencia artificial |
+| **Transcripción** | ![OpenAI](https://img.shields.io/badge/OpenAI_Whisper-412991?style=flat-square&logo=openai&logoColor=white) | Speech-to-text de notas de voz |
+| **Gráficos** | ![Canvas](https://img.shields.io/badge/napi--rs_canvas-FF6600?style=flat-square) | Tarjetas visuales (ping, speedtest, server) |
 | **Backend** | ![Express](https://img.shields.io/badge/Express.js-000000?style=flat-square&logo=express&logoColor=white) | Servidor web API |
 | **Lenguaje** | ![JavaScript](https://img.shields.io/badge/JavaScript_ES6+-F7DF1E?style=flat-square&logo=javascript&logoColor=black) | Lógica del bot |
 | **Hosting** | ![Render](https://img.shields.io/badge/Render_/_VPS-46E3B7?style=flat-square&logo=render&logoColor=white) | Despliegue 24/7 |
