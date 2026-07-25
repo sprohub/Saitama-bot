@@ -179,50 +179,59 @@ try {
   process.exit(1);
 }
 
-import { conectarSubBot } from './lib/serbot-connect.js'
+// ─────────────────────────────────────────────────────────────────────────
+// SISTEMA VIEJO DE JADIBOT (en el mismo proceso) -- DESACTIVADO.
+// Se reemplazo por subbots como procesos independientes de PM2
+// (ver subbot.js y lib/subbots.js, comandos .serbot / .addsubbot).
+// Se deja comentado en vez de borrarlo por si se necesita revisar despues.
+// ─────────────────────────────────────────────────────────────────────────
+// import { conectarSubBot } from './lib/serbot-connect.js'
+//
+// async function reconnectSubBot(botPath) {
+//   console.log(chalk.yellow(`👊 [SAITAMA] Despertando sub-bot: ${path.basename(botPath)}`));
+//   try {
+//     await conectarSubBot(botPath, { version, handlerRef: handler });
+//   } catch (e) {
+//     console.error(chalk.red(`💥 [ERROR] Error al despertar sub-bot en ${path.basename(botPath)}:`), e);
+//   }
+// }
+// async function startSubBots() {
+//   const rutaJadiBot = join(__dirname, './JadiBots');
+//
+//   if (!existsSync(rutaJadiBot)) {
+//     mkdirSync(rutaJadiBot, { recursive: true });
+//     console.log(chalk.bold.cyan(`📁 [SAITAMA] Carpeta de sub-bots creada: ${rutaJadiBot}`));
+//   } else {
+//     console.log(chalk.bold.cyan(`📁 [SAITAMA] Carpeta de sub-bots detectada: ${rutaJadiBot}`));
+//   }
+//
+//   const readRutaJadiBot = readdirSync(rutaJadiBot);
+//   if (readRutaJadiBot.length > 0) {
+//     const credsFile = 'creds.json';
+//     console.log(chalk.magenta(`👊 [SAITAMA] Buscando sub-bots... Total: ${readRutaJadiBot.length}`));
+//
+//     for (const subBotDir of readRutaJadiBot) {
+//       const botPath = join(rutaJadiBot, subBotDir);
+//       if (statSync(botPath).isDirectory()) {
+//         const readBotPath = readdirSync(botPath);
+//         if (readBotPath.includes(credsFile)) {
+//           console.log(chalk.magenta(`👊 [SAITAMA] Sub-bot detectado en ${subBotDir}. Despertando...`));
+//           await reconnectSubBot(botPath);
+//         } else {
+//           console.log(chalk.yellow(`⚠️ [SAITAMA] Sub-bot latente en ${subBotDir} (sin creds.json)`));
+//         }
+//       }
+//     }
+//     console.log(chalk.magenta(`✅ [SAITAMA] Proceso de sub-bots completado.`));
+//   } else {
+//     console.log(chalk.gray(`🌙 [SAITAMA] No hay sub-bots para despertar.`));
+//   }
+// }
 
-async function reconnectSubBot(botPath) {
-  console.log(chalk.yellow(`👊 [SAITAMA] Despertando sub-bot: ${path.basename(botPath)}`));
-  try {
-    await conectarSubBot(botPath, { version, handlerRef: handler });
-  } catch (e) {
-    console.error(chalk.red(`💥 [ERROR] Error al despertar sub-bot en ${path.basename(botPath)}:`), e);
-  }
-}
-async function startSubBots() {
-  const rutaJadiBot = join(__dirname, './JadiBots');
-
-  if (!existsSync(rutaJadiBot)) {
-    mkdirSync(rutaJadiBot, { recursive: true });
-    console.log(chalk.bold.cyan(`📁 [SAITAMA] Carpeta de sub-bots creada: ${rutaJadiBot}`));
-  } else {
-    console.log(chalk.bold.cyan(`📁 [SAITAMA] Carpeta de sub-bots detectada: ${rutaJadiBot}`));
-  }
-
-  const readRutaJadiBot = readdirSync(rutaJadiBot);
-  if (readRutaJadiBot.length > 0) {
-    const credsFile = 'creds.json';
-    console.log(chalk.magenta(`👊 [SAITAMA] Buscando sub-bots... Total: ${readRutaJadiBot.length}`));
-
-    for (const subBotDir of readRutaJadiBot) {
-      const botPath = join(rutaJadiBot, subBotDir);
-      if (statSync(botPath).isDirectory()) {
-        const readBotPath = readdirSync(botPath);
-        if (readBotPath.includes(credsFile)) {
-          console.log(chalk.magenta(`👊 [SAITAMA] Sub-bot detectado en ${subBotDir}. Despertando...`));
-          await reconnectSubBot(botPath);
-        } else {
-          console.log(chalk.yellow(`⚠️ [SAITAMA] Sub-bot latente en ${subBotDir} (sin creds.json)`));
-        }
-      }
-    }
-    console.log(chalk.magenta(`✅ [SAITAMA] Proceso de sub-bots completado.`));
-  } else {
-    console.log(chalk.gray(`🌙 [SAITAMA] No hay sub-bots para despertar.`));
-  }
-}
-
-await startSubBots();
+// await startSubBots();
+// ─────────────────────────────────────────────────────────────────────────
+// FIN del sistema viejo de jadibot desactivado.
+// ─────────────────────────────────────────────────────────────────────────
 
 async function handleLogin() {
   if (conn.authState.creds.registered) {
