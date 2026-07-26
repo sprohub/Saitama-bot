@@ -249,6 +249,7 @@ async function generarImagenUpdate(datos) {
 
   // ── Commit graph (antes -> después) ──
   dibujarCommitGraph(ctx, marginX, 300, W - marginX * 2, datos.hashAntes, datos.hashDespues, amarillo)
+  ctx.textAlign = 'left' // dibujarCommitGraph deja el canvas en 'right', hay que resetearlo
 
   if (datos.estado === 'al_dia') {
     // ── Vista simplificada: una sola tarjeta con info general ──
