@@ -1,7 +1,3 @@
-// subbot.js
-// Proceso independiente para un solo subbot (nueva versión, code-based).
-// Uso: node subbot.js <id> [numero]
-
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
@@ -143,104 +139,224 @@ const handlerModule = await import('./handler.js')
 const handler = handlerModule.handler
 
 const necesitaVincular = !!NUMERO_PARA_CODIGO
+const esModoQR = NUMERO_PARA_CODIGO === 'qr'
+
+let sock = null
+let stateRef = null
+let saveCredsRef = null
+let timeoutConexion = null
+let timeoutCodigo = null
 let pidiendoCodigo = false
+let reconectando = false
+let finalizado = false
+let conectado = false
+
+function normalizarNumero(numero) {
+  return String(numero || '').replace(/\D/g, '')
+}
+
+async function limpiarSocketActual() {
+  if (!sock) return
+  try { sock.ev.removeAllListeners('messages.upsert') } catch {}
+  try { sock.ev.removeAllListeners('creds.update') } catch {}
+  try { sock.ev.removeAllListeners('connection.update') } catch {}
+  try { sock.ws?.close() } catch {}
+  sock = null
+}
+
+function limpiarTimers() {
+  if (timeoutConexion) {
+    clearTimeout(timeoutConexion)
+    timeoutConexion = null
+  }
+  if (timeoutCodigo) {
+    clearTimeout(timeoutCodigo)
+    timeoutCodigo = null
+  }
+}
+
+async function finalizarSubbot(estado, extra = {}) {
+  if (finalizado) return
+  finalizado = true
+  limpiarTimers()
+
+  try {
+    escribirStatus({ estado, ...extra })
+  } catch {}
+
+  try {
+    await limpiarSocketActual()
+  } catch {}
+
+  setTimeout(() => {
+    try {
+      eliminarSubbot(SUBBOT_ID)
+    } catch (e) {
+      console.error(`[subbot ${SUBBOT_ID}] Error al eliminar subbot:`, e.message)
+    } finally {
+      process.exit(0)
+    }
+  }, 500)
+}
+
+function iniciarTemporizadorConexion() {
+  limpiarTimers()
+  timeoutConexion = setTimeout(() => {
+    if (!conectado && !finalizado) {
+      console.log(`[subbot ${SUBBOT_ID}] No conectó en 90 segundos. Eliminando subbot...`)
+      finalizarSubbot('expirado', { error: 'Tiempo de conexión agotado' })
+    }
+  }, 90000)
+}
+
+function iniciarTemporizadorCodigo() {
+  if (timeoutCodigo) clearTimeout(timeoutCodigo)
+  timeoutCodigo = setTimeout(() => {
+    if (!conectado && !finalizado) {
+      console.log(`[subbot ${SUBBOT_ID}] El código expiró o no se vinculó a tiempo. Eliminando subbot...`)
+      finalizarSubbot('expirado', { error: 'Código expirado o no utilizado a tiempo' })
+    }
+  }, 90000)
+}
+
+async function pedirCodigoDeVinculacion() {
+  if (pidiendoCodigo || finalizado || !sock || !stateRef) return
+  pidiendoCodigo = true
+
+  const numero = normalizarNumero(NUMERO_PARA_CODIGO)
+  if (!numero || esModoQR) {
+    pidiendoCodigo = false
+    return
+  }
+
+  let codigo = null
+  let ultimoError = null
+
+  for (let intento = 1; intento <= 3 && !codigo && !finalizado; intento++) {
+    try {
+      if (intento === 1) {
+        await new Promise(resolve => setTimeout(resolve, 4000))
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 5000 * intento))
+      }
+
+      if (!sock || stateRef.creds.registered) break
+      codigo = await sock.requestPairingCode(numero)
+    } catch (err) {
+      ultimoError = err
+      console.error(`[subbot ${SUBBOT_ID}] Intento ${intento} de pedir código falló:`, err?.message || err)
+    }
+  }
+
+  pidiendoCodigo = false
+
+  if (finalizado || stateRef.creds.registered) return
+
+  if (!codigo) {
+    return finalizarSubbot('expirado', {
+      error: ultimoError?.message || 'No se pudo obtener el código después de varios intentos'
+    })
+  }
+
+  escribirStatus({ estado: 'esperando_codigo', codigo })
+  iniciarTemporizadorCodigo()
+  console.log(`[subbot ${SUBBOT_ID}] Código de vinculación: ${codigo}`)
+}
 
 async function iniciarSubbot() {
-  let conectado = false
+  if (finalizado || reconectando) return
+  reconectando = true
+  conectado = false
+
+  await limpiarSocketActual()
+
   const { state, saveCreds } = await useMultiFileAuthState(CARPETA_SESION)
+  stateRef = state
+  saveCredsRef = saveCreds
+
   const logger = pino({ level: 'fatal' })
 
-  const sock = makeWASocket({
-    auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
+  sock = makeWASocket({
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, logger)
+    },
     version: BAILEYS_VERSION,
     printQRInTerminal: false,
     logger,
     browser: Browsers.ubuntu('Chrome'),
-    msgRetryCache: new NodeCache(),
+    msgRetryCache: new NodeCache()
   })
-
-  async function pedirCodigoDeVinculacion() {
-    if (pidiendoCodigo) return
-    pidiendoCodigo = true
-
-    let codigo = null
-    let ultimoError = null
-
-    for (let intento = 1; intento <= 5 && !codigo; intento++) {
-      try {
-        if (intento > 1) await new Promise(resolve => setTimeout(resolve, 5000 * intento))
-        codigo = await sock.requestPairingCode(NUMERO_PARA_CODIGO.trim())
-      } catch (err) {
-        ultimoError = err
-        console.error(`[subbot ${SUBBOT_ID}] Intento ${intento} de pedir codigo fallo:`, err?.message || err)
-      }
-    }
-
-    pidiendoCodigo = false
-
-    if (!codigo) {
-      escribirStatus({ estado: 'error', error: ultimoError?.message || 'No se pudo obtener el codigo despues de varios intentos' })
-      return
-    }
-
-    escribirStatus({ estado: 'esperando_codigo', codigo })
-    console.log(`[subbot ${SUBBOT_ID}] Codigo de vinculacion: ${codigo}`)
-  }
-
-  setTimeout(() => {
-    if (!conectado) {
-      console.log(`[subbot ${SUBBOT_ID}] No conecto dentro del tiempo limite (90s). Autoeliminando sesion...`)
-      escribirStatus({ estado: 'expirado' })
-      try {
-        eliminarSubbot(SUBBOT_ID)
-      } catch (e) {
-        console.error(`[subbot ${SUBBOT_ID}] Error al autoeliminar:`, e.message)
-      }
-      process.exit(0)
-    }
-  }, 90000)
 
   sock.handler = handler.bind(sock)
   sock.ev.on('messages.upsert', sock.handler)
-  sock.ev.on('creds.update', saveCreds)
+  sock.ev.on('creds.update', saveCredsRef)
+
+  iniciarTemporizadorConexion()
+  reconectando = false
 
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update
-
-    const esModoQR = NUMERO_PARA_CODIGO === 'qr'
+    if (finalizado) return
 
     if (necesitaVincular && esModoQR && qr) {
       try {
         const rutaQR = path.join(CARPETA_SUBBOT, 'qr.png')
         await QRCode.toFile(rutaQR, qr, { width: 400 })
         escribirStatus({ estado: 'esperando_qr', qrPath: rutaQR })
+        iniciarTemporizadorCodigo()
         console.log(`[subbot ${SUBBOT_ID}] QR generado.`)
       } catch (err) {
-        escribirStatus({ estado: 'error', error: 'No se pudo generar el QR: ' + err.message })
+        return finalizarSubbot('error', { error: 'No se pudo generar el QR: ' + err.message })
       }
     }
 
-    if (necesitaVincular && !esModoQR && !sock.authState?.creds?.registered && (connection === 'connecting' || qr)) {
-      pedirCodigoDeVinculacion()
+    if (
+      necesitaVincular &&
+      !esModoQR &&
+      !state.creds.registered &&
+      (connection === 'connecting' || !!qr)
+    ) {
+      pedirCodigoDeVinculacion().catch(err => {
+        console.error(`[subbot ${SUBBOT_ID}] Error al pedir código:`, err?.message || err)
+      })
     }
 
     if (connection === 'open') {
       conectado = true
-      escribirStatus({ estado: 'conectado', numero: sock.user?.id?.split(':')[0] || null })
+      limpiarTimers()
+      escribirStatus({
+        estado: 'conectado',
+        numero: sock.user?.id?.split(':')[0] || null
+      })
       console.log(`[subbot ${SUBBOT_ID}] Conectado correctamente.`)
+      return
     }
 
     if (connection === 'close') {
-      const codigoError = lastDisconnect?.error?.output?.statusCode
-      const desconectadoPermanente = codigoError === DisconnectReason.loggedOut
+      const codigoError =
+        lastDisconnect?.error?.output?.statusCode ||
+        lastDisconnect?.error?.output?.payload?.statusCode
 
-      if (desconectadoPermanente) {
-        escribirStatus({ estado: 'desconectado' })
-        console.log(`[subbot ${SUBBOT_ID}] Sesion cerrada (logout). No se reintenta automaticamente.`)
-      } else {
-        escribirStatus({ estado: 'reconectando' })
-        iniciarSubbot()
+      if (codigoError === DisconnectReason.loggedOut) {
+        console.log(`[subbot ${SUBBOT_ID}] Sesión cerrada (logout). Eliminando subbot...`)
+        return finalizarSubbot('desconectado', { error: 'Sesión cerrada por WhatsApp' })
       }
+
+      if (codigoError === DisconnectReason.restartRequired) {
+        console.log(`[subbot ${SUBBOT_ID}] Reinicio requerido. Recreando socket...`)
+        escribirStatus({ estado: 'reconectando', motivo: 'restartRequired' })
+        return iniciarSubbot()
+      }
+
+      console.log(`[subbot ${SUBBOT_ID}] Conexión cerrada (${codigoError || 'sin código'}). Reintentando...`)
+      escribirStatus({ estado: 'reconectando', motivo: codigoError || 'close' })
+
+      setTimeout(() => {
+        if (!finalizado) iniciarSubbot().catch(console.error)
+      }, 3000)
+
+      return
     }
   })
 }
@@ -251,9 +367,20 @@ iniciarSubbot().catch(err => {
   process.exit(1)
 })
 
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', async (err) => {
   console.error(`[subbot ${SUBBOT_ID}] Error no capturado:`, err)
+  await finalizarSubbot('error', { error: err?.message || String(err) })
 })
-process.on('unhandledRejection', (err) => {
+
+process.on('unhandledRejection', async (err) => {
   console.error(`[subbot ${SUBBOT_ID}] Promesa rechazada sin capturar:`, err)
+  await finalizarSubbot('error', { error: err?.message || String(err) })
+})
+
+process.on('SIGINT', async () => {
+  await finalizarSubbot('detenido', { error: 'Proceso interrumpido' })
+})
+
+process.on('SIGTERM', async () => {
+  await finalizarSubbot('detenido', { error: 'Proceso terminado' })
 })
