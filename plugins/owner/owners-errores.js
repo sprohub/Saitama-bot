@@ -100,7 +100,7 @@ async function obtenerErroresPM2(nombreProceso, cantidadLineas = 40) {
 }
 
 // ═══════════════════════════════════════════
-//  DISEÑO — estilo TERMINAL / DIAGNÓSTICO (rojo sobre negro)
+//  DISEÑO — dashboard limpio (fondo plano, sin efectos recargados)
 // ═══════════════════════════════════════════
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath()
@@ -112,43 +112,15 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-function dibujarEsquinasHUD(ctx, x, y, w, h, tam, color) {
-  ctx.strokeStyle = color
-  ctx.lineWidth = 3
-  const esquinas = [
-    [x, y, 1, 1], [x + w, y, -1, 1],
-    [x, y + h, 1, -1], [x + w, y + h, -1, -1]
-  ]
-  for (const [cx, cy, dx, dy] of esquinas) {
-    ctx.beginPath()
-    ctx.moveTo(cx, cy + tam * dy)
-    ctx.lineTo(cx, cy)
-    ctx.lineTo(cx + tam * dx, cy)
-    ctx.stroke()
-  }
-}
+function barraPlana(ctx, x, y, w, h, porcentaje, color) {
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'
+  roundRect(ctx, x, y, w, h, h / 2)
+  ctx.fill()
 
-function lineasScan(ctx, W, H, color) {
-  ctx.save()
-  ctx.globalAlpha = 0.05
-  ctx.strokeStyle = color
-  for (let y = 0; y < H; y += 4) {
-    ctx.beginPath()
-    ctx.moveTo(0, y)
-    ctx.lineTo(W, y)
-    ctx.stroke()
-  }
-  ctx.restore()
-}
-
-function barraAscii(ctx, x, y, w, porcentaje, colorLleno) {
-  const totalSegmentos = 30
-  const segmentosLlenos = Math.round(totalSegmentos * Math.min(1, Math.max(0, porcentaje)))
-  const segW = w / totalSegmentos
-  for (let i = 0; i < totalSegmentos; i++) {
-    ctx.fillStyle = i < segmentosLlenos ? colorLleno : 'rgba(255,90,90,0.12)'
-    ctx.fillRect(x + i * segW, y, segW - 2, 22)
-  }
+  const ancho = Math.max(h, w * Math.min(1, Math.max(0, porcentaje)))
+  ctx.fillStyle = color
+  roundRect(ctx, x, y, ancho, h, h / 2)
+  ctx.fill()
 }
 
 function recortarTexto(ctx, texto, maxAncho) {
@@ -159,155 +131,171 @@ function recortarTexto(ctx, texto, maxAncho) {
   return t === texto ? t : t + '…'
 }
 
+function chip(ctx, x, y, texto, colorFondo, colorTexto) {
+  ctx.font = 'bold 20px sans-serif'
+  const ancho = ctx.measureText(texto).width + 36
+  ctx.fillStyle = colorFondo
+  roundRect(ctx, x, y, ancho, 40, 20)
+  ctx.fill()
+  ctx.fillStyle = colorTexto
+  ctx.textAlign = 'left'
+  ctx.fillText(texto, x + 18, y + 27)
+  return ancho
+}
+
+/**
+ * Genera la tarjeta de reporte de errores, con altura dinámica
+ * para poder mostrar TODOS los archivos que fallan (sin recortar la lista).
+ */
 async function generarImagenErrores({ scan, pm2Info }) {
-  const W = 1150
-  const H = 800
+  const W = 1000
+  const marginX = 60
+
+  const fondo = '#111418'
+  const panel = '#181c22'
+  const texto = '#f2f4f7'
+  const gris = '#8b95a1'
+  const rojo = '#ff5c5c'
+  const rojoSuave = 'rgba(255,92,92,0.12)'
+  const verde = '#3ddc84'
+  const verdeSuave = 'rgba(61,220,132,0.12)'
+  const ambar = '#ffb454'
+
+  const lineasLog = pm2Info.disponible ? pm2Info.lineas.slice(-8) : []
+
+  // ── Altura dinámica según cuántos errores/lineas hay que mostrar ──
+  let H = 340 // cabecera + stats + barra
+  H += 50 // título sección archivos
+  if (scan.errores.length === 0) {
+    H += 60
+  } else {
+    H += scan.errores.length * 78
+  }
+  H += 60 // título sección log
+  H += lineasLog.length ? lineasLog.length * 26 + 20 : 50
+  H += 70 // footer
+
   const canvas = createCanvas(W, H)
   const ctx = canvas.getContext('2d')
 
-  const rojo = '#ff4d4d'
-  const rojoClaro = '#ffb3b3'
-  const verde = '#4ade80'
-  const ambar = '#ffcc66'
-
-  ctx.fillStyle = '#040202'
-  ctx.fillRect(0, 0, W, H)
-  lineasScan(ctx, W, H, rojo)
-
-  const glow = ctx.createRadialGradient(W / 2, H / 2, 100, W / 2, H / 2, W)
-  glow.addColorStop(0, 'rgba(255,77,77,0.05)')
-  glow.addColorStop(1, 'rgba(0,0,0,0)')
-  ctx.fillStyle = glow
+  // Fondo plano
+  ctx.fillStyle = fondo
   ctx.fillRect(0, 0, W, H)
 
-  const pad = 50
-  ctx.strokeStyle = 'rgba(255,77,77,0.4)'
-  ctx.lineWidth = 1.5
-  ctx.strokeRect(pad, pad, W - pad * 2, H - pad * 2)
-  dibujarEsquinasHUD(ctx, pad, pad, W - pad * 2, H - pad * 2, 34, rojo)
+  let y = 60
 
-  const marginX = pad + 40
-
-  // Barra de título terminal
-  const puntoY = pad + 42
-  ;['#ff5f56', '#ffcc66', '#4ade80'].forEach((c, i) => {
-    ctx.fillStyle = c
-    ctx.beginPath()
-    ctx.arc(marginX + i * 26, puntoY, 8, 0, Math.PI * 2)
-    ctx.fill()
-  })
-
-  ctx.font = '20px monospace'
-  ctx.fillStyle = 'rgba(255,255,255,0.5)'
-  ctx.textAlign = 'right'
-  ctx.fillText('saitama@server: diagnostics --scan', W - marginX, puntoY + 6)
-
+  // ── Encabezado ──
   ctx.textAlign = 'left'
-  ctx.font = 'bold 30px monospace'
-  ctx.fillStyle = rojo
-  ctx.fillText('root@saitama-bot', marginX, pad + 100)
-  ctx.fillStyle = 'rgba(255,255,255,0.6)'
-  ctx.fillText(':~$', marginX + ctx.measureText('root@saitama-bot').width + 10, pad + 100)
+  ctx.fillStyle = gris
+  ctx.font = '20px sans-serif'
+  ctx.fillText('SAITAMA-BOT', marginX, y)
+  y += 42
 
-  ctx.font = 'bold 44px monospace'
-  ctx.fillStyle = '#ffffff'
-  ctx.fillText('> ERROR REPORT', marginX, pad + 150)
-
-  const hayErroresSintaxis = scan.errores.length > 0
-  ctx.font = '20px monospace'
-  ctx.fillStyle = hayErroresSintaxis ? rojoClaro : verde
-  ctx.fillText(
-    hayErroresSintaxis
-      ? `[!] ${scan.errores.length} plugin(s) con errores de sintaxis`
-      : '[ok] todos los plugins pasan la verificación',
-    marginX, pad + 180
-  )
-
-  ctx.strokeStyle = 'rgba(255,77,77,0.25)'
-  ctx.beginPath()
-  ctx.moveTo(marginX, pad + 205)
-  ctx.lineTo(W - marginX, pad + 205)
-  ctx.stroke()
-
-  // ── Barra de salud de plugins ──
-  let y = pad + 245
-  const porcentajeOk = scan.total ? scan.ok.length / scan.total : 1
-  ctx.font = 'bold 22px monospace'
-  ctx.fillStyle = verde
-  ctx.fillText(`PLUGINS OK  ${scan.ok.length} / ${scan.total}`, marginX, y)
-  y += 16
-  barraAscii(ctx, marginX, y, W - marginX * 2, porcentajeOk, hayErroresSintaxis ? ambar : verde)
+  ctx.fillStyle = texto
+  ctx.font = 'bold 42px sans-serif'
+  ctx.fillText('Reporte de errores', marginX, y)
   y += 50
 
-  // ── Lista de plugins con error de sintaxis ──
-  ctx.font = 'bold 20px monospace'
-  ctx.fillStyle = rojo
-  ctx.fillText('ARCHIVOS CON ERROR:', marginX, y)
-  y += 32
+  // ── Chips de resumen ──
+  let x = marginX
+  x += chip(ctx, x, y, `${scan.total} plugins`, panel, texto) + 14
+  x += chip(ctx, x, y, `${scan.ok.length} ok`, verdeSuave, verde) + 14
+  chip(ctx, x, y, `${scan.errores.length} con error`, scan.errores.length ? rojoSuave : panel, scan.errores.length ? rojo : gris)
+  y += 70
 
-  ctx.font = '17px monospace'
-  if (scan.errores.length) {
-    scan.errores.slice(0, 4).forEach(e => {
-      ctx.fillStyle = rojoClaro
-      const nombre = path.basename(e.archivo)
-      ctx.fillText(`✗ ${nombre}`, marginX, y)
-      y += 24
-      ctx.fillStyle = 'rgba(255,255,255,0.5)'
-      ctx.fillText(recortarTexto(ctx, `  ${e.error}`, W - marginX * 2), marginX, y)
-      y += 30
-    })
-    if (scan.errores.length > 4) {
-      ctx.fillStyle = 'rgba(255,255,255,0.4)'
-      ctx.fillText(`  (+${scan.errores.length - 4} más — revisa el log completo)`, marginX, y)
-      y += 30
-    }
-  } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.4)'
-    ctx.fillText('  (ninguno)', marginX, y)
-    y += 30
-  }
+  // ── Barra de salud ──
+  const porcentajeOk = scan.total ? scan.ok.length / scan.total : 1
+  barraPlana(ctx, marginX, y, W - marginX * 2, 10, porcentajeOk, scan.errores.length ? ambar : verde)
+  y += 46
 
-  y += 10
-  ctx.strokeStyle = 'rgba(255,77,77,0.25)'
+  // ── Línea divisoria ──
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'
   ctx.beginPath()
   ctx.moveTo(marginX, y)
   ctx.lineTo(W - marginX, y)
   ctx.stroke()
+  y += 44
+
+  // ── Sección: archivos con error (TODOS, sin recortar la lista) ──
+  ctx.font = 'bold 22px sans-serif'
+  ctx.fillStyle = texto
+  ctx.fillText('Archivos con error', marginX, y)
   y += 36
 
-  // ── Últimos errores reales del proceso (PM2) ──
-  ctx.font = 'bold 20px monospace'
-  ctx.fillStyle = ambar
-  ctx.fillText(
-    pm2Info.disponible ? `LOG DE ERRORES — ${pm2Info.appName}` : 'LOG DE ERRORES',
-    marginX, y
-  )
-  y += 30
-
-  ctx.font = '16px monospace'
-  if (pm2Info.disponible && pm2Info.lineas.length) {
-    const maxLineasMostrar = 6
-    pm2Info.lineas.slice(-maxLineasMostrar).forEach(l => {
-      ctx.fillStyle = 'rgba(255,255,255,0.55)'
-      const sufijo = l.veces > 1 ? `  (x${l.veces})` : ''
-      ctx.fillText(recortarTexto(ctx, l.texto + sufijo, W - marginX * 2), marginX, y)
-      y += 24
-    })
+  if (scan.errores.length === 0) {
+    ctx.font = '20px sans-serif'
+    ctx.fillStyle = verde
+    ctx.fillText('✓ Ningún plugin tiene errores de sintaxis', marginX, y)
+    y += 40
   } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.35)'
-    ctx.fillText(`  (${pm2Info.motivo || 'sin datos disponibles'})`, marginX, y)
-    y += 24
+    for (const e of scan.errores) {
+      // Tarjeta individual por archivo
+      const alturaFila = 66
+      ctx.fillStyle = panel
+      roundRect(ctx, marginX, y - 28, W - marginX * 2, alturaFila, 14)
+      ctx.fill()
+
+      // Punto rojo indicador
+      ctx.fillStyle = rojo
+      ctx.beginPath()
+      ctx.arc(marginX + 26, y - 2, 6, 0, Math.PI * 2)
+      ctx.fill()
+
+      ctx.font = 'bold 20px sans-serif'
+      ctx.fillStyle = texto
+      ctx.fillText(path.basename(e.archivo), marginX + 48, y - 4)
+
+      ctx.font = '16px monospace'
+      ctx.fillStyle = gris
+      ctx.fillText(recortarTexto(ctx, e.error, W - marginX * 2 - 60), marginX + 48, y + 22)
+
+      y += alturaFila + 12
+    }
   }
 
-  ctx.fillStyle = rojo
-  ctx.fillRect(marginX, H - pad - 46, 14, 26)
-  ctx.font = '18px monospace'
-  ctx.fillStyle = 'rgba(255,255,255,0.35)'
+  y += 20
+
+  // ── Línea divisoria ──
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'
+  ctx.beginPath()
+  ctx.moveTo(marginX, y)
+  ctx.lineTo(W - marginX, y)
+  ctx.stroke()
+  y += 44
+
+  // ── Sección: últimos errores reales del proceso (PM2) ──
+  ctx.font = 'bold 22px sans-serif'
+  ctx.fillStyle = texto
+  ctx.fillText(
+    pm2Info.disponible ? `Log de errores — ${pm2Info.appName}` : 'Log de errores',
+    marginX, y
+  )
+  y += 34
+
+  if (lineasLog.length) {
+    ctx.font = '15px monospace'
+    for (const l of lineasLog) {
+      ctx.fillStyle = gris
+      const sufijo = l.veces > 1 ? `  ×${l.veces}` : ''
+      ctx.fillText(recortarTexto(ctx, l.texto + sufijo, W - marginX * 2), marginX, y)
+      y += 26
+    }
+  } else {
+    ctx.font = '17px sans-serif'
+    ctx.fillStyle = gris
+    ctx.fillText(pm2Info.motivo || 'Sin datos disponibles', marginX, y)
+    y += 30
+  }
+
+  // ── Footer ──
+  ctx.font = '15px sans-serif'
+  ctx.fillStyle = 'rgba(255,255,255,0.25)'
   ctx.textAlign = 'right'
-  ctx.fillText('SAITAMA-BOT // ERROR DIAGNOSTICS', W - marginX, H - pad - 26)
+  ctx.fillText('Saitama-Bot · Error Report', W - marginX, H - 34)
 
   return canvas.toBuffer('image/png')
 }
+
 
 // ───────────────────────────────────────────
 // Comando .errores [nombreProcesoPM2]
