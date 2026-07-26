@@ -35,10 +35,10 @@ const handler = async (m, { conn, args, usedPrefix }) => {
     const { id, nombreProceso } = await crearSubbotCompleto(numero, remitente);
 
     let status = null;
-    for (let intento = 0; intento < 20; intento++) {
+    for (let intento = 0; intento < 44; intento++) {
       await esperar(2000);
       status = leerStatus(id);
-      if (status?.codigo || status?.estado === 'error') break;
+      if (status?.codigo || status?.qrPath || status?.estado === 'error') break;
     }
 
     if (!status || (!status.codigo && !status.qrPath && status.estado !== 'error')) {
