@@ -245,23 +245,27 @@ function nombreDe(jid, esBot) {
   return '@' + jid.split('@')[0]
 }
 
-// 🔎 Resuelve las variantes de ID (@s.whatsapp.net y @lid) de un jugador,
-// para que no falle la detección cuando WhatsApp usa un formato distinto
-// al momento de mencionarlo vs. al momento de que él escriba.
-async function getIdsJugador(jid, conn) {
-  if (jid === 'bot') return ['bot']
-  let ids = [jid]
-  try {
-    const res = await conn.onWhatsApp(jid).catch(() => [])
-    const info = res && res[0]
-    if (info?.jid && !ids.includes(info.jid)) ids.push(info.jid)
-    if (info?.lid && !ids.includes(info.lid)) ids.push(info.lid)
-  } catch {}
-  return ids
+// 🔎 Busca un participante del grupo que coincida con ese jid,
+// probando contra .id, .phoneNumber y .jid (formatos que Baileys usa según el caso)
+function encontrarParticipante(participants, jid) {
+  if (!jid) return null
+  return participants.find(p => p.id === jid || p.phoneNumber === jid || p.jid === jid) || null
 }
 
-function esEseJugador(ids, senderJid) {
-  return Array.isArray(ids) && ids.includes(senderJid)
+// ✅ Compara si "jidReferencia" (guardado en la partida) y "jidRemitente" (quien escribió)
+// son la misma persona, cruzando contra la lista de participantes del grupo (fuente de verdad de WhatsApp)
+function esMismaPersona(participants, jidReferencia, jidRemitente) {
+  if (jidReferencia === 'bot') return false
+  if (jidReferencia === jidRemitente) return true
+
+  const pRef = encontrarParticipante(participants, jidReferencia)
+  const pSender = encontrarParticipante(participants, jidRemitente)
+
+  if (pRef && pSender && pRef.id === pSender.id) return true
+  if (pRef?.phoneNumber && pSender?.phoneNumber && pRef.phoneNumber === pSender.phoneNumber) return true
+  if (pRef?.jid && pSender?.jid && pRef.jid === pSender.jid) return true
+
+  return false
 }
 
 // 🗑️ Borra todas las imágenes del tablero guardadas en la partida,
@@ -302,7 +306,7 @@ async function enviarTablero(conn, m, game, chatId) {
   if (enviado?.key) game.imageKeys.push(enviado.key)
 
   if (resultado || empate) {
-    await limpiarImagenes(conn, m.chat, game, true) // deja solo la última (la que se acaba de mandar)
+    await limpiarImagenes(conn, m.chat, game, true)
     delete global.__ticTacToe[chatId]
     return true
   }
@@ -313,6 +317,15 @@ let handler = async (m, { conn, text }) => {
   let chatId = m.chat
   let game = global.__ticTacToe[chatId]
   let input = (text || '').trim().toLowerCase()
+
+  // Participantes del grupo en vivo, para resolver @lid vs número real
+  let participants = []
+  if (m.isGroup) {
+    try {
+      let meta = await conn.groupMetadata(m.chat)
+      participants = meta?.participants || []
+    } catch {}
+  }
 
   if (!input) {
     if (game) return enviarTablero(conn, m, game, chatId)
@@ -329,14 +342,15 @@ let handler = async (m, { conn, text }) => {
   if (input === 'rendirse' || input === 'salir') {
     if (!game) return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No hay partida activa en este chat\n╰───────────────⬣' }, { quoted: m })
 
-    let esJugadorX = esEseJugador(game.playerIds?.X, m.sender)
-    let esJugadorO = esEseJugador(game.playerIds?.O, m.sender)
+    let esJugadorX = esMismaPersona(participants, game.players.X, m.sender)
+    let esJugadorO = !game.vsBot && esMismaPersona(participants, game.players.O, m.sender)
+
     if (!esJugadorX && !esJugadorO) {
       return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No eres parte de esta partida\n╰───────────────⬣' }, { quoted: m })
     }
 
     let ganador = esJugadorX ? game.players.O : game.players.X
-    await limpiarImagenes(conn, m.chat, game, false) // no queda imagen final, se borran todas
+    await limpiarImagenes(conn, m.chat, game, false)
     delete global.__ticTacToe[chatId]
     let mentions = [m.sender, ganador].filter(j => j !== 'bot')
     return conn.sendMessage(m.chat, {
@@ -352,21 +366,14 @@ let handler = async (m, { conn, text }) => {
     }
 
     let vsBot = input === 'bot'
-    if (!vsBot && mentioned === m.sender) {
+    if (!vsBot && esMismaPersona(participants, mentioned, m.sender)) {
       return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No puedes retarte a ti mismo\n╰───────────────⬣' }, { quoted: m })
     }
-
-    let jugadorO = vsBot ? 'bot' : mentioned
-
-    // Resolvemos las variantes de ID (@lid / @s.whatsapp.net) ANTES de guardar la partida
-    let idsX = await getIdsJugador(m.sender, conn)
-    let idsO = await getIdsJugador(jugadorO, conn)
 
     global.__ticTacToe[chatId] = {
       board: Array(9).fill(null),
       turn: 'X',
-      players: { X: m.sender, O: jugadorO },
-      playerIds: { X: idsX, O: idsO },
+      players: { X: m.sender, O: vsBot ? 'bot' : mentioned },
       vsBot,
       imageKeys: [],
       createdAt: Date.now()
@@ -384,8 +391,8 @@ let handler = async (m, { conn, text }) => {
     return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No hay partida activa\n│ 🍃 Usa .3raya @usuario o .3raya bot\n╰───────────────⬣' }, { quoted: m })
   }
 
-  let esJugadorX = esEseJugador(game.playerIds?.X, m.sender)
-  let esJugadorO = esEseJugador(game.playerIds?.O, m.sender)
+  let esJugadorX = esMismaPersona(participants, game.players.X, m.sender)
+  let esJugadorO = !game.vsBot && esMismaPersona(participants, game.players.O, m.sender)
 
   if (!esJugadorX && !esJugadorO) {
     return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No eres parte de esta partida\n╰───────────────⬣' }, { quoted: m })
