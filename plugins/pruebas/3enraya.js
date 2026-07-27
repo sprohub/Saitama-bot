@@ -6,6 +6,8 @@ const LINES = [
   [0, 4, 8], [2, 4, 6]
 ]
 
+const PUNTOS_POR_VICTORIA = 5
+
 global.__ticTacToe = global.__ticTacToe || {}
 
 function checkWinner(board) {
@@ -133,7 +135,7 @@ function generarImagenTablero(datos) {
   ctx.fillText('❌', card1X + 24, cardY + 40)
   ctx.fillStyle = '#ffffff'
   ctx.font = 'bold 22px sans-serif'
-  let nombreX = datos.nombreX.length > 14 ? datos.nombreX.slice(0, 14) + '…' : datos.nombreX
+  let nombreX = datos.nombreX.length > 16 ? datos.nombreX.slice(0, 16) + '…' : datos.nombreX
   ctx.fillText(nombreX, card1X + 70, cardY + 38)
   ctx.fillStyle = 'rgba(255,255,255,0.5)'
   ctx.font = '16px sans-serif'
@@ -149,7 +151,7 @@ function generarImagenTablero(datos) {
   ctx.fillText('⭕', card2X + 24, cardY + 40)
   ctx.fillStyle = '#ffffff'
   ctx.font = 'bold 22px sans-serif'
-  let nombreO = datos.nombreO.length > 14 ? datos.nombreO.slice(0, 14) + '…' : datos.nombreO
+  let nombreO = datos.nombreO.length > 16 ? datos.nombreO.slice(0, 16) + '…' : datos.nombreO
   ctx.fillText(nombreO, card2X + 70, cardY + 38)
   ctx.fillStyle = 'rgba(255,255,255,0.5)'
   ctx.font = '16px sans-serif'
@@ -240,20 +242,24 @@ function generarImagenTablero(datos) {
   return canvas.toBuffer('image/png')
 }
 
-function nombreDe(jid, esBot) {
+// 🏷️ Obtiene el nombre real del usuario (contacto/perfil de WhatsApp),
+// usando conn.getName si tu bot lo tiene, con respaldo al número.
+async function obtenerNombre(conn, jid, esBot) {
   if (esBot) return 'Bot 🤖'
-  return '@' + jid.split('@')[0]
+  try {
+    if (typeof conn.getName === 'function') {
+      let nombre = await conn.getName(jid)
+      if (nombre && nombre.trim()) return nombre.trim()
+    }
+  } catch {}
+  return jid.split('@')[0]
 }
 
-// 🔎 Busca un participante del grupo que coincida con ese jid,
-// probando contra .id, .phoneNumber y .jid (formatos que Baileys usa según el caso)
 function encontrarParticipante(participants, jid) {
   if (!jid) return null
   return participants.find(p => p.id === jid || p.phoneNumber === jid || p.jid === jid) || null
 }
 
-// ✅ Compara si "jidReferencia" (guardado en la partida) y "jidRemitente" (quien escribió)
-// son la misma persona, cruzando contra la lista de participantes del grupo (fuente de verdad de WhatsApp)
 function esMismaPersona(participants, jidReferencia, jidRemitente) {
   if (jidReferencia === 'bot') return false
   if (jidReferencia === jidRemitente) return true
@@ -268,8 +274,6 @@ function esMismaPersona(participants, jidReferencia, jidRemitente) {
   return false
 }
 
-// 🗑️ Borra todas las imágenes del tablero guardadas en la partida,
-// dejando (opcionalmente) la última fuera del borrado.
 async function limpiarImagenes(conn, chat, game, dejarUltima) {
   if (!game.imageKeys?.length) return
   const keys = dejarUltima ? game.imageKeys.slice(0, -1) : game.imageKeys
@@ -278,14 +282,29 @@ async function limpiarImagenes(conn, chat, game, dejarUltima) {
   }
 }
 
+// 💎 Otorga puntos al ganador (si no es el bot) y guarda estadísticas
+function otorgarPuntos(ganadorJid) {
+  if (!ganadorJid || ganadorJid === 'bot') return
+  if (!global.db.data.users[ganadorJid]) {
+    global.db.data.users[ganadorJid] = { exp: 0, level: 0 }
+  }
+  let user = global.db.data.users[ganadorJid]
+  user.tresRayaPuntos = (user.tresRayaPuntos || 0) + PUNTOS_POR_VICTORIA
+  user.tresRayaVictorias = (user.tresRayaVictorias || 0) + 1
+  global.markDatabaseModified()
+}
+
 async function enviarTablero(conn, m, game, chatId) {
   let resultado = checkWinner(game.board)
   let empate = !resultado && checkDraw(game.board)
 
+  let nombreX = await obtenerNombre(conn, game.players.X, false)
+  let nombreO = await obtenerNombre(conn, game.players.O, game.vsBot)
+
   let datos = {
     board: game.board,
-    nombreX: nombreDe(game.players.X, false),
-    nombreO: nombreDe(game.players.O, game.vsBot),
+    nombreX,
+    nombreO,
     turno: game.turn,
     ganador: resultado,
     empate
@@ -294,11 +313,17 @@ async function enviarTablero(conn, m, game, chatId) {
   let buffer = generarImagenTablero(datos)
   let mentions = [game.players.X, game.players.O].filter(j => j !== 'bot')
 
-  let caption = resultado
-    ? `🏆 ¡Partida terminada!`
-    : empate
-      ? `🤝 ¡Empate!`
-      : `🎮 3 en raya`
+  let caption
+  if (resultado) {
+    let ganadorJid = resultado.symbol === 'X' ? game.players.X : game.players.O
+    let ganadorNombre = resultado.symbol === 'X' ? nombreX : nombreO
+    otorgarPuntos(ganadorJid)
+    caption = `🏆 ¡Ganó ${ganadorNombre}! +${PUNTOS_POR_VICTORIA} puntos`
+  } else if (empate) {
+    caption = `🤝 ¡Empate! Nadie suma puntos`
+  } else {
+    caption = `🎮 3 en raya`
+  }
 
   let enviado = await conn.sendMessage(m.chat, { image: buffer, caption, mentions }, { quoted: m })
 
@@ -306,6 +331,8 @@ async function enviarTablero(conn, m, game, chatId) {
   if (enviado?.key) game.imageKeys.push(enviado.key)
 
   if (resultado || empate) {
+    // Se borran todas las imágenes intermedias, dejando solo la del resultado final
+    // (aplica igual tanto en modo vs usuario como vs bot)
     await limpiarImagenes(conn, m.chat, game, true)
     delete global.__ticTacToe[chatId]
     return true
@@ -318,7 +345,6 @@ let handler = async (m, { conn, text }) => {
   let game = global.__ticTacToe[chatId]
   let input = (text || '').trim().toLowerCase()
 
-  // Participantes del grupo en vivo, para resolver @lid vs número real
   let participants = []
   if (m.isGroup) {
     try {
@@ -335,7 +361,8 @@ let handler = async (m, { conn, text }) => {
         `│ 🍃 .3raya @usuario — retar a alguien\n` +
         `│ 🍃 .3raya bot — jugar contra el bot\n` +
         `│ 🍃 .3raya <1-9> — hacer un movimiento\n` +
-        `│ 🍃 .3raya rendirse — abandonar\n╰───────────────⬣`
+        `│ 🍃 .3raya rendirse — abandonar\n` +
+        `│ 🍃 .top3raya — ver el ranking\n╰───────────────⬣`
     }, { quoted: m })
   }
 
@@ -349,12 +376,14 @@ let handler = async (m, { conn, text }) => {
       return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No eres parte de esta partida\n╰───────────────⬣' }, { quoted: m })
     }
 
-    let ganador = esJugadorX ? game.players.O : game.players.X
+    let ganadorJid = esJugadorX ? game.players.O : game.players.X
+    let ganadorNombre = await obtenerNombre(conn, ganadorJid, ganadorJid === 'bot')
+    otorgarPuntos(ganadorJid)
     await limpiarImagenes(conn, m.chat, game, false)
     delete global.__ticTacToe[chatId]
-    let mentions = [m.sender, ganador].filter(j => j !== 'bot')
+    let mentions = [m.sender, ganadorJid].filter(j => j !== 'bot')
     return conn.sendMessage(m.chat, {
-      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🏳️ @${m.sender.split('@')[0]} se rindió\n│ 🏆 Ganador: ${ganador === 'bot' ? '🤖 Bot' : '@' + ganador.split('@')[0]}\n╰───────────────⬣`,
+      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🏳️ @${m.sender.split('@')[0]} se rindió\n│ 🏆 Ganador: ${ganadorNombre} (+${PUNTOS_POR_VICTORIA} puntos)\n╰───────────────⬣`,
       mentions
     }, { quoted: m })
   }
