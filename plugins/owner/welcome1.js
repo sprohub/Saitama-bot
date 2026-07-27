@@ -623,4 +623,14 @@ handler.before = async (m, { conn }) => {
       mentions: mentionsArray
     })
   } catch (e) {
-    console.log('[welcome] error
+    console.log('[welcome] error generando imagen, se envía solo texto:', e)
+    const texto = esEntrada
+      ? `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 👋 ¡Bienvenido/a!\n│\n│ 👤 ${etiquetaUsuario}\n│ 🏠 Grupo: ${groupMetadata.subject}\n│ 👥 Miembros: ${groupSize}\n╰───────────────⬣`
+      : `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 💨 ¡Hasta luego!\n│\n│ 👤 ${etiquetaUsuario}\n│ 🏠 Grupo: ${groupMetadata.subject}\n│ 👥 Miembros restantes: ${groupSize}\n╰───────────────⬣`
+    await conn.sendMessage(m.chat, { text: texto, mentions: mentionsArray })
+  }
+
+  return false
+}
+
+export default handler
