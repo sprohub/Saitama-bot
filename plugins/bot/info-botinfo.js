@@ -1,12 +1,12 @@
-
 import os from 'os'
 import { execSync } from 'child_process'
 import { createCanvas } from '@napi-rs/canvas'
 
 // ═══════════════════════════════════════════
 //  TARJETA VISUAL "SAITAMA BOTINFO"
-//  100% dibujada por código (gradientes, starburst
-//  cómic, líneas de velocidad) — NO usa imágenes de lib/.
+//  Diseño minimalista y serio: 100% dibujado por código
+//  (sin emojis — el motor de canvas no trae fuente de
+//  emoji y salían como cuadros — y sin imágenes de lib/).
 // ═══════════════════════════════════════════
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -19,214 +19,183 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-// Estrella tipo "impacto de cómic" (POW/BOOM) para el fondo del título
-function pathStarBurst(ctx, cx, cy, puntas, rExterior, rInterior, rotacionInicial = 0) {
-  ctx.beginPath()
-  let rot = rotacionInicial
-  const paso = Math.PI / puntas
-  ctx.moveTo(cx + Math.cos(rot) * rExterior, cy + Math.sin(rot) * rExterior)
-  for (let i = 0; i < puntas; i++) {
-    rot += paso
-    ctx.lineTo(cx + Math.cos(rot) * rInterior, cy + Math.sin(rot) * rInterior)
-    rot += paso
-    ctx.lineTo(cx + Math.cos(rot) * rExterior, cy + Math.sin(rot) * rExterior)
-  }
-  ctx.closePath()
-}
-
-// Líneas de velocidad radiales detrás del logo (efecto de impacto/cómic)
-function dibujarLineasVelocidad(ctx, cx, cy, W, H) {
-  const total = 56
-  for (let i = 0; i < total; i++) {
-    const angulo = (Math.PI * 2 * i) / total
-    const rInicio = 260
-    const rFin = Math.max(W, H) * 0.85
-    const grosor = i % 2 === 0 ? 3 : 1.4
-    const alpha = i % 3 === 0 ? 0.10 : 0.05
-    ctx.save()
-    ctx.translate(cx, cy)
-    ctx.rotate(angulo)
-    ctx.strokeStyle = `rgba(255,255,255,${alpha})`
-    ctx.lineWidth = grosor
-    ctx.beginPath()
-    ctx.moveTo(rInicio, 0)
-    ctx.lineTo(rFin, 0)
-    ctx.stroke()
-    ctx.restore()
-  }
-}
-
-function dibujarTextoConTrazo(ctx, texto, x, y, fontFill, fontStroke, strokeWidth) {
-  ctx.lineWidth = strokeWidth
-  ctx.strokeStyle = fontStroke
-  ctx.strokeText(texto, x, y)
-  ctx.fillStyle = fontFill
-  ctx.fillText(texto, x, y)
-}
-
 function formatFechaHora(fecha) {
   const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
   const d = fecha.getDate().toString().padStart(2, '0')
   const mes = meses[fecha.getMonth()]
   const hh = fecha.getHours().toString().padStart(2, '0')
   const mm = fecha.getMinutes().toString().padStart(2, '0')
-  return `${d} ${mes.charAt(0).toUpperCase() + mes.slice(1)} ${fecha.getFullYear()} — ${hh}:${mm}`
+  return `${d} ${mes.charAt(0).toUpperCase() + mes.slice(1)} ${fecha.getFullYear()} · ${hh}:${mm}`
+}
+
+// Inserta espacio entre letras para un efecto "tracking" en textos cortos
+function espaciar(texto, sep = '  ') {
+  return texto.split('').join(sep)
 }
 
 /**
- * Genera la tarjeta "SAITAMA BOTINFO".
+ * Genera la tarjeta "SAITAMA BOTINFO" — versión minimalista.
  * stats: { usuarios, grupos, comandos, uptimeTexto, ram, disco, cpu, sistema, node }
  */
 async function generarImagenBotInfo(stats) {
   const W = 1080
-  const H = 1350
+  const H = 1400
   const canvas = createCanvas(W, H)
   const ctx = canvas.getContext('2d')
 
-  const amarillo = '#ffd23f'
-  const rojo = '#e8352e'
-  const negro = '#08080b'
-  const blanco = '#ffffff'
-  const gris = '#9aa3af'
+  const amarillo = '#f4c430'
+  const rojo = '#d92c27'
+  const fondo = '#0b0c0f'
+  const panel = 'rgba(255,255,255,0.035)'
+  const borde = 'rgba(255,255,255,0.08)'
+  const separador = 'rgba(255,255,255,0.07)'
+  const blanco = '#f5f6f8'
+  const gris = '#7d8590'
   const cx = W / 2
 
-  // ── 1) Fondo base oscuro ──
-  ctx.fillStyle = negro
+  // ── 1) Fondo plano, sin texturas ni ruido ──
+  ctx.fillStyle = fondo
   ctx.fillRect(0, 0, W, H)
 
-  // ── 2) Resplandor radial superior (rojo→amarillo→transparente) ──
-  const glow = ctx.createRadialGradient(cx, 340, 0, cx, 340, 780)
-  glow.addColorStop(0, 'rgba(232,53,46,0.35)')
-  glow.addColorStop(0.45, 'rgba(255,210,63,0.16)')
-  glow.addColorStop(1, 'rgba(0,0,0,0)')
+  // Resplandor muy sutil detrás del emblema (discreto, no un "burst")
+  const glow = ctx.createRadialGradient(cx, 195, 0, cx, 195, 260)
+  glow.addColorStop(0, 'rgba(217,44,39,0.16)')
+  glow.addColorStop(1, 'rgba(217,44,39,0)')
   ctx.fillStyle = glow
   ctx.fillRect(0, 0, W, H)
 
-  // ── 3) Líneas de velocidad (efecto cómic detrás del logo) ──
-  dibujarLineasVelocidad(ctx, cx, 340, W, H)
+  // ── 2) Emblema circular minimalista con monograma "S" ──
+  const rAnillo = 78
+  const emblemaGrad = ctx.createLinearGradient(cx - rAnillo, 195 - rAnillo, cx + rAnillo, 195 + rAnillo)
+  emblemaGrad.addColorStop(0, amarillo)
+  emblemaGrad.addColorStop(1, rojo)
 
-  // ── 4) Starburst grande detrás del título ──
-  ctx.save()
-  const burstGrad = ctx.createRadialGradient(cx, 340, 20, cx, 340, 300)
-  burstGrad.addColorStop(0, 'rgba(255,210,63,0.9)')
-  burstGrad.addColorStop(0.6, 'rgba(232,53,46,0.55)')
-  burstGrad.addColorStop(1, 'rgba(232,53,46,0)')
-  ctx.fillStyle = burstGrad
-  pathStarBurst(ctx, cx, 340, 14, 300, 205, Math.PI / 10)
-  ctx.fill()
-  ctx.restore()
-
-  // ── 5) Sello circular tipo "puño" (anillo doble) ──
   ctx.beginPath()
-  ctx.arc(cx, 340, 150, 0, Math.PI * 2)
-  ctx.strokeStyle = amarillo
-  ctx.lineWidth = 6
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.arc(cx, 340, 168, 0, Math.PI * 2)
-  ctx.strokeStyle = 'rgba(255,210,63,0.35)'
-  ctx.lineWidth = 3
+  ctx.arc(cx, 195, rAnillo, 0, Math.PI * 2)
+  ctx.strokeStyle = emblemaGrad
+  ctx.lineWidth = 5
   ctx.stroke()
 
-  // ── 6) Emoji/ícono central grande dentro del sello ──
   ctx.textAlign = 'center'
-  ctx.font = '150px sans-serif'
-  ctx.fillText('👊', cx, 395)
+  ctx.font = '900 78px sans-serif'
+  ctx.fillStyle = amarillo
+  ctx.fillText('S', cx, 195 + 28)
 
-  // ── 7) Título "SAITAMA BOT" con trazo cómic ──
+  // ── 3) Título centrado, una línea, colores planos ──
+  ctx.font = '900 64px sans-serif'
   ctx.textAlign = 'center'
-  ctx.font = '900 92px sans-serif'
-  dibujarTextoConTrazo(ctx, 'SAITAMA', cx, 645, amarillo, negro, 10)
-  ctx.font = '900 92px sans-serif'
-  dibujarTextoConTrazo(ctx, 'BOT', cx, 735, rojo, blanco, 6)
+  const tituloY = 370
+  const anchoSaitama = ctx.measureText('SAITAMA').width
+  ctx.font = '900 64px sans-serif'
+  const anchoBot = ctx.measureText(' BOT').width
+  const totalAncho = anchoSaitama + anchoBot
+  let tx = cx - totalAncho / 2
 
-  // ── 8) Subtítulo ──
-  ctx.font = 'bold 26px sans-serif'
+  ctx.textAlign = 'left'
+  ctx.fillStyle = amarillo
+  ctx.fillText('SAITAMA', tx, tituloY)
+  tx += anchoSaitama
+  ctx.fillStyle = rojo
+  ctx.fillText(' BOT', tx, tituloY)
+
+  // ── 4) Subtítulo pequeño, espaciado, serio ──
+  ctx.textAlign = 'center'
+  ctx.font = '600 18px sans-serif'
   ctx.fillStyle = gris
-  ctx.fillText('P A N E L   D E   E S T A D Í S T I C A S', cx, 785)
+  ctx.fillText(espaciar('PANEL DE ESTADÍSTICAS'), cx, tituloY + 46)
 
-  // ── 9) Línea divisoria degradada ──
-  const lineaGrad = ctx.createLinearGradient(90, 0, W - 90, 0)
-  lineaGrad.addColorStop(0, 'rgba(232,53,46,0)')
+  // ── 5) Línea divisoria corta y centrada ──
+  const anchoLinea = 220
+  const lineaGrad = ctx.createLinearGradient(cx - anchoLinea / 2, 0, cx + anchoLinea / 2, 0)
+  lineaGrad.addColorStop(0, 'rgba(244,196,48,0)')
   lineaGrad.addColorStop(0.5, amarillo)
-  lineaGrad.addColorStop(1, 'rgba(232,53,46,0)')
+  lineaGrad.addColorStop(1, 'rgba(217,44,39,0)')
   ctx.strokeStyle = lineaGrad
-  ctx.lineWidth = 3
+  ctx.lineWidth = 2
   ctx.beginPath()
-  ctx.moveTo(90, 820)
-  ctx.lineTo(W - 90, 820)
+  ctx.moveTo(cx - anchoLinea / 2, tituloY + 80)
+  ctx.lineTo(cx + anchoLinea / 2, tituloY + 80)
   ctx.stroke()
 
-  // ── 10) Cuadrícula de tarjetas de estadísticas (2 columnas x 4 filas) ──
-  const tarjetas = [
-    { icono: '👤', label: 'USUARIOS', valor: String(stats.usuarios) },
-    { icono: '👥', label: 'GRUPOS', valor: String(stats.grupos) },
-    { icono: '⚡', label: 'COMANDOS', valor: String(stats.comandos) },
-    { icono: '⏱️', label: 'ACTIVIDAD', valor: stats.uptimeTexto },
-    { icono: '💾', label: 'RAM', valor: `${stats.ram} MB` },
-    { icono: '💿', label: 'DISCO', valor: stats.disco },
-    { icono: '🖥️', label: 'CPU', valor: stats.cpu },
-    { icono: '💻', label: 'SISTEMA', valor: `${stats.sistema} · ${stats.node}` }
+  // ── 6) Panel único con lista de estadísticas (sin íconos, sin emojis) ──
+  const filas = [
+    { label: 'USUARIOS', valor: String(stats.usuarios) },
+    { label: 'GRUPOS', valor: String(stats.grupos) },
+    { label: 'COMANDOS', valor: String(stats.comandos) },
+    { label: 'ACTIVIDAD', valor: stats.uptimeTexto },
+    { label: 'RAM', valor: `${stats.ram} MB` },
+    { label: 'DISCO', valor: stats.disco },
+    { label: 'CPU', valor: stats.cpu },
+    { label: 'SISTEMA', valor: `${stats.sistema} · ${stats.node}` }
   ]
 
-  const margen = 90
-  const gap = 24
-  const cols = 2
-  const cardW = (W - margen * 2 - gap * (cols - 1)) / cols
-  const cardH = 118
-  let startY = 862
+  const panelW = 860
+  const panelX = (W - panelW) / 2
+  const filaH = 78
+  const paddingV = 30
+  const panelH = filas.length * filaH + paddingV * 2
+  const panelY = tituloY + 120
 
-  tarjetas.forEach((t, i) => {
-    const col = i % cols
-    const fila = Math.floor(i / cols)
-    const x = margen + col * (cardW + gap)
-    const y = startY + fila * (cardH + gap)
+  ctx.fillStyle = panel
+  roundRect(ctx, panelX, panelY, panelW, panelH, 26)
+  ctx.fill()
+  ctx.strokeStyle = borde
+  ctx.lineWidth = 1.5
+  roundRect(ctx, panelX, panelY, panelW, panelH, 26)
+  ctx.stroke()
 
-    // Fondo tipo "glass"
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'
-    roundRect(ctx, x, y, cardW, cardH, 22)
-    ctx.fill()
-    ctx.strokeStyle = 'rgba(255,255,255,0.14)'
-    ctx.lineWidth = 1.5
-    roundRect(ctx, x, y, cardW, cardH, 22)
-    ctx.stroke()
+  const innerX = panelX + 44
+  const innerRight = panelX + panelW - 44
 
-    // Barra de acento lateral
+  filas.forEach((f, i) => {
+    const y = panelY + paddingV + i * filaH
+    const yTextoBase = y + filaH / 2 + 8
+
+    // Punto de acento minimalista (alterna amarillo/rojo)
+    ctx.beginPath()
+    ctx.arc(innerX, yTextoBase - 7, 5, 0, Math.PI * 2)
     ctx.fillStyle = i % 2 === 0 ? amarillo : rojo
-    roundRect(ctx, x, y, 8, cardH, 4)
     ctx.fill()
 
-    // Ícono
+    // Label
     ctx.textAlign = 'left'
-    ctx.font = '46px sans-serif'
-    ctx.fillText(t.icono, x + 30, y + cardH / 2 + 16)
-
-    // Label + valor
-    ctx.font = 'bold 17px sans-serif'
+    ctx.font = '600 19px sans-serif'
     ctx.fillStyle = gris
-    ctx.fillText(t.label, x + 100, y + 44)
+    ctx.fillText(espaciar(f.label, ' '), innerX + 22, yTextoBase)
 
-    ctx.font = 'bold 30px sans-serif'
+    // Valor, alineado a la derecha
+    ctx.textAlign = 'right'
+    ctx.font = 'bold 27px sans-serif'
     ctx.fillStyle = blanco
-    let valorTexto = t.valor
-    // recorta si es muy largo para no salirse de la tarjeta
-    const maxAncho = cardW - 120
+    let valorTexto = f.valor
+    const maxAncho = panelW - 280
     while (ctx.measureText(valorTexto).width > maxAncho && valorTexto.length > 3) {
       valorTexto = valorTexto.slice(0, -1)
     }
-    if (valorTexto !== t.valor) valorTexto = valorTexto.slice(0, -1) + '…'
-    ctx.fillText(valorTexto, x + 100, y + 84)
+    if (valorTexto !== f.valor) valorTexto = valorTexto.slice(0, -1) + '…'
+    ctx.fillText(valorTexto, innerRight, yTextoBase)
+
+    // Separador (excepto en la última fila)
+    if (i < filas.length - 1) {
+      ctx.strokeStyle = separador
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(innerX, y + filaH)
+      ctx.lineTo(innerRight, y + filaH)
+      ctx.stroke()
+    }
   })
 
-  // ── 11) Pie de página ──
-  const footerY = startY + 4 * (cardH + gap) + 20
+  // ── 7) Pie de página, discreto y centrado ──
+  const footerY = panelY + panelH + 60
   ctx.textAlign = 'center'
-  ctx.font = 'italic 20px sans-serif'
+  ctx.font = '400 17px sans-serif'
   ctx.fillStyle = gris
   ctx.fillText(formatFechaHora(new Date()), cx, footerY)
 
-  ctx.font = '900 30px sans-serif'
-  dibujarTextoConTrazo(ctx, 'SAITAMA BOT ✿', cx, footerY + 46, amarillo, negro, 4)
+  ctx.font = '700 20px sans-serif'
+  ctx.fillStyle = amarillo
+  ctx.fillText('SAITAMA BOT', cx, footerY + 34)
 
   return canvas.toBuffer('image/png')
 }
