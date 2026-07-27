@@ -86,11 +86,6 @@ function contarGruposActivos(botNumber, grupos) {
 // ═══════════════════════════════════════════
 //  ANTI-DUPLICADOS — reforzado
 // ═══════════════════════════════════════════
-// Antes se usaba m.key?.id cuando existía, pero WhatsApp a veces entrega
-// el MISMO evento de entrada/salida a través de dos rutas distintas con
-// key.id diferente (o sin key.id) — eso hacía que el dedupe fallara y
-// se mandaran 2 bienvenidas/despedidas. Ahora SIEMPRE se usa la llave
-// compuesta (chat + tipo de evento + participante), nunca el key.id.
 const eventosProcesados = new Map()
 const VENTANA_DEDUPE_MS = 20 * 1000
 
@@ -170,14 +165,16 @@ function obtenerNombreVisible(conn, jidReal, resuelto) {
 }
 
 // ═══════════════════════════════════════════
-//  TARJETA VISUAL — diseño limpio con foto de perfil del usuario
+//  TARJETA VISUAL — nueva plantilla "póster"
+//  Fondo a pantalla completa (aleatorio de lib/),
+//  foto de perfil circular grande con anillo,
+//  cinta diagonal de estado y panel inferior "glass".
 // ═══════════════════════════════════════════
 async function cargarImagenSegura(fuente) {
   try {
     if (!fuente) return null
     return await loadImage(fuente)
   } catch (e) {
-    // 🔧 LOG TEMPORAL — para ver por qué falla la carga de una imagen
     console.log('[welcome][DEBUG] fallo cargando imagen:', fuente, '->', e?.message)
     return null
   }
@@ -193,16 +190,11 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-function chip(ctx, texto, centerX, y, colorFondo, colorTexto) {
-  ctx.font = 'bold 24px sans-serif'
-  const ancho = ctx.measureText(texto).width + 48
-  const x = centerX - ancho / 2
-  ctx.fillStyle = colorFondo
-  roundRect(ctx, x, y, ancho, 48, 24)
-  ctx.fill()
-  ctx.fillStyle = colorTexto
-  ctx.textAlign = 'center'
-  ctx.fillText(texto, centerX, y + 32)
+function dibujarFondoCover(ctx, img, W, H) {
+  const escala = Math.max(W / img.width, H / img.height)
+  const w = img.width * escala
+  const h = img.height * escala
+  ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h)
 }
 
 function formatFecha(fecha) {
@@ -217,59 +209,98 @@ function formatHora(fecha) {
 }
 
 /**
- * Genera la tarjeta de bienvenida/despedida con la FOTO DE PERFIL DEL USUARIO
- * (no la del grupo) como elemento central.
+ * Genera la tarjeta de bienvenida/despedida — plantilla "póster".
+ * - Fondo: pantalla completa, aleatorio entre welcome (1/2/3).jpg
+ * - Foto de perfil del usuario (o sinperfil.jpg si no tiene) en círculo grande
+ * - Cinta diagonal de estado en la esquina superior izquierda
+ * - Panel inferior tipo "glass" con nombre, grupo, miembros, fecha/hora y mensaje
  */
 async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembros, mensaje }) {
-  const W = 900
-  const H = 1000
+  const W = 1080
+  const H = 1350
   const canvas = createCanvas(W, H)
   const ctx = canvas.getContext('2d')
 
   const esBienvenida = tipo === 'bienvenida'
-
-  const fondo = '#111418'
-  const panel = '#181c22'
-  const texto = '#f2f4f7'
-  const gris = '#8b95a1'
-  const verde = '#3ddc84'
-  const rojo = '#ff5c5c'
+  const texto = '#ffffff'
+  const gris = '#c9d1d9'
+  const verde = '#2ecc71'
+  const rojo = '#ff5252'
   const colorAcento = esBienvenida ? verde : rojo
-  const colorAcentoSuave = esBienvenida ? 'rgba(61,220,132,0.14)' : 'rgba(255,92,92,0.14)'
 
-  // ── Fondo: imagen aleatoria de lib/ (con overlay oscuro para legibilidad) ──
+  // ── 1) Fondo aleatorio a pantalla completa ──
   const rutaFondo = elegirFondoAleatorio()
   const imgFondo = await cargarImagenSegura(rutaFondo)
   if (imgFondo) {
-    const escalaFondo = Math.max(W / imgFondo.width, H / imgFondo.height)
-    const fw = imgFondo.width * escalaFondo
-    const fh = imgFondo.height * escalaFondo
-    ctx.drawImage(imgFondo, (W - fw) / 2, (H - fh) / 2, fw, fh)
-    ctx.fillStyle = 'rgba(8,10,14,0.58)'
-    ctx.fillRect(0, 0, W, H)
+    dibujarFondoCover(ctx, imgFondo, W, H)
   } else {
-    ctx.fillStyle = fondo
+    ctx.fillStyle = '#111418'
     ctx.fillRect(0, 0, W, H)
   }
+
+  // ── 2) Degradado oscuro: fuerte abajo (panel), leve arriba (legibilidad) ──
+  const gradTop = ctx.createLinearGradient(0, 0, 0, H * 0.4)
+  gradTop.addColorStop(0, 'rgba(0,0,0,0.55)')
+  gradTop.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.fillStyle = gradTop
+  ctx.fillRect(0, 0, W, H * 0.4)
+
+  const gradBottom = ctx.createLinearGradient(0, H * 0.45, 0, H)
+  gradBottom.addColorStop(0, 'rgba(0,0,0,0)')
+  gradBottom.addColorStop(1, 'rgba(0,0,0,0.88)')
+  ctx.fillStyle = gradBottom
+  ctx.fillRect(0, H * 0.45, W, H * 0.55)
 
   const centerX = W / 2
 
-  // ── Pastilla (badge) superior ──
-  chip(ctx, esBienvenida ? '👋 BIENVENIDO/A' : '👋 HASTA PRONTO', centerX, 60, colorAcentoSuave, colorAcento)
+  // ── 3) Cinta diagonal de estado (esquina superior izquierda) ──
+  ctx.save()
+  ctx.translate(0, 0)
+  ctx.rotate(-Math.PI / 4)
+  ctx.fillStyle = colorAcento
+  ctx.fillRect(-140, 70, 480, 64)
+  ctx.restore()
+  ctx.fillStyle = '#0b0b0b'
+  ctx.font = 'bold 30px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.save()
+  ctx.translate(150, 150)
+  ctx.rotate(-Math.PI / 4)
+  ctx.fillText(esBienvenida ? 'NUEVO MIEMBRO' : 'SE HA IDO', 0, 10)
+  ctx.restore()
 
-  // ── Foto de perfil del USUARIO, centrada, en círculo ──
-  const circR = 130
-  const circY = 260
+  // ── 4) Marca del bot arriba a la derecha ──
+  ctx.textAlign = 'right'
+  ctx.font = 'bold 22px sans-serif'
+  ctx.fillStyle = 'rgba(255,255,255,0.85)'
+  ctx.fillText('🌿 SAITAMA-BOT', W - 50, 70)
+
+  // ── 5) Foto de perfil del usuario en círculo grande, con anillo ──
+  const circR = 175
+  const circY = 430
   let imgUser = await cargarImagenSegura(userPicUrl)
   if (!imgUser) {
-    // Sin foto pública: usa la imagen por defecto en lib/sinperfil.jpg
     imgUser = await cargarImagenSegura(SIN_PERFIL_PATH)
   }
 
-  // Anillo de color detrás del círculo
+  // Sombra suave detrás del círculo
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'
+  ctx.shadowBlur = 40
   ctx.beginPath()
-  ctx.arc(centerX, circY, circR + 8, 0, Math.PI * 2)
+  ctx.arc(centerX, circY, circR + 10, 0, Math.PI * 2)
+  ctx.fillStyle = '#000'
+  ctx.fill()
+  ctx.restore()
+
+  // Anillo doble (blanco fino + color de acento)
+  ctx.beginPath()
+  ctx.arc(centerX, circY, circR + 14, 0, Math.PI * 2)
   ctx.fillStyle = colorAcento
+  ctx.fill()
+  ctx.beginPath()
+  ctx.arc(centerX, circY, circR + 6, 0, Math.PI * 2)
+  ctx.fillStyle = '#ffffff'
   ctx.fill()
 
   ctx.save()
@@ -283,56 +314,61 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
     const ih = imgUser.height * escala
     ctx.drawImage(imgUser, centerX - iw / 2, circY - ih / 2, iw, ih)
   } else {
-    // Último recurso si ni siquiera existe lib/sinperfil.jpg
-    ctx.fillStyle = panel
+    ctx.fillStyle = '#181c22'
     ctx.fillRect(centerX - circR, circY - circR, circR * 2, circR * 2)
     ctx.fillStyle = gris
-    ctx.font = 'bold 90px sans-serif'
+    ctx.font = 'bold 120px sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText('?', centerX, circY + 32)
+    ctx.fillText('?', centerX, circY + 42)
   }
   ctx.restore()
 
-  // ── Nombre / número ──
+  // ── 6) Nombre / número, con sombra para contraste ──
   ctx.textAlign = 'center'
+  ctx.shadowColor = 'rgba(0,0,0,0.7)'
+  ctx.shadowBlur = 12
   ctx.fillStyle = texto
-  ctx.font = 'bold 38px sans-serif'
-  ctx.fillText(numero, centerX, circY + circR + 70)
+  ctx.font = 'bold 46px sans-serif'
+  ctx.fillText(numero, centerX, circY + circR + 90)
+  ctx.shadowBlur = 0
 
-  ctx.fillStyle = gris
-  ctx.font = '22px sans-serif'
-  ctx.fillText(esBienvenida ? 'se unió al grupo' : 'ha salido del grupo', centerX, circY + circR + 104)
+  ctx.fillStyle = colorAcento
+  ctx.font = 'bold 26px sans-serif'
+  ctx.fillText(esBienvenida ? '¡SE UNIÓ AL GRUPO!' : 'HA SALIDO DEL GRUPO', centerX, circY + circR + 130)
 
-  // ── Tarjeta inferior con detalles ──
-  const cardY = circY + circR + 140
-  const cardH = H - cardY - 40
-  const cardX = 50
+  // ── 7) Panel inferior "glass" con datos del grupo ──
+  const cardX = 60
   const cardW = W - cardX * 2
+  const cardH = 380
+  const cardY = H - cardH - 60
 
-  ctx.fillStyle = panel
-  roundRect(ctx, cardX, cardY, cardW, cardH, 24)
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'
+  roundRect(ctx, cardX, cardY, cardW, cardH, 32)
   ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'
+  ctx.lineWidth = 2
+  roundRect(ctx, cardX, cardY, cardW, cardH, 32)
+  ctx.stroke()
 
-  let y = cardY + 50
+  let y = cardY + 56
+  ctx.textAlign = 'center'
   ctx.font = 'bold 18px sans-serif'
   ctx.fillStyle = gris
   ctx.fillText('GRUPO', centerX, y)
-  y += 34
-  ctx.font = 'bold 28px sans-serif'
+  y += 38
+  ctx.font = 'bold 32px sans-serif'
   ctx.fillStyle = texto
-  const nombreGrupo = groupName.length > 26 ? groupName.slice(0, 26) + '…' : groupName
+  const nombreGrupo = groupName.length > 28 ? groupName.slice(0, 28) + '…' : groupName
   ctx.fillText(nombreGrupo, centerX, y)
-  y += 50
+  y += 44
 
-  // Línea divisoria
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)'
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'
   ctx.beginPath()
-  ctx.moveTo(cardX + 30, y)
-  ctx.lineTo(cardX + cardW - 30, y)
+  ctx.moveTo(cardX + 40, y)
+  ctx.lineTo(cardX + cardW - 40, y)
   ctx.stroke()
-  y += 46
+  y += 48
 
-  // Fila MIEMBROS / FECHA / HORA
   const ahora = new Date()
   const columnas = [
     { label: 'MIEMBROS', valor: String(miembros) },
@@ -345,20 +381,26 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
     ctx.font = 'bold 16px sans-serif'
     ctx.fillStyle = gris
     ctx.fillText(col.label, cx, y)
-    ctx.font = 'bold 22px sans-serif'
+    ctx.font = 'bold 26px sans-serif'
     ctx.fillStyle = texto
-    ctx.fillText(col.valor, cx, y + 30)
+    ctx.fillText(col.valor, cx, y + 34)
   })
-  y += 66
+  y += 72
 
-  // Frase / mensaje
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'
+  ctx.beginPath()
+  ctx.moveTo(cardX + 40, y)
+  ctx.lineTo(cardX + cardW - 40, y)
+  ctx.stroke()
+  y += 40
+
   const frase = mensaje || (esBienvenida
-    ? 'Un nuevo miembro se une a la comunidad. ¡Bienvenido!'
+    ? 'Un nuevo miembro se une a la comunidad. ¡Bienvenido/a!'
     : 'Gracias por haber sido parte de esta familia.')
 
-  ctx.font = 'italic 19px sans-serif'
+  ctx.font = 'italic 21px sans-serif'
   ctx.fillStyle = gris
-  const maxAncho = cardW - 70
+  const maxAncho = cardW - 90
   const palabras = frase.split(' ')
   let linea = ''
   const lineas = []
@@ -372,8 +414,8 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
     }
   }
   if (linea) lineas.push(linea)
-  lineas.slice(0, 3).forEach((l, i) => {
-    ctx.fillText(l, centerX, y + i * 26)
+  lineas.slice(0, 2).forEach((l, i) => {
+    ctx.fillText(l, centerX, y + i * 28)
   })
 
   return canvas.toBuffer('image/png')
@@ -526,17 +568,11 @@ handler.before = async (m, { conn }) => {
   if (!getWelcome(botNumber, m.chat)) return false
   if (![27, 28, 32].includes(m.messageStubType)) return false
 
-  // 🛡️ Guardia extra: si por lo que sea este mismo objeto "m" pasa dos
-  // veces por este código en el mismo tick (algunos dispatchers lo hacen),
-  // esto lo corta de inmediato sin depender del Map de abajo.
   if (m._welcomeHandled) return false
   m._welcomeHandled = true
 
   const participante = m.messageStubParameters?.[0] || m.sender
 
-  // 🔧 FIX anti-duplicados: YA NO se usa m.key?.id (podía venir distinto
-  // o ausente entre las dos formas en que WhatsApp entrega este evento).
-  // Ahora la llave es siempre chat + tipo de evento + participante.
   const idEvento = `${m.chat}_${m.messageStubType}_${participante}`
   if (yaSeProceso(idEvento)) return false
 
@@ -587,14 +623,4 @@ handler.before = async (m, { conn }) => {
       mentions: mentionsArray
     })
   } catch (e) {
-    console.log('[welcome] error generando imagen, se envía solo texto:', e)
-    const texto = esEntrada
-      ? `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 👋 ¡Bienvenido/a!\n│\n│ 👤 ${etiquetaUsuario}\n│ 🏠 Grupo: ${groupMetadata.subject}\n│ 👥 Miembros: ${groupSize}\n╰───────────────⬣`
-      : `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 💨 ¡Hasta luego!\n│\n│ 👤 ${etiquetaUsuario}\n│ 🏠 Grupo: ${groupMetadata.subject}\n│ 👥 Miembros restantes: ${groupSize}\n╰───────────────⬣`
-    await conn.sendMessage(m.chat, { text: texto, mentions: mentionsArray })
-  }
-
-  return false
-}
-
-export default handler
+    console.log('[welcome] error
