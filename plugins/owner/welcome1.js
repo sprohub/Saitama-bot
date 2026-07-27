@@ -8,19 +8,62 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const settingsPath = path.resolve('./json/settings.json')
 const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
 
-// 👉 Fondos aleatorios para la tarjeta de bienvenida/despedida.
-// Coloca estos 3 archivos en la carpeta lib/ del proyecto.
-const FONDOS_WELCOME = [
-  path.join(__dirname, '..', 'lib', 'welcome (1).jpg'),
-  path.join(__dirname, '..', 'lib', 'welcome (2).jpg'),
-  path.join(__dirname, '..', 'lib', 'welcome (3).jpg')
+// 👉 Nombres de los 3 fondos aleatorios (deben estar dentro de la carpeta lib/ del proyecto)
+const NOMBRES_FONDOS = ['welcome (1).jpg', 'welcome (2).jpg', 'welcome (3).jpg']
+// 👉 Imagen que se usa cuando el usuario no tiene foto de perfil pública
+const NOMBRE_SIN_PERFIL = 'sinperfil.jpg'
+
+// ═══════════════════════════════════════════
+//  RESOLUCIÓN ROBUSTA DE RUTAS lib/
+// ═══════════════════════════════════════════
+// Antes se asumía que lib/ estaba SIEMPRE un nivel arriba de este archivo
+// (path.join(__dirname, '..', 'lib')). Si este handler vive más profundo
+// (p.ej. plugins/group/welcome.js) esa ruta no coincide con la carpeta lib/
+// real del proyecto y la imagen falla en silencio (fondo negro de respaldo).
+// Ahora se prueban varias profundidades posibles + cwd, y si el nombre no
+// coincide exacto (mayúsculas/espacios) se busca igual dentro de esas carpetas.
+const BASES_POSIBLES = [
+  path.join(__dirname, '..'),
+  path.join(__dirname, '..', '..'),
+  path.join(__dirname, '..', '..', '..'),
+  process.cwd()
 ]
 
-// 👉 Imagen que se usa cuando el usuario no tiene foto de perfil pública
-const SIN_PERFIL_PATH = path.join(__dirname, '..', 'lib', 'sinperfil.jpg')
+function normalizarNombre(s) {
+  return s.toLowerCase().replace(/[\s()_-]/g, '')
+}
+
+function resolverArchivoLib(nombreArchivo) {
+  // 1) Coincidencia exacta en alguna de las carpetas candidatas
+  for (const base of BASES_POSIBLES) {
+    const candidato = path.join(base, 'lib', nombreArchivo)
+    if (fs.existsSync(candidato)) return candidato
+  }
+  // 2) Coincidencia flexible (ignora mayúsculas, espacios, guiones, paréntesis)
+  const objetivo = normalizarNombre(nombreArchivo)
+  for (const base of BASES_POSIBLES) {
+    const dirLib = path.join(base, 'lib')
+    try {
+      if (fs.existsSync(dirLib)) {
+        const archivos = fs.readdirSync(dirLib)
+        const encontrado = archivos.find((a) => normalizarNombre(a) === objetivo)
+        if (encontrado) return path.join(dirLib, encontrado)
+      }
+    } catch {}
+  }
+  // 3) No se encontró en ninguna ruta: log de diagnóstico con todas las rutas probadas
+  console.log(
+    '[welcome][DEBUG] no se encontró',
+    nombreArchivo,
+    '— rutas probadas:',
+    BASES_POSIBLES.map((b) => path.join(b, 'lib'))
+  )
+  return null
+}
 
 function elegirFondoAleatorio() {
-  return FONDOS_WELCOME[Math.floor(Math.random() * FONDOS_WELCOME.length)]
+  const nombre = NOMBRES_FONDOS[Math.floor(Math.random() * NOMBRES_FONDOS.length)]
+  return resolverArchivoLib(nombre)
 }
 
 function isOwner(m) {
@@ -280,7 +323,7 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
   const circY = 430
   let imgUser = await cargarImagenSegura(userPicUrl)
   if (!imgUser) {
-    imgUser = await cargarImagenSegura(SIN_PERFIL_PATH)
+    imgUser = await cargarImagenSegura(resolverArchivoLib(NOMBRE_SIN_PERFIL))
   }
 
   // Sombra suave detrás del círculo
