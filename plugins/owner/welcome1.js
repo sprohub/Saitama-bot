@@ -1,10 +1,27 @@
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import { generateWAMessageFromContent, proto } from '@whiskeysockets/baileys'
 import { createCanvas, loadImage } from '@napi-rs/canvas'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const settingsPath = path.resolve('./json/settings.json')
 const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
+
+// 👉 Fondos aleatorios para la tarjeta de bienvenida/despedida.
+// Coloca estos 3 archivos en la carpeta lib/ del proyecto.
+const FONDOS_WELCOME = [
+  path.join(__dirname, '..', 'lib', 'welcome (1).jpg'),
+  path.join(__dirname, '..', 'lib', 'welcome (2).jpg'),
+  path.join(__dirname, '..', 'lib', 'welcome (3).jpg')
+]
+
+// 👉 Imagen que se usa cuando el usuario no tiene foto de perfil pública
+const SIN_PERFIL_PATH = path.join(__dirname, '..', 'lib', 'sinperfil.jpg')
+
+function elegirFondoAleatorio() {
+  return FONDOS_WELCOME[Math.floor(Math.random() * FONDOS_WELCOME.length)]
+}
 
 function isOwner(m) {
   const number = m.sender?.split('@')[0]
@@ -218,9 +235,20 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
   const colorAcento = esBienvenida ? verde : rojo
   const colorAcentoSuave = esBienvenida ? 'rgba(61,220,132,0.14)' : 'rgba(255,92,92,0.14)'
 
-  // Fondo plano
-  ctx.fillStyle = fondo
-  ctx.fillRect(0, 0, W, H)
+  // ── Fondo: imagen aleatoria de lib/ (con overlay oscuro para legibilidad) ──
+  const rutaFondo = elegirFondoAleatorio()
+  const imgFondo = await cargarImagenSegura(rutaFondo)
+  if (imgFondo) {
+    const escalaFondo = Math.max(W / imgFondo.width, H / imgFondo.height)
+    const fw = imgFondo.width * escalaFondo
+    const fh = imgFondo.height * escalaFondo
+    ctx.drawImage(imgFondo, (W - fw) / 2, (H - fh) / 2, fw, fh)
+    ctx.fillStyle = 'rgba(8,10,14,0.58)'
+    ctx.fillRect(0, 0, W, H)
+  } else {
+    ctx.fillStyle = fondo
+    ctx.fillRect(0, 0, W, H)
+  }
 
   const centerX = W / 2
 
@@ -230,7 +258,11 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
   // ── Foto de perfil del USUARIO, centrada, en círculo ──
   const circR = 130
   const circY = 260
-  const imgUser = await cargarImagenSegura(userPicUrl)
+  let imgUser = await cargarImagenSegura(userPicUrl)
+  if (!imgUser) {
+    // Sin foto pública: usa la imagen por defecto en lib/sinperfil.jpg
+    imgUser = await cargarImagenSegura(SIN_PERFIL_PATH)
+  }
 
   // Anillo de color detrás del círculo
   ctx.beginPath()
@@ -249,6 +281,7 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
     const ih = imgUser.height * escala
     ctx.drawImage(imgUser, centerX - iw / 2, circY - ih / 2, iw, ih)
   } else {
+    // Último recurso si ni siquiera existe lib/sinperfil.jpg
     ctx.fillStyle = panel
     ctx.fillRect(centerX - circR, circY - circR, circR * 2, circR * 2)
     ctx.fillStyle = gris
