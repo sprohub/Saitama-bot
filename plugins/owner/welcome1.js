@@ -318,7 +318,7 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
   ctx.textAlign = 'right'
   ctx.font = 'bold 22px sans-serif'
   ctx.fillStyle = 'rgba(255,255,255,0.85)'
-  ctx.fillText('🌿 SAITAMA-BOT', W - 50, 70)
+  ctx.fillText(' SAITAMA-BOT', W - 50, 70)
 
   // ── 5) Foto de perfil del usuario en círculo grande, con anillo ──
   const circR = 175
