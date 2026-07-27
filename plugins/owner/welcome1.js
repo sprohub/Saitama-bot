@@ -176,7 +176,9 @@ async function cargarImagenSegura(fuente) {
   try {
     if (!fuente) return null
     return await loadImage(fuente)
-  } catch {
+  } catch (e) {
+    // 🔧 LOG TEMPORAL — para ver por qué falla la carga de una imagen
+    console.log('[welcome][DEBUG] fallo cargando imagen:', fuente, '->', e?.message)
     return null
   }
 }
