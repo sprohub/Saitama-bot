@@ -256,7 +256,8 @@ function formatHora(fecha) {
  * - Fondo: pantalla completa, aleatorio entre welcome (1/2/3).jpg
  * - Foto de perfil del usuario (o sinperfil.jpg si no tiene) en círculo grande
  * - Cinta diagonal de estado en la esquina superior izquierda
- * - Panel inferior tipo "glass" con nombre, grupo, miembros, fecha/hora y mensaje
+ * - Nombre con respaldo sólido (siempre legible) y panel inferior sólido
+ *   con grupo, miembros, fecha/hora y mensaje
  */
 async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembros, mensaje }) {
   const W = 1080
@@ -267,8 +268,9 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
   const esBienvenida = tipo === 'bienvenida'
   const texto = '#ffffff'
   const gris = '#c9d1d9'
-  const verde = '#2ecc71'
-  const rojo = '#ff5252'
+  // Colores desaturados (menos "neón") para que no compitan con la foto de fondo
+  const verde = '#6fae7c'
+  const rojo = '#c9695f'
   const colorAcento = esBienvenida ? verde : rojo
 
   // ── 1) Fondo aleatorio a pantalla completa ──
@@ -366,29 +368,45 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
   }
   ctx.restore()
 
-  // ── 6) Nombre / número, con sombra para contraste ──
+  // ── 6) Fondo sólido detrás del nombre — garantiza legibilidad
+  //       aunque la foto de fondo sea muy cargada/contrastada ──
+  ctx.save()
+  ctx.font = 'bold 46px sans-serif'
+  const anchoNombre = ctx.measureText(numero).width
+  ctx.font = 'bold 26px sans-serif'
+  const textoEstado = esBienvenida ? '¡SE UNIÓ AL GRUPO!' : 'HA SALIDO DEL GRUPO'
+  const anchoEstado = ctx.measureText(textoEstado).width
+  const anchoCaja = Math.min(W - 120, Math.max(anchoNombre, anchoEstado) + 90)
+  const cajaX = centerX - anchoCaja / 2
+  const cajaY = circY + circR + 40
+  const cajaH = 130
+  ctx.fillStyle = 'rgba(6,7,9,0.6)'
+  roundRect(ctx, cajaX, cajaY, anchoCaja, cajaH, 26)
+  ctx.fill()
+  ctx.restore()
+
+  // ── 7) Nombre / número, sobre el respaldo sólido ──
   ctx.textAlign = 'center'
-  ctx.shadowColor = 'rgba(0,0,0,0.7)'
-  ctx.shadowBlur = 12
   ctx.fillStyle = texto
   ctx.font = 'bold 46px sans-serif'
   ctx.fillText(numero, centerX, circY + circR + 90)
-  ctx.shadowBlur = 0
 
   ctx.fillStyle = colorAcento
   ctx.font = 'bold 26px sans-serif'
-  ctx.fillText(esBienvenida ? '¡SE UNIÓ AL GRUPO!' : 'HA SALIDO DEL GRUPO', centerX, circY + circR + 130)
+  ctx.fillText(textoEstado, centerX, circY + circR + 130)
 
-  // ── 7) Panel inferior "glass" con datos del grupo ──
+  // ── 8) Panel inferior SÓLIDO con datos del grupo
+  //       (antes era "glass" muy transparente; con fotos de fondo
+  //       fuertes casi no se leía nada encima) ──
   const cardX = 60
   const cardW = W - cardX * 2
   const cardH = 380
   const cardY = H - cardH - 60
 
-  ctx.fillStyle = 'rgba(255,255,255,0.08)'
+  ctx.fillStyle = 'rgba(9,10,13,0.86)'
   roundRect(ctx, cardX, cardY, cardW, cardH, 32)
   ctx.fill()
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)'
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)'
   ctx.lineWidth = 2
   roundRect(ctx, cardX, cardY, cardW, cardH, 32)
   ctx.stroke()
@@ -464,10 +482,80 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
   return canvas.toBuffer('image/png')
 }
 
+// ═══════════════════════════════════════════
+//  .testwelcome — vista previa sin necesidad de que alguien
+//  entre/salga de verdad. Usa los datos del propio invocador.
+// ═══════════════════════════════════════════
+async function ejecutarTestWelcome(m, conn, textoArg) {
+  if (!isOwner(m)) {
+    return m.reply(
+      `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo el dueño del bot puede usar este comando.\n╰───────────────⬣`
+    )
+  }
+  if (!m.isGroup) {
+    return m.reply(
+      `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Este comando solo funciona dentro de un grupo.\n╰───────────────⬣`
+    )
+  }
+
+  // Argumento opcional: .testwelcome bye / despedida → previsualiza la despedida
+  const arg = (textoArg || '').trim().toLowerCase()
+  const esDespedida = ['bye', 'despedida', 'salida', 'adios', 'adiós'].includes(arg)
+
+  const botNumber = conn.user?.jid || conn.user.id
+  const settings = getChatConfig(botNumber, m.chat)
+  const chat = settings[botNumber][m.chat]
+
+  const groupMetadata = await conn.groupMetadata(m.chat)
+  const groupSize = groupMetadata.participants.length
+
+  const { jidReal, resuelto } = await resolverJidReal(conn, m.sender)
+  const userNumero = obtenerNombreVisible(conn, jidReal, resuelto)
+
+  let userPicUrl
+  try {
+    userPicUrl = await conn.profilePictureUrl(jidReal, 'image')
+  } catch {
+    userPicUrl = null
+  }
+
+  const mensajePersonalizado = esDespedida ? chat.sBye : chat.sWelcome
+  const mensajeFinal = mensajePersonalizado
+    ? mensajePersonalizado
+        .replace(/@user/g, resuelto ? `@${userNumero.replace('+', '')}` : userNumero)
+        .replace(/@group/g, groupMetadata.subject)
+        .replace(/@members/g, groupSize)
+    : null
+
+  try {
+    const imagenBuffer = await generarImagenEvento({
+      tipo: esDespedida ? 'despedida' : 'bienvenida',
+      numero: userNumero,
+      userPicUrl,
+      groupName: groupMetadata.subject,
+      miembros: groupSize,
+      mensaje: mensajeFinal
+    })
+
+    await conn.sendMessage(m.chat, {
+      image: imagenBuffer,
+      caption: `🧪 *Vista previa* (${esDespedida ? 'despedida' : 'bienvenida'}) — esto no es un evento real, solo una prueba de la plantilla.`
+    }, { quoted: m })
+  } catch (e) {
+    console.log('[testwelcome] error generando imagen de prueba:', e)
+    await m.reply(`╭─⪼ 🌿 *SAITAMA-BOT*\n│ ❌ No se pudo generar la tarjeta de prueba.\n╰───────────────⬣`)
+  }
+}
+
 // ───────────────────────────────────────────
 // Comando .welcome — abre el menú de botones
+// Comando .testwelcome — envía una tarjeta de prueba con tus propios datos
 // ───────────────────────────────────────────
-const handler = async (m, { conn }) => {
+const handler = async (m, { conn, command, text }) => {
+  if (command === 'testwelcome') {
+    return await ejecutarTestWelcome(m, conn, text)
+  }
+
   if (!isOwner(m)) {
     return m.reply(
       `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo el dueño del bot puede usar este comando.\n╰───────────────⬣`
@@ -553,11 +641,11 @@ const handler = async (m, { conn }) => {
   }
 }
 
-handler.command = ['welcome']
+handler.command = ['welcome', 'testwelcome']
 handler.customPrefix = /^[.\/#@]/i
 handler.tags = ['group']
-handler.help = ['welcome']
-handler.desc = 'Menú para activar/desactivar la bienvenida por grupo o en todos'
+handler.help = ['welcome', 'testwelcome']
+handler.desc = 'Menú para activar/desactivar la bienvenida, y .testwelcome para previsualizarla'
 
 // ───────────────────────────────────────────
 // handler.before — botones del menú + envío real de bienvenida/despedida
