@@ -59,10 +59,6 @@ function circuloDesenfocado(ctx, x, y, r, color, alpha) {
   ctx.fill()
 }
 
-/**
- * Genera la imagen del tablero de 3 en raya, estilo "Saitama Power Report".
- * datos = { board, nombreX, nombreO, turno, ganador: {symbol,line}|null, empate, vsBot }
- */
 function generarImagenTablero(datos) {
   const W = 900
   const H = 1100
@@ -73,7 +69,6 @@ function generarImagenTablero(datos) {
   const amarilloClaro = '#ffe98a'
   const rojo = '#ff4d4d'
 
-  // ── Fondo con degradado y blobs ──
   const gradFondo = ctx.createLinearGradient(0, 0, W, H)
   gradFondo.addColorStop(0, '#060d16')
   gradFondo.addColorStop(1, '#0d1b2a')
@@ -83,7 +78,6 @@ function generarImagenTablero(datos) {
   circuloDesenfocado(ctx, W - 100, 60, 220, 'rgba(255,210,63,ALPHA)', '0.12')
   circuloDesenfocado(ctx, 60, H - 80, 220, 'rgba(255,77,77,ALPHA)', '0.10')
 
-  // ── Tarjeta contenedora ──
   const padding = 36
   ctx.save()
   roundRect(ctx, padding, padding, W - padding * 2, H - padding * 2, 40)
@@ -99,7 +93,6 @@ function generarImagenTablero(datos) {
 
   const marginX = 70
 
-  // ── Badge "3 EN RAYA" ──
   ctx.font = 'bold 22px sans-serif'
   const badgeTexto = '🎮 3 EN RAYA'
   const badgeAncho = ctx.measureText(badgeTexto).width + 46
@@ -115,13 +108,11 @@ function generarImagenTablero(datos) {
   ctx.textAlign = 'right'
   ctx.fillText('SAITAMA-BOT', W - marginX, 96)
 
-  // ── Título ──
   ctx.textAlign = 'left'
   ctx.fillStyle = '#ffffff'
   ctx.font = 'bold 54px sans-serif'
   ctx.fillText('Tablero de Juego', marginX, 170)
 
-  // ── Tarjetas de jugadores (X vs O) ──
   const cardY = 200
   const cardH = 90
   const cardW = (W - marginX * 2 - 30) / 2
@@ -164,7 +155,6 @@ function generarImagenTablero(datos) {
   ctx.font = '16px sans-serif'
   ctx.fillText(activo2 ? 'Turno actual' : 'Esperando', card2X + 24, cardY + 68)
 
-  // ── Tablero 3x3 ──
   const boardSize = 640
   const boardX = (W - boardSize) / 2
   const boardY = 330
@@ -223,7 +213,6 @@ function generarImagenTablero(datos) {
     }
   }
 
-  // ── Barra inferior de estado ──
   const footerY = boardY + boardSize + 40
   let footerTexto, footerColor
 
@@ -256,7 +245,36 @@ function nombreDe(jid, esBot) {
   return '@' + jid.split('@')[0]
 }
 
-async function enviarTablero(conn, m, game, chatId, extra = {}) {
+// 🔎 Resuelve las variantes de ID (@s.whatsapp.net y @lid) de un jugador,
+// para que no falle la detección cuando WhatsApp usa un formato distinto
+// al momento de mencionarlo vs. al momento de que él escriba.
+async function getIdsJugador(jid, conn) {
+  if (jid === 'bot') return ['bot']
+  let ids = [jid]
+  try {
+    const res = await conn.onWhatsApp(jid).catch(() => [])
+    const info = res && res[0]
+    if (info?.jid && !ids.includes(info.jid)) ids.push(info.jid)
+    if (info?.lid && !ids.includes(info.lid)) ids.push(info.lid)
+  } catch {}
+  return ids
+}
+
+function esEseJugador(ids, senderJid) {
+  return Array.isArray(ids) && ids.includes(senderJid)
+}
+
+// 🗑️ Borra todas las imágenes del tablero guardadas en la partida,
+// dejando (opcionalmente) la última fuera del borrado.
+async function limpiarImagenes(conn, chat, game, dejarUltima) {
+  if (!game.imageKeys?.length) return
+  const keys = dejarUltima ? game.imageKeys.slice(0, -1) : game.imageKeys
+  for (const key of keys) {
+    try { await conn.sendMessage(chat, { delete: key }) } catch {}
+  }
+}
+
+async function enviarTablero(conn, m, game, chatId) {
   let resultado = checkWinner(game.board)
   let empate = !resultado && checkDraw(game.board)
 
@@ -278,9 +296,13 @@ async function enviarTablero(conn, m, game, chatId, extra = {}) {
       ? `🤝 ¡Empate!`
       : `🎮 3 en raya`
 
-  await conn.sendMessage(m.chat, { image: buffer, caption, mentions }, { quoted: m })
+  let enviado = await conn.sendMessage(m.chat, { image: buffer, caption, mentions }, { quoted: m })
+
+  game.imageKeys = game.imageKeys || []
+  if (enviado?.key) game.imageKeys.push(enviado.key)
 
   if (resultado || empate) {
+    await limpiarImagenes(conn, m.chat, game, true) // deja solo la última (la que se acaba de mandar)
     delete global.__ticTacToe[chatId]
     return true
   }
@@ -306,10 +328,15 @@ let handler = async (m, { conn, text }) => {
 
   if (input === 'rendirse' || input === 'salir') {
     if (!game) return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No hay partida activa en este chat\n╰───────────────⬣' }, { quoted: m })
-    if (![game.players.X, game.players.O].includes(m.sender)) {
+
+    let esJugadorX = esEseJugador(game.playerIds?.X, m.sender)
+    let esJugadorO = esEseJugador(game.playerIds?.O, m.sender)
+    if (!esJugadorX && !esJugadorO) {
       return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No eres parte de esta partida\n╰───────────────⬣' }, { quoted: m })
     }
-    let ganador = m.sender === game.players.X ? game.players.O : game.players.X
+
+    let ganador = esJugadorX ? game.players.O : game.players.X
+    await limpiarImagenes(conn, m.chat, game, false) // no queda imagen final, se borran todas
     delete global.__ticTacToe[chatId]
     let mentions = [m.sender, ganador].filter(j => j !== 'bot')
     return conn.sendMessage(m.chat, {
@@ -329,11 +356,19 @@ let handler = async (m, { conn, text }) => {
       return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No puedes retarte a ti mismo\n╰───────────────⬣' }, { quoted: m })
     }
 
+    let jugadorO = vsBot ? 'bot' : mentioned
+
+    // Resolvemos las variantes de ID (@lid / @s.whatsapp.net) ANTES de guardar la partida
+    let idsX = await getIdsJugador(m.sender, conn)
+    let idsO = await getIdsJugador(jugadorO, conn)
+
     global.__ticTacToe[chatId] = {
       board: Array(9).fill(null),
       turn: 'X',
-      players: { X: m.sender, O: vsBot ? 'bot' : mentioned },
+      players: { X: m.sender, O: jugadorO },
+      playerIds: { X: idsX, O: idsO },
       vsBot,
+      imageKeys: [],
       createdAt: Date.now()
     }
 
@@ -349,11 +384,14 @@ let handler = async (m, { conn, text }) => {
     return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No hay partida activa\n│ 🍃 Usa .3raya @usuario o .3raya bot\n╰───────────────⬣' }, { quoted: m })
   }
 
-  if (![game.players.X, game.players.O].includes(m.sender)) {
+  let esJugadorX = esEseJugador(game.playerIds?.X, m.sender)
+  let esJugadorO = esEseJugador(game.playerIds?.O, m.sender)
+
+  if (!esJugadorX && !esJugadorO) {
     return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No eres parte de esta partida\n╰───────────────⬣' }, { quoted: m })
   }
 
-  let simboloJugador = game.players.X === m.sender ? 'X' : 'O'
+  let simboloJugador = esJugadorX ? 'X' : 'O'
   if (game.turn !== simboloJugador) {
     return conn.sendMessage(m.chat, { text: '╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 No es tu turno\n╰───────────────⬣' }, { quoted: m })
   }
