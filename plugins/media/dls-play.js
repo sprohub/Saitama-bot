@@ -17,7 +17,6 @@ const REQUEST_TIMEOUT = 120000
 const MAX_VIDEO_BYTES = 1500 * 1024 * 1024
 const VIDEO_AS_DOCUMENT_THRESHOLD = 70 * 1024 * 1024
 
-const DELIRIUS_API = 'https://api.delirius.store' // se mantiene solo para la búsqueda (ytsearch)
 const DVYER_API = 'https://dv-yer-api.online'
 const DVYER_APIKEY = 'dvyer356363943798'
 const VIDEO_QUALITY = '360p'
@@ -54,10 +53,21 @@ async function readStreamToText(stream) {
     stream.on('error', rej)
   })
 }
+function formatDuration(totalSeconds) {
+  const s = Number(totalSeconds) || 0
+  const m = Math.floor(s / 60)
+  const sec = Math.floor(s % 60)
+  return `${m}:${sec.toString().padStart(2, '0')}`
+}
 
 // 🔗 Construye la URL de la API dv-yer para audio o video
-function buildDvyerUrl(endpoint, videoUrl) {
+function buildDvyerDownloadUrl(endpoint, videoUrl) {
   return `${DVYER_API}/${endpoint}?mode=link&url=${encodeURIComponent(videoUrl)}&apikey=${DVYER_APIKEY}`
+}
+
+// 🔎 Construye la URL de búsqueda de dv-yer
+function buildDvyerSearchUrl(query, limit = 10) {
+  return `${DVYER_API}/ytsearch?q=${encodeURIComponent(query)}&limit=${limit}&apikey=${DVYER_APIKEY}`
 }
 
 // 🔎 Extrae el link de descarga real sin importar el nombre exacto del campo que use la API
@@ -105,7 +115,7 @@ async function normalizeForWhatsApp(inputPath, outputPath) {
 }
 
 async function sendAudio(conn, m, videoUrl, title) {
-  const res = await fetch(buildDvyerUrl('ytmp3', videoUrl))
+  const res = await fetch(buildDvyerDownloadUrl('ytmp3', videoUrl))
   const json = await res.json()
   if (!json.ok) throw new Error(json?.message || json?.error || 'No se pudo obtener el audio.')
   const downloadUrl = extraerDownloadUrl(json)
@@ -125,7 +135,7 @@ async function sendAudio(conn, m, videoUrl, title) {
 }
 
 async function sendVideo(conn, m, videoUrl, title) {
-  const res = await fetch(buildDvyerUrl('ytmp4', videoUrl))
+  const res = await fetch(buildDvyerDownloadUrl('ytmp4', videoUrl))
   const json = await res.json()
   if (!json.ok) throw new Error(json?.message || json?.error || 'No se pudo obtener el video.')
   const downloadUrl = extraerDownloadUrl(json)
@@ -200,20 +210,20 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   }
 
   try {
-    const res = await fetch(`${DELIRIUS_API}/search/ytsearch?q=${encodeURIComponent(input)}`)
+    const res = await fetch(buildDvyerSearchUrl(input, 10))
     const data = await res.json()
-    if (!data.status || !data.data?.length) throw new Error('No se encontraron resultados')
+    if (!data.ok || !data.results?.length) throw new Error('No se encontraron resultados')
 
-    const resultados = data.data.slice(0, 10)
+    const resultados = data.results.slice(0, 10)
     let media = null
     if (resultados[0]?.thumbnail) {
       try { media = await prepareWAMessageMedia({ image: { url: resultados[0].thumbnail } }, { upload: conn.waUploadToServer }) } catch {}
     }
 
-    const rows = resultados.map((v, i) => ({
-      header: String(v.author?.name || 'Desconocido').slice(0, 20),
+    const rows = resultados.map((v) => ({
+      header: String(v.channel || 'Desconocido').slice(0, 20),
       title: String(v.title || '').slice(0, 35),
-      description: `⏱️ ${v.duration || '?'} | 👁️ ${Number(v.views || 0).toLocaleString()}`,
+      description: `⏱️ ${formatDuration(v.duration_seconds)}${v.upload_date ? ' | 🗓️ ' + v.upload_date : ''}`,
       id: `ytsel~${Buffer.from(v.url).toString('base64')}~${Buffer.from(String(v.title || 'video')).toString('base64')}`
     }))
 
