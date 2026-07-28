@@ -16,7 +16,10 @@ if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true })
 const REQUEST_TIMEOUT = 120000
 const MAX_VIDEO_BYTES = 1500 * 1024 * 1024
 const VIDEO_AS_DOCUMENT_THRESHOLD = 70 * 1024 * 1024
-const DELIRIUS_API = 'https://api.delirius.store'
+
+const DELIRIUS_API = 'https://api.delirius.store' // se mantiene solo para la búsqueda (ytsearch)
+const DVYER_API = 'https://dv-yer-api.online'
+const DVYER_APIKEY = 'dvyer356363943798'
 const VIDEO_QUALITY = '360p'
 
 const _processing = new Set()
@@ -50,6 +53,16 @@ async function readStreamToText(stream) {
     stream.on('end', () => res(d))
     stream.on('error', rej)
   })
+}
+
+// 🔗 Construye la URL de la API dv-yer para audio o video
+function buildDvyerUrl(endpoint, videoUrl) {
+  return `${DVYER_API}/${endpoint}?mode=link&url=${encodeURIComponent(videoUrl)}&apikey=${DVYER_APIKEY}`
+}
+
+// 🔎 Extrae el link de descarga real sin importar el nombre exacto del campo que use la API
+function extraerDownloadUrl(json) {
+  return json?.download_url || json?.download_url_full || json?.url || json?.stream_url || json?.stream_url_full || null
 }
 
 async function downloadVideo(downloadUrl, outputPath) {
@@ -92,38 +105,38 @@ async function normalizeForWhatsApp(inputPath, outputPath) {
 }
 
 async function sendAudio(conn, m, videoUrl, title) {
-  const res = await fetch(`${DELIRIUS_API}/download/ytmp3?url=${encodeURIComponent(videoUrl)}`)
+  const res = await fetch(buildDvyerUrl('ytmp3', videoUrl))
   const json = await res.json()
-  if (!json.status || !json.data?.download) throw new Error('No se pudo obtener el audio.')
-  const finalTitle = safeFileName(json.data.title || title)
+  if (!json.ok) throw new Error(json?.message || json?.error || 'No se pudo obtener el audio.')
+  const downloadUrl = extraerDownloadUrl(json)
+  if (!downloadUrl) throw new Error('La API no devolvió un link de descarga válido.')
+
+  const finalTitle = safeFileName(json.title || title)
   try {
     await conn.sendMessage(m.chat, {
-      audio: { url: json.data.download }, mimetype: 'audio/mpeg', fileName: finalTitle + '.mp3'
+      audio: { url: downloadUrl }, mimetype: json.mime_type || 'audio/mpeg', fileName: (json.filename || finalTitle + '.mp3')
     }, { quoted: m })
   } catch {
     await conn.sendMessage(m.chat, {
-      document: { url: json.data.download }, mimetype: 'audio/mpeg', fileName: finalTitle + '.mp3'
-    }, { quoted: m })
-  }
-  if (json.data.image) {
-    await conn.sendMessage(m.chat, {
-      image: { url: json.data.image },
-      caption: `🎵 ${finalTitle}\n👤 ${json.data.author || ''}`
+      document: { url: downloadUrl }, mimetype: json.mime_type || 'audio/mpeg', fileName: (json.filename || finalTitle + '.mp3')
     }, { quoted: m })
   }
   return finalTitle
 }
 
 async function sendVideo(conn, m, videoUrl, title) {
-  const res = await fetch(`${DELIRIUS_API}/download/ytmp4?url=${encodeURIComponent(videoUrl)}&format=${VIDEO_QUALITY}`)
+  const res = await fetch(buildDvyerUrl('ytmp4', videoUrl))
   const json = await res.json()
-  if (!json.status || !json.data?.download) throw new Error('No se pudo obtener el video.')
-  const finalTitle = safeFileName(json.data.title || title)
+  if (!json.ok) throw new Error(json?.message || json?.error || 'No se pudo obtener el video.')
+  const downloadUrl = extraerDownloadUrl(json)
+  if (!downloadUrl) throw new Error('La API no devolvió un link de descarga válido.')
+
+  const finalTitle = safeFileName(json.title || title)
   const rawFile = path.join(TEMP_DIR, `yt_${Date.now()}.mp4`)
   const finalFile = path.join(TEMP_DIR, `yt_final_${Date.now()}.mp4`)
   try {
-    const videoInfo = await downloadVideo(json.data.download, rawFile)
-    const finalName = normalizeMp4Name(videoInfo.fileName || finalTitle)
+    const videoInfo = await downloadVideo(downloadUrl, rawFile)
+    const finalName = normalizeMp4Name(json.filename || videoInfo.fileName || finalTitle)
     if (videoInfo.size > VIDEO_AS_DOCUMENT_THRESHOLD) {
       await conn.sendMessage(m.chat, {
         document: fs.readFileSync(rawFile), mimetype: 'video/mp4',
