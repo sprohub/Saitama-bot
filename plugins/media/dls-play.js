@@ -20,6 +20,7 @@ const VIDEO_AS_DOCUMENT_THRESHOLD = 70 * 1024 * 1024
 const DVYER_API = 'https://dv-yer-api.online'
 const DVYER_APIKEY = 'dvyer356363943798'
 const VIDEO_QUALITY = '360p'
+const SEARCH_LIMIT = 5
 
 const _processing = new Set()
 
@@ -63,11 +64,32 @@ function formatDuration(totalSeconds) {
 function buildDvyerDownloadUrl(endpoint, videoUrl) {
   return `${DVYER_API}/${endpoint}?mode=link&url=${encodeURIComponent(videoUrl)}&apikey=${DVYER_APIKEY}`
 }
-function buildDvyerSearchUrl(query, limit = 10) {
+function buildDvyerSearchUrl(query, limit = SEARCH_LIMIT) {
   return `${DVYER_API}/ytsearch?q=${encodeURIComponent(query)}&limit=${limit}&apikey=${DVYER_APIKEY}`
 }
 function extraerDownloadUrl(json) {
   return json?.download_url || json?.download_url_full || json?.url || json?.stream_url || json?.stream_url_full || null
+}
+
+// 🔓 Desenvuelve el mensaje si viene envuelto en ephemeral/viewOnce/etc,
+// que es lo que pasa seguido en grupos y evitaba que se detectara el clic del botón.
+function unwrapMessage(message) {
+  const wrappers = [
+    'ephemeralMessage',
+    'viewOnceMessage',
+    'viewOnceMessageV2',
+    'viewOnceMessageV2Extension',
+    'documentWithCaptionMessage'
+  ]
+  let msg = message
+  let guard = 0
+  while (msg && guard < 5) {
+    const key = wrappers.find(w => msg[w])
+    if (!key) break
+    msg = msg[key].message
+    guard++
+  }
+  return msg
 }
 
 async function downloadVideo(downloadUrl, outputPath) {
@@ -256,11 +278,11 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   }
 
   try {
-    const res = await fetch(buildDvyerSearchUrl(input, 10))
+    const res = await fetch(buildDvyerSearchUrl(input, SEARCH_LIMIT))
     const data = await res.json()
     if (!data.ok || !data.results?.length) throw new Error('No se encontraron resultados')
 
-    const resultados = data.results.slice(0, 10)
+    const resultados = data.results.slice(0, SEARCH_LIMIT)
     await enviarCarrusel(conn, m, resultados, `╭─⪼ 🌿\n│ 🍃 Resultados para: ${input}\n╰───────────────⬣`)
     await m.react('✅')
   } catch (e) {
@@ -272,7 +294,10 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 handler.before = async (m, { conn }) => {
   if (m.isBaileys) return false
 
-  const nativeFlow = m.message?.interactiveResponseMessage?.nativeFlowResponseMessage
+  const content = unwrapMessage(m.message)
+  if (!content) return false
+
+  const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
   if (!nativeFlow) return false
 
   const msgKey = `before_${m.id || m.key?.id}`
