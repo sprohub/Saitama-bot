@@ -71,8 +71,7 @@ function extraerDownloadUrl(json) {
   return json?.download_url || json?.download_url_full || json?.url || json?.stream_url || json?.stream_url_full || null
 }
 
-// 🔓 Desenvuelve el mensaje si viene envuelto en ephemeral/viewOnce/etc,
-// que es lo que pasa seguido en grupos y evitaba que se detectara el clic del botón.
+// 🔓 Desenvuelve el mensaje si viene envuelto en ephemeral/viewOnce/etc
 function unwrapMessage(message) {
   const wrappers = [
     'ephemeralMessage',
@@ -90,6 +89,34 @@ function unwrapMessage(message) {
     guard++
   }
   return msg
+}
+
+// 🔎 Revisa los 3 formatos posibles de respuesta de botón que usa WhatsApp/Baileys:
+// nativeFlowResponseMessage (carrusel/single_select nuevos), listResponseMessage (listas viejas)
+// y buttonsResponseMessage (quick_reply "planos", que es justo lo que pasaba desapercibido antes)
+function extractSelectedId(content) {
+  const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
+  if (nativeFlow?.paramsJson) {
+    try {
+      const data = JSON.parse(nativeFlow.paramsJson)
+      const id = data.id || data.selectedId || data.selectedRowId
+      if (id) return id
+    } catch (e) {
+      console.log('[yt] error parseando nativeFlow.paramsJson:', e, nativeFlow.paramsJson)
+    }
+  }
+
+  const listReply = content?.listResponseMessage?.singleSelectReply
+  if (listReply?.selectedRowId) return listReply.selectedRowId
+
+  const btnReply = content?.buttonsResponseMessage
+  if (btnReply?.selectedButtonId) return btnReply.selectedButtonId
+  if (btnReply?.selectedDisplayText && btnReply?.selectedButtonId) return btnReply.selectedButtonId
+
+  const templateReply = content?.templateButtonReplyMessage
+  if (templateReply?.selectedId) return templateReply.selectedId
+
+  return null
 }
 
 async function downloadVideo(downloadUrl, outputPath) {
@@ -292,73 +319,62 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 }
 
 handler.before = async (m, { conn }) => {
-  if (m.isBaileys) return false
-
   const content = unwrapMessage(m.message)
   if (!content) return false
 
-  const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
-  if (!nativeFlow) return false
+  const id = extractSelectedId(content)
+  if (!id) return false
+
+  if (!id.startsWith('ytdl~')) return false
 
   const msgKey = `before_${m.id || m.key?.id}`
   if (_processing.has(msgKey)) return true
   _processing.add(msgKey)
   setTimeout(() => _processing.delete(msgKey), 30000)
 
-  let id
+  const parts = id.split('~')
+  if (parts.length < 4) {
+    await conn.sendMessage(m.chat, { text: `╭─⪼ 🌿\n│ ❌ Error al procesar la selección\n╰───────────────⬣` }, { quoted: m })
+    return true
+  }
+  const tipo     = parts[1]
+  const urlB64   = parts[2]
+  const titleB64 = parts[3]
+
+  let videoUrl, title
   try {
-    const data = JSON.parse(nativeFlow.paramsJson || '{}')
-    id = data.id || data.selectedId || data.selectedRowId || null
-  } catch { return false }
-
-  if (!id) return false
-
-  if (id.startsWith('ytdl~')) {
-    const parts = id.split('~')
-    if (parts.length < 4) {
-      await conn.sendMessage(m.chat, { text: `╭─⪼ 🌿\n│ ❌ Error al procesar la selección\n╰───────────────⬣` }, { quoted: m })
-      return true
-    }
-    const tipo     = parts[1]
-    const urlB64   = parts[2]
-    const titleB64 = parts[3]
-
-    let videoUrl, title
-    try {
-      videoUrl = Buffer.from(urlB64, 'base64').toString()
-      title    = Buffer.from(titleB64, 'base64').toString()
-    } catch {
-      await conn.sendMessage(m.chat, { text: `╭─⪼ 🌿\n│ ❌ Error al procesar la selección\n╰───────────────⬣` }, { quoted: m })
-      return true
-    }
-
-    await m.react('⏳')
-    await conn.sendMessage(m.chat, {
-      text: `╭─⪼ 🌿\n│ ${tipo === 'audio' ? '🎵' : '🎬'} Descargando...\n╰───────────────⬣`
-    }, { quoted: m })
-
-    try {
-      let finalTitle
-      if (tipo === 'audio') finalTitle = await sendAudio(conn, m, videoUrl, title)
-      else finalTitle = await sendVideo(conn, m, videoUrl, title)
-
-      await conn.sendMessage(m.chat, {
-        text: `╭─⪼ 🌿\n│ ✅ Descarga completada\n│ ${tipo === 'audio' ? '🎵' : '🎬'} ${finalTitle || title}\n╰───────────────⬣`
-      }, { quoted: m })
-      await m.react('✅')
-    } catch (e) {
-      console.error('[YT ERROR]', e.message)
-      await m.react('❌')
-      const rawMsg = String(e?.message || '').toLowerCase()
-      const humanMsg = (rawMsg.includes('502') || rawMsg.includes('503') || rawMsg.includes('bad gateway'))
-        ? `╭─⪼ 🌿\n│ ⚠️ El servidor está saturado, intenta más tarde\n╰───────────────⬣`
-        : `╭─⪼ 🌿\n│ ❌ ${e.message || 'Error al descargar'}\n╰───────────────⬣`
-      await conn.sendMessage(m.chat, { text: humanMsg }, { quoted: m })
-    }
+    videoUrl = Buffer.from(urlB64, 'base64').toString()
+    title    = Buffer.from(titleB64, 'base64').toString()
+  } catch {
+    await conn.sendMessage(m.chat, { text: `╭─⪼ 🌿\n│ ❌ Error al procesar la selección\n╰───────────────⬣` }, { quoted: m })
     return true
   }
 
-  return false
+  await m.react('⏳')
+  await conn.sendMessage(m.chat, {
+    text: `╭─⪼ 🌿\n│ ${tipo === 'audio' ? '🎵' : '🎬'} Descargando...\n╰───────────────⬣`
+  }, { quoted: m })
+
+  try {
+    let finalTitle
+    if (tipo === 'audio') finalTitle = await sendAudio(conn, m, videoUrl, title)
+    else finalTitle = await sendVideo(conn, m, videoUrl, title)
+
+    await conn.sendMessage(m.chat, {
+      text: `╭─⪼ 🌿\n│ ✅ Descarga completada\n│ ${tipo === 'audio' ? '🎵' : '🎬'} ${finalTitle || title}\n╰───────────────⬣`
+    }, { quoted: m })
+    await m.react('✅')
+  } catch (e) {
+    console.error('[YT ERROR]', e.message)
+    await m.react('❌')
+    const rawMsg = String(e?.message || '').toLowerCase()
+    const humanMsg = (rawMsg.includes('502') || rawMsg.includes('503') || rawMsg.includes('bad gateway'))
+      ? `╭─⪼ 🌿\n│ ⚠️ El servidor está saturado, intenta más tarde\n╰───────────────⬣`
+      : `╭─⪼ 🌿\n│ ❌ ${e.message || 'Error al descargar'}\n╰───────────────⬣`
+    await conn.sendMessage(m.chat, { text: humanMsg }, { quoted: m })
+  }
+
+  return true
 }
 
 handler.help    = ['yt', 'play', 'video']
