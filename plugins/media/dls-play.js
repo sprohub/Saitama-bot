@@ -60,17 +60,12 @@ function formatDuration(totalSeconds) {
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
-// 🔗 Construye la URL de la API dv-yer para audio o video
 function buildDvyerDownloadUrl(endpoint, videoUrl) {
   return `${DVYER_API}/${endpoint}?mode=link&url=${encodeURIComponent(videoUrl)}&apikey=${DVYER_APIKEY}`
 }
-
-// 🔎 Construye la URL de búsqueda de dv-yer
 function buildDvyerSearchUrl(query, limit = 10) {
   return `${DVYER_API}/ytsearch?q=${encodeURIComponent(query)}&limit=${limit}&apikey=${DVYER_APIKEY}`
 }
-
-// 🔎 Extrae el link de descarga real sin importar el nombre exacto del campo que use la API
 function extraerDownloadUrl(json) {
   return json?.download_url || json?.download_url_full || json?.url || json?.stream_url || json?.stream_url_full || null
 }
@@ -150,20 +145,20 @@ async function sendVideo(conn, m, videoUrl, title) {
     if (videoInfo.size > VIDEO_AS_DOCUMENT_THRESHOLD) {
       await conn.sendMessage(m.chat, {
         document: fs.readFileSync(rawFile), mimetype: 'video/mp4',
-        fileName: finalName, caption: `🎬 ${finalTitle}`
+        fileName: finalName, caption: `╭─⪼ 🌿\n│ 🎬 ${finalTitle}\n╰───────────────⬣`
       }, { quoted: m })
     } else {
       try {
         await conn.sendMessage(m.chat, {
           video: fs.readFileSync(rawFile), mimetype: 'video/mp4',
-          fileName: finalName, caption: `🎬 ${finalTitle}`
+          fileName: finalName, caption: `╭─⪼ 🌿\n│ 🎬 ${finalTitle}\n╰───────────────⬣`
         }, { quoted: m })
       } catch {
         await normalizeForWhatsApp(rawFile, finalFile)
         const filePath = fs.existsSync(finalFile) ? finalFile : rawFile
         await conn.sendMessage(m.chat, {
           video: fs.readFileSync(filePath), mimetype: 'video/mp4',
-          fileName: finalName, caption: `🎬 ${finalTitle}`
+          fileName: finalName, caption: `╭─⪼ 🌿\n│ 🎬 ${finalTitle}\n╰───────────────⬣`
         }, { quoted: m })
       }
     }
@@ -172,6 +167,53 @@ async function sendVideo(conn, m, videoUrl, title) {
     deleteFileSafe(finalFile)
   }
   return finalTitle
+}
+
+// 🍃 Construye una tarjeta del carrusel: imagen + texto mínimo + botones de audio/video integrados
+async function construirTarjeta(conn, v) {
+  let media = null
+  if (v.thumbnail) {
+    try { media = await prepareWAMessageMedia({ image: { url: v.thumbnail } }, { upload: conn.waUploadToServer }) } catch {}
+  }
+
+  const tituloCorto = String(v.title || 'Video').slice(0, 55)
+  const urlB64 = Buffer.from(v.url).toString('base64')
+  const titleB64 = Buffer.from(String(v.title || 'video')).toString('base64')
+
+  return {
+    header: {
+      title: '',
+      hasMediaAttachment: !!media,
+      imageMessage: media?.imageMessage
+    },
+    body: {
+      text: `╭─⪼ 🌿\n│ 🎬 ${tituloCorto}\n│ ⏱️ ${formatDuration(v.duration_seconds)}\n╰───────────────⬣`
+    },
+    nativeFlowMessage: {
+      buttons: [
+        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '🎵 Audio', id: `ytdl~audio~${urlB64}~${titleB64}` }) },
+        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '🎬 Video', id: `ytdl~video~${urlB64}~${titleB64}` }) }
+      ]
+    }
+  }
+}
+
+// 🍃 Envía el carrusel (uno o varios resultados) con botones integrados en cada tarjeta
+async function enviarCarrusel(conn, m, resultados, bodyText) {
+  const cards = []
+  for (const v of resultados) {
+    cards.push(await construirTarjeta(conn, v))
+  }
+
+  const interactiveMessage = proto.Message.InteractiveMessage.create({
+    body: { text: bodyText },
+    footer: { text: '🌿 SAITAMA-BOT' },
+    header: { title: '', hasMediaAttachment: false },
+    carouselMessage: { cards }
+  })
+
+  const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
+  await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
 }
 
 let handler = async (m, { conn, text, usedPrefix, command }) => {
@@ -183,30 +225,34 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   const input = text?.trim()
 
   if (!input) {
-    let media = null
-    try { media = await prepareWAMessageMedia({ image: { url: 'https://i.ibb.co/jkhp8BZD/wof.jpg' } }, { upload: conn.waUploadToServer }) } catch {}
-
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: 'Descarga música y videos', hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
-      body: { text: `╭━━⬣ *SAITAMA YOUTUBE* ⬣━━╮\n\n🎬 🎵\n\n💫 » Descarga audio o video de YouTube\n\n> ${usedPrefix}${command} <nombre o link>\n> Ejemplo: ${usedPrefix}${command} Naruto Opening 1\n> ✅ ¡Completamente gratis!\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` },
-      footer: { text: '⫏ SAITAMA BOT ' },
-      nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '🎬 YOUTUBE', sections: [{ title: '¿Qué deseas hacer?', rows: [{ header: '🔍 BUSCAR', title: 'Buscar música o video', description: 'Escribe el nombre después del comando', id: 'ytinfo' }] }] }) }] }
-    })
-    const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
-    return conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+    return conn.sendMessage(m.chat, {
+      text:
+        `╭─⪼ 🌿\n` +
+        `│ 🎬 Descarga música y video de YouTube\n` +
+        `│ 🍃 Usa: ${usedPrefix}${command} <nombre o link>\n` +
+        `╰───────────────⬣`
+    }, { quoted: m })
   }
 
   if (isHttpUrl(input) && !extractYouTubeUrl(input)) {
-    return conn.sendMessage(m.chat, { text: '❌ Envía un link válido de YouTube.' }, { quoted: m })
+    return conn.sendMessage(m.chat, {
+      text: `╭─⪼ 🌿\n│ 🍃 Envía un link válido de YouTube\n╰───────────────⬣`
+    }, { quoted: m })
   }
 
   await m.react('🔍')
 
   if (extractYouTubeUrl(input)) {
     const videoUrl = extractYouTubeUrl(input)
-    const urlB64   = Buffer.from(videoUrl).toString('base64')
-    const titleB64 = Buffer.from('video').toString('base64')
-    return _mostrarSelectorFormato(conn, m, urlB64, titleB64, 'video', null)
+    try {
+      await enviarCarrusel(conn, m, [{ url: videoUrl, title: 'Video', duration_seconds: 0, thumbnail: null }],
+        `╭─⪼ 🌿\n│ 🍃 Elige cómo descargarlo\n╰───────────────⬣`)
+      await m.react('✅')
+    } catch (e) {
+      await m.react('❌')
+      conn.sendMessage(m.chat, { text: `╭─⪼ 🌿\n│ ❌ ${e.message}\n╰───────────────⬣` }, { quoted: m })
+    }
+    return
   }
 
   try {
@@ -215,49 +261,12 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     if (!data.ok || !data.results?.length) throw new Error('No se encontraron resultados')
 
     const resultados = data.results.slice(0, 10)
-    let media = null
-    if (resultados[0]?.thumbnail) {
-      try { media = await prepareWAMessageMedia({ image: { url: resultados[0].thumbnail } }, { upload: conn.waUploadToServer }) } catch {}
-    }
-
-    const rows = resultados.map((v) => ({
-      header: String(v.channel || 'Desconocido').slice(0, 20),
-      title: String(v.title || '').slice(0, 35),
-      description: `⏱️ ${formatDuration(v.duration_seconds)}${v.upload_date ? ' | 🗓️ ' + v.upload_date : ''}`,
-      id: `ytsel~${Buffer.from(v.url).toString('base64')}~${Buffer.from(String(v.title || 'video')).toString('base64')}`
-    }))
-
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: `Resultados: ${input}`, hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
-      body: { text: `╭━━⬣ *RESULTADOS* ⬣━━╮\n\n🔍\n\n💫 » Búsqueda: *${input}*\n📋 ${resultados.length} resultados encontrados\n\n> Elige el que quieras descargar\n> ✅ ¡Gratis!\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` },
-      footer: { text: '⫏⫏ SAITAMA BOT ' },
-      nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '🎵 RESULTADOS', sections: [{ title: `📋 ${input.toUpperCase().slice(0, 24)}`, rows }] }) }] }
-    })
-    const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+    await enviarCarrusel(conn, m, resultados, `╭─⪼ 🌿\n│ 🍃 Resultados para: ${input}\n╰───────────────⬣`)
     await m.react('✅')
   } catch (e) {
     await m.react('❌')
-    conn.sendMessage(m.chat, { text: `❌ ${e.message}` }, { quoted: m })
+    conn.sendMessage(m.chat, { text: `╭─⪼ 🌿\n│ ❌ ${e.message}\n╰───────────────⬣` }, { quoted: m })
   }
-}
-
-async function _mostrarSelectorFormato(conn, m, urlB64, titleB64, title, thumbnail) {
-  let media = null
-  if (thumbnail) {
-    try { media = await prepareWAMessageMedia({ image: { url: thumbnail } }, { upload: conn.waUploadToServer }) } catch {}
-  }
-  const interactiveMessage = proto.Message.InteractiveMessage.create({
-    header: { title: 'SAITAMA BOT - YOUTUBE', subtitle: String(title || '').slice(0, 60), hasMediaAttachment: !!media, imageMessage: media?.imageMessage },
-    body: { text: `╭━━⬣ *SAITAMA YOUTUBE* ⬣━━╮\n\n🎬 🎵\n\n💫 » *${String(title || '').slice(0, 60)}*\n\n> ¿Cómo deseas descargarlo?\n> ✅ ¡Completamente gratis!\n\n╰━━━━━━━━━━━━━━━━━━━━━━⬣` },
-    footer: { text: '⫏⫏ SAITAMA BOT ✿' },
-    nativeFlowMessage: { buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: '📥 FORMATO', sections: [{ title: '¿Qué deseas descargar?', rows: [
-      { header: '🎵 AUDIO', title: 'Descargar música (MP3)', description: '🎧 Alta calidad | ✅ Gratis', id: `ytdl~audio~${urlB64}~${titleB64}` },
-      { header: '🎬 VIDEO', title: 'Descargar video (MP4)', description: `📹 ${VIDEO_QUALITY} | ✅ Gratis`, id: `ytdl~video~${urlB64}~${titleB64}` }
-    ] }] }) }] }
-  })
-  const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
-  await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
 }
 
 handler.before = async (m, { conn }) => {
@@ -279,27 +288,10 @@ handler.before = async (m, { conn }) => {
 
   if (!id) return false
 
-  if (id === 'ytinfo') {
-    await conn.sendMessage(m.chat, { text: '🔍 Escribe el nombre así:\n> .yt Naruto Opening 1' }, { quoted: m })
-    return true
-  }
-
-  if (id.startsWith('ytsel~')) {
-    const parts = id.split('~')
-    if (parts.length < 3) return true
-    const urlB64   = parts[1]
-    const titleB64 = parts[2]
-    let title = 'video'
-    try { title = Buffer.from(titleB64, 'base64').toString() } catch {}
-
-    await _mostrarSelectorFormato(conn, m, urlB64, titleB64, title, null)
-    return true
-  }
-
   if (id.startsWith('ytdl~')) {
     const parts = id.split('~')
     if (parts.length < 4) {
-      await conn.sendMessage(m.chat, { text: '❌ Error al procesar la selección.' }, { quoted: m })
+      await conn.sendMessage(m.chat, { text: `╭─⪼ 🌿\n│ ❌ Error al procesar la selección\n╰───────────────⬣` }, { quoted: m })
       return true
     }
     const tipo     = parts[1]
@@ -311,15 +303,13 @@ handler.before = async (m, { conn }) => {
       videoUrl = Buffer.from(urlB64, 'base64').toString()
       title    = Buffer.from(titleB64, 'base64').toString()
     } catch {
-      await conn.sendMessage(m.chat, { text: '❌ Error al procesar la selección.' }, { quoted: m })
+      await conn.sendMessage(m.chat, { text: `╭─⪼ 🌿\n│ ❌ Error al procesar la selección\n╰───────────────⬣` }, { quoted: m })
       return true
     }
 
     await m.react('⏳')
     await conn.sendMessage(m.chat, {
-      text: tipo === 'audio'
-        ? `🎵 *Descargando audio...*\n🎧 ${title}\n⏳ Espera un momento...`
-        : `🎬 *Descargando video...*\n📹 ${title} (${VIDEO_QUALITY})\n⏳ Espera un momento...`
+      text: `╭─⪼ 🌿\n│ ${tipo === 'audio' ? '🎵' : '🎬'} Descargando...\n╰───────────────⬣`
     }, { quoted: m })
 
     try {
@@ -328,7 +318,7 @@ handler.before = async (m, { conn }) => {
       else finalTitle = await sendVideo(conn, m, videoUrl, title)
 
       await conn.sendMessage(m.chat, {
-        text: `✅ *Descarga completada*\n\n${tipo === 'audio' ? '🎵' : '🎬'} » ${finalTitle || title}`
+        text: `╭─⪼ 🌿\n│ ✅ Descarga completada\n│ ${tipo === 'audio' ? '🎵' : '🎬'} ${finalTitle || title}\n╰───────────────⬣`
       }, { quoted: m })
       await m.react('✅')
     } catch (e) {
@@ -336,8 +326,8 @@ handler.before = async (m, { conn }) => {
       await m.react('❌')
       const rawMsg = String(e?.message || '').toLowerCase()
       const humanMsg = (rawMsg.includes('502') || rawMsg.includes('503') || rawMsg.includes('bad gateway'))
-        ? '⚠️ El servidor está saturado.\n🔁 Intenta más tarde.'
-        : `❌ ${e.message || 'Error al descargar.'}`
+        ? `╭─⪼ 🌿\n│ ⚠️ El servidor está saturado, intenta más tarde\n╰───────────────⬣`
+        : `╭─⪼ 🌿\n│ ❌ ${e.message || 'Error al descargar'}\n╰───────────────⬣`
       await conn.sendMessage(m.chat, { text: humanMsg }, { quoted: m })
     }
     return true
