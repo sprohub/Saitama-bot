@@ -5,156 +5,229 @@ import {
   proto
 } from '@whiskeysockets/baileys'
 
+const DVYER_API = 'https://dv-yer-api.online'
+const DVYER_APIKEY = 'dvyer356363943798'
+const SEARCH_LIMIT = 10
+
+const _processing = new Set()
+
 function decorar(texto) {
   return `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 ${texto.split('\n').join('\n│ 🍃 ')}\n╰───────────────⬣`
 }
 
+function buildSearchUrl(query, limit = SEARCH_LIMIT) {
+  return `${DVYER_API}/spotifysearch?q=${encodeURIComponent(query)}&limit=${limit}&lang=es18&apikey=${DVYER_APIKEY}`
+}
+
+function buildDownloadUrl(query, pick) {
+  return `${DVYER_API}/spotify?q=${encodeURIComponent(query)}&mode=link&pick=${pick}&limit=${SEARCH_LIMIT}&apikey=${DVYER_APIKEY}`
+}
+
+// La API puede nombrar los campos distinto según la versión; probamos varias opciones
+function campo(obj, ...nombres) {
+  for (const n of nombres) {
+    if (obj?.[n] !== undefined && obj[n] !== null && obj[n] !== '') return obj[n]
+  }
+  return null
+}
+
+function formatDuration(segundos) {
+  const s = Number(segundos) || 0
+  const m = Math.floor(s / 60)
+  const sec = Math.floor(s % 60)
+  return `${m}:${sec.toString().padStart(2, '0')}`
+}
+
+// 🔓 Desenvuelve el mensaje si viene envuelto en ephemeral/viewOnce/etc
+function unwrapMessage(message) {
+  const wrappers = [
+    'ephemeralMessage',
+    'viewOnceMessage',
+    'viewOnceMessageV2',
+    'viewOnceMessageV2Extension',
+    'documentWithCaptionMessage'
+  ]
+  let msg = message
+  let guard = 0
+  while (msg && guard < 5) {
+    const key = wrappers.find(w => msg[w])
+    if (!key) break
+    msg = msg[key].message
+    guard++
+  }
+  return msg
+}
+
+function extractSelectedId(content) {
+  const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
+  if (nativeFlow?.paramsJson) {
+    try {
+      const data = JSON.parse(nativeFlow.paramsJson)
+      const id = data.id || data.selectedId || data.selectedRowId
+      if (id) return id
+    } catch (e) {
+      console.log('[spotify] error parseando nativeFlow.paramsJson:', e, nativeFlow.paramsJson)
+    }
+  }
+
+  const listReply = content?.listResponseMessage?.singleSelectReply
+  if (listReply?.selectedRowId) return listReply.selectedRowId
+
+  const btnReply = content?.buttonsResponseMessage
+  if (btnReply?.selectedButtonId) return btnReply.selectedButtonId
+
+  return null
+}
+
+// 🍃 Construye una tarjeta del carrusel: portada + info + botón de descarga integrado
+async function construirTarjeta(conn, track, queryOriginal, pick) {
+  const titulo = campo(track, 'title', 'name', 'track') || 'Desconocido'
+  const artista = campo(track, 'artist', 'artists', 'author') || ''
+  const duracion = campo(track, 'duration_seconds', 'duration', 'duration_ms')
+  const duracionSeg = campo(track, 'duration_ms') ? duracion / 1000 : duracion
+  const portada = campo(track, 'image', 'thumbnail', 'cover', 'album_image')
+
+  let media = null
+  if (portada) {
+    try { media = await prepareWAMessageMedia({ image: { url: portada } }, { upload: conn.waUploadToServer }) } catch {}
+  }
+
+  const queryB64 = Buffer.from(queryOriginal).toString('base64')
+  const tituloB64 = Buffer.from(String(titulo)).toString('base64')
+
+  return {
+    header: {
+      title: '',
+      hasMediaAttachment: !!media,
+      imageMessage: media?.imageMessage
+    },
+    body: {
+      text: decorar(
+        `🎵 ${String(titulo).slice(0, 55)}\n` +
+        `👤 ${artista}` +
+        (duracionSeg ? `\n⏱️ ${formatDuration(duracionSeg)}` : '')
+      )
+    },
+    nativeFlowMessage: {
+      buttons: [
+        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '⬇️ Descargar', id: `spdl~${pick}~${queryB64}~${tituloB64}` }) }
+      ]
+    }
+  }
+}
+
+async function enviarCarrusel(conn, m, resultados, queryOriginal, bodyText) {
+  const cards = []
+  for (let i = 0; i < resultados.length; i++) {
+    cards.push(await construirTarjeta(conn, resultados[i], queryOriginal, i + 1))
+  }
+
+  const interactiveMessage = proto.Message.InteractiveMessage.create({
+    body: { text: bodyText },
+    footer: { text: '🍃 SAITAMA-BOT' },
+    header: { title: '', hasMediaAttachment: false },
+    carouselMessage: { cards }
+  })
+
+  const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
+  await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+}
+
 let handler = async (m, { conn, text, usedPrefix, command }) => {
-  if (!text) {
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: {
-        title: 'SAITAMA-BOT - SPOTIFY',
-        subtitle: 'Busca y descarga música',
-        hasMediaAttachment: false
-      },
-      body: {
-        text: decorar('Busca música en Spotify\n\n' + usedPrefix + command + ' <nombre>\nEjemplo: ' + usedPrefix + command + ' Twice')
-      },
-      footer: { text: '🍃 SAITAMA-BOT' },
-      nativeFlowMessage: {
-        buttons: [{
-          name: 'single_select',
-          buttonParamsJson: JSON.stringify({
-            title: '🎵 SPOTIFY',
-            sections: [{
-              title: '🔍 BUSCAR',
-              rows: [{
-                header: '🎧 MÚSICA',
-                title: 'Buscar canción',
-                description: 'Ejemplo: Twice',
-                id: 'sp '
-              }]
-            }]
-          })
-        }]
-      }
-    })
+  const msgKey = `sp_${m.id || m.key?.id}`
+  if (_processing.has(msgKey)) return
+  _processing.add(msgKey)
+  setTimeout(() => _processing.delete(msgKey), 15000)
 
-    const msg = generateWAMessageFromContent(m.chat, {
-      viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } }
+  if (!text?.trim()) {
+    return conn.sendMessage(m.chat, {
+      text: decorar(`Busca música en Spotify\n\n${usedPrefix}${command} <nombre>\nEjemplo: ${usedPrefix}${command} Bad Bunny`)
     }, { quoted: m })
-
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
-    return
   }
 
   await m.react('🔍')
 
   try {
-    let searchUrl = `https://api.delirius.store/search/spotify?q=${encodeURIComponent(text)}&limit=10`
-    let searchRes = await fetch(searchUrl)
-    let searchData = await searchRes.json()
+    const res = await fetch(buildSearchUrl(text.trim()))
+    const data = await res.json()
 
-    if (!searchData.status || !searchData.data?.length) {
-      throw new Error('No se encontraron resultados')
-    }
+    const resultados = campo(data, 'results', 'data', 'tracks')
+    if (!data.ok && !data.status) throw new Error(data?.message || data?.error || 'No se encontraron resultados')
+    if (!resultados?.length) throw new Error('No se encontraron resultados')
 
-    let resultados = searchData.data.slice(0, 10)
-    let primeraImagen = resultados[0].image || ''
-
-    let media = null
-    if (primeraImagen) {
-      media = await prepareWAMessageMedia({ image: { url: primeraImagen } }, { upload: conn.waUploadToServer })
-    }
-
-    let rows = resultados.map((track, i) => ({
-      header: '🎵 ' + (track.artist || 'Desconocido'),
-      title: track.title.substring(0, 35),
-      description: '💿 ' + (track.album || '') + ' | ⏱️ ' + (track.duration || '?'),
-      id: 'spotdl_' + i + '_' + Buffer.from(track.url).toString('base64') + '_' + Buffer.from(track.title).toString('base64')
-    }))
-
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: {
-        title: 'SAITAMA-BOT - SPOTIFY',
-        subtitle: 'Selecciona una canción',
-        hasMediaAttachment: !!media,
-        imageMessage: media ? media.imageMessage : undefined
-      },
-      body: {
-        text: decorar('Búsqueda: ' + text + '\n\nElige una canción')
-      },
-      footer: { text: '🍃 SAITAMA-BOT' },
-      nativeFlowMessage: {
-        buttons: [{
-          name: 'single_select',
-          buttonParamsJson: JSON.stringify({
-            title: '🎵 RESULTADOS',
-            sections: [{ title: '📋 ' + text.toUpperCase(), rows }]
-          })
-        }]
-      }
-    })
-
-    const msg = generateWAMessageFromContent(m.chat, {
-      viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } }
-    }, { quoted: m })
-
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
-
+    await enviarCarrusel(conn, m, resultados.slice(0, SEARCH_LIMIT), text.trim(), decorar(`Resultados para: ${text.trim()}`))
+    await m.react('✅')
   } catch (e) {
-    console.log(e)
+    console.error('[spotify] ERROR buscando:', e)
     await m.react('❌')
-    conn.sendMessage(m.chat, { text: decorar('No se encontraron resultados') }, { quoted: m })
+    conn.sendMessage(m.chat, { text: decorar(e.message || 'No se encontraron resultados') }, { quoted: m })
   }
 }
 
 handler.before = async (m, { conn }) => {
-  const nativeFlow = m.message?.interactiveResponseMessage?.nativeFlowResponseMessage
-  if (!nativeFlow) return false
+  const content = unwrapMessage(m.message)
+  if (!content) return false
+
+  const id = extractSelectedId(content)
+  if (!id || !id.startsWith('spdl~')) return false
+
+  const msgKey = `spdl_before_${m.id || m.key?.id}`
+  if (_processing.has(msgKey)) return true
+  _processing.add(msgKey)
+  setTimeout(() => _processing.delete(msgKey), 30000)
+
+  const parts = id.split('~')
+  if (parts.length < 4) {
+    await conn.sendMessage(m.chat, { text: decorar('❌ Error al procesar la selección') }, { quoted: m })
+    return true
+  }
+
+  const pick = parts[1]
+  let queryOriginal, titulo
+  try {
+    queryOriginal = Buffer.from(parts[2], 'base64').toString()
+    titulo = Buffer.from(parts[3], 'base64').toString()
+  } catch {
+    await conn.sendMessage(m.chat, { text: decorar('❌ Error al procesar la selección') }, { quoted: m })
+    return true
+  }
+
+  await m.react('⏳')
+  await conn.sendMessage(m.chat, { text: decorar('Descargando...') }, { quoted: m })
 
   try {
-    const data = JSON.parse(nativeFlow.paramsJson || '{}')
-    const id = data.id || data.selectedId || data.selectedRowId || null
-    if (!id || !id.startsWith('spotdl_')) return false
+    const res = await fetch(buildDownloadUrl(queryOriginal, pick))
+    const json = await res.json()
 
-    let parts = id.split('_')
-    let urlBase64 = parts[2]
-    let titleBase64 = parts[3]
-    let spotifyUrl = Buffer.from(urlBase64, 'base64').toString()
-    let titulo = Buffer.from(titleBase64, 'base64').toString()
+    if (!json.ok && !json.status) throw new Error(json?.message || json?.error || 'No se pudo descargar')
 
-    await m.react('⏳')
-    await conn.sendMessage(m.chat, { text: decorar('Descargando...') }, { quoted: m })
+    const downloadUrl = campo(json, 'download_url', 'download_url_full', 'url', 'link', 'stream_url')
+    if (!downloadUrl) throw new Error('La API no devolvió un link de descarga válido')
 
-    let downloadUrl = `https://api.delirius.store/download/spotifydl?url=${encodeURIComponent(spotifyUrl)}`
-    let res = await fetch(downloadUrl)
-    let json = await res.json()
-
-    if (!json.status || !json.data?.download) {
-      throw new Error('No se pudo descargar')
-    }
+    const tituloFinal = campo(json, 'title') || titulo
+    const autor = campo(json, 'artist', 'author', 'artists') || ''
+    const portada = campo(json, 'image', 'thumbnail', 'cover')
 
     await conn.sendMessage(m.chat, {
-      audio: { url: json.data.download },
+      audio: { url: downloadUrl },
       mimetype: 'audio/mpeg',
-      fileName: (json.data.title || titulo) + '.mp3'
+      fileName: `${tituloFinal}.mp3`
     }, { quoted: m })
 
     await conn.sendMessage(m.chat, {
-      image: { url: json.data.image },
-      caption: decorar('Descarga completada\n\n🎧 » ' + (json.data.title || titulo) + '\n👤 » ' + (json.data.author || ''))
+      ...(portada ? { image: { url: portada } } : {}),
+      ...(portada ? {} : { text: undefined }),
+      caption: decorar(`Descarga completada\n\n🎧 ${tituloFinal}\n👤 ${autor}`)
     }, { quoted: m })
 
     await m.react('✅')
-    return true
-
   } catch (e) {
-    console.log(e)
-    await conn.sendMessage(m.chat, { text: decorar('Error: ' + e.message) }, { quoted: m })
+    console.error('[spotify] ERROR descargando:', e)
     await m.react('❌')
-    return true
+    await conn.sendMessage(m.chat, { text: decorar(`Error: ${e.message}`) }, { quoted: m })
   }
+
+  return true
 }
 
 handler.help = ['spotify']
