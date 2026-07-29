@@ -1,9 +1,9 @@
 import { createCanvas } from '@napi-rs/canvas'
 
 const OPCIONES = {
-  piedra: { emoji: '🪨', vence: 'tijera' },
-  papel: { emoji: '📄', vence: 'piedra' },
-  tijera: { emoji: '✂️', vence: 'papel' }
+  piedra: { label: 'PIEDRA', vence: 'tijera' },
+  papel: { label: 'PAPEL', vence: 'piedra' },
+  tijera: { label: 'TIJERA', vence: 'papel' }
 }
 const ALIAS = {
   piedra: 'piedra', roca: 'piedra', 1: 'piedra',
@@ -33,9 +33,46 @@ function circuloDesenfocado(ctx, x, y, r, color, alpha) {
   ctx.fill()
 }
 
+// ── Iconos dibujados a mano (sin emojis) ──
+function dibujarPiedra(ctx, cx, cy, r, color) {
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.fill()
+}
+function dibujarPapel(ctx, cx, cy, size, color) {
+  ctx.fillStyle = color
+  roundRect(ctx, cx - size / 2, cy - size / 2, size, size, 14)
+  ctx.fill()
+}
+function dibujarTijera(ctx, cx, cy, size, color) {
+  ctx.strokeStyle = color
+  ctx.lineWidth = 14
+  ctx.lineCap = 'round'
+  const off = size / 2
+  ctx.beginPath()
+  ctx.moveTo(cx - off, cy - off)
+  ctx.lineTo(cx + off, cy + off)
+  ctx.moveTo(cx + off, cy - off)
+  ctx.lineTo(cx - off, cy + off)
+  ctx.stroke()
+}
+function dibujarInterrogacion(ctx, cx, cy, color) {
+  ctx.fillStyle = color
+  ctx.font = 'bold 140px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.fillText('?', cx, cy + 45)
+  ctx.textAlign = 'left'
+}
+function dibujarIcono(ctx, opcion, cx, cy, color) {
+  if (opcion === 'piedra') dibujarPiedra(ctx, cx, cy, 78, color)
+  else if (opcion === 'papel') dibujarPapel(ctx, cx, cy, 150, color)
+  else if (opcion === 'tijera') dibujarTijera(ctx, cx, cy, 130, color)
+  else dibujarInterrogacion(ctx, cx, cy, color)
+}
+
 /**
- * datos = { nombreX, nombreO, eleccionX, eleccionO, ganador: 'X'|'O'|'empate'|null, revelado, vsBot }
- * Si !revelado, las elecciones se muestran ocultas (❓) aunque ya se hayan guardado.
+ * datos = { nombreX, nombreO, eleccionX, eleccionO, ganador: 'X'|'O'|'empate'|null, revelado }
  */
 function generarImagenPPT(datos) {
   const W = 900
@@ -46,6 +83,7 @@ function generarImagenPPT(datos) {
   const amarillo = '#ffd23f'
   const amarilloClaro = '#ffe98a'
   const rojo = '#ff4d4d'
+  const blancoSuave = 'rgba(255,255,255,0.85)'
 
   const gradFondo = ctx.createLinearGradient(0, 0, W, H)
   gradFondo.addColorStop(0, '#060d16')
@@ -71,9 +109,9 @@ function generarImagenPPT(datos) {
 
   const marginX = 70
 
-  // Badge
+  // Badge (sin emoji)
   ctx.font = 'bold 22px sans-serif'
-  const badgeTexto = '✊ PIEDRA, PAPEL O TIJERA'
+  const badgeTexto = 'PIEDRA · PAPEL · TIJERA'
   const badgeAncho = ctx.measureText(badgeTexto).width + 46
   ctx.fillStyle = amarillo
   roundRect(ctx, marginX, 68, badgeAncho, 44, 22)
@@ -82,18 +120,16 @@ function generarImagenPPT(datos) {
   ctx.textAlign = 'left'
   ctx.fillText(badgeTexto, marginX + 23, 96)
 
-  ctx.fillStyle = 'rgba(255,255,255,0.55)'
+  ctx.fillStyle = blancoSuave
   ctx.font = '20px sans-serif'
   ctx.textAlign = 'right'
   ctx.fillText('SAITAMA-BOT', W - marginX, 96)
 
-  // Título
   ctx.textAlign = 'left'
   ctx.fillStyle = '#ffffff'
   ctx.font = 'bold 50px sans-serif'
-  ctx.fillText('¡Que empiece el duelo!', marginX, 168)
+  ctx.fillText('Que empiece el duelo', marginX, 168)
 
-  // ── Dos cajas grandes: jugador X vs jugador O ──
   const boxY = 220
   const boxH = 340
   const boxW = (W - marginX * 2 - 40) / 2
@@ -104,7 +140,7 @@ function generarImagenPPT(datos) {
   const ganoX = hayGanador && datos.ganador === 'X'
   const ganoO = hayGanador && datos.ganador === 'O'
 
-  function dibujarCaja(x, nombre, eleccion, esGanador, colorAcento) {
+  function dibujarCaja(x, nombre, eleccion, esGanador) {
     ctx.fillStyle = esGanador ? 'rgba(255,210,63,0.14)' : 'rgba(255,255,255,0.05)'
     roundRect(ctx, x, boxY, boxW, boxH, 26)
     ctx.fill()
@@ -115,24 +151,22 @@ function generarImagenPPT(datos) {
       ctx.stroke()
     }
 
-    // Nombre
     ctx.fillStyle = '#ffffff'
     ctx.font = 'bold 24px sans-serif'
     ctx.textAlign = 'center'
-    let nombreCorto = nombre.length > 16 ? nombre.slice(0, 16) + '…' : nombre
+    let nombreCorto = nombre.length > 16 ? nombre.slice(0, 16) + '...' : nombre
     ctx.fillText(nombreCorto, x + boxW / 2, boxY + 46)
 
-    // Emoji grande (elección o "?")
-    ctx.font = '140px sans-serif'
-    const mostrar = (datos.revelado && eleccion) ? OPCIONES[eleccion]?.emoji : '❓'
-    ctx.fillText(mostrar, x + boxW / 2, boxY + boxH / 2 + 55)
+    const cx = x + boxW / 2
+    const cy = boxY + boxH / 2 + 20
+    const mostrarEleccion = datos.revelado && eleccion
+    dibujarIcono(ctx, mostrarEleccion ? eleccion : null, cx, cy, esGanador ? amarillo : '#e8e8e8')
 
-    // Estado abajo
-    ctx.font = '18px sans-serif'
-    ctx.fillStyle = 'rgba(255,255,255,0.55)'
+    ctx.font = 'bold 18px sans-serif'
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'
     let estado = datos.revelado
-      ? (esGanador ? '🏆 Ganador' : (datos.ganador === 'empate' ? '🤝 Empate' : 'Perdió'))
-      : (eleccion ? '✅ Ya eligió' : '⏳ Esperando...')
+      ? (esGanador ? 'GANADOR' : (datos.ganador === 'empate' ? 'EMPATE' : 'PERDIO'))
+      : (eleccion ? 'YA ELIGIO' : 'ESPERANDO...')
     ctx.fillText(estado, x + boxW / 2, boxY + boxH - 24)
 
     ctx.textAlign = 'left'
@@ -141,45 +175,43 @@ function generarImagenPPT(datos) {
   dibujarCaja(box1X, datos.nombreX, datos.eleccionX, ganoX)
   dibujarCaja(box2X, datos.nombreO, datos.eleccionO, ganoO)
 
-  // "VS" en medio
   ctx.fillStyle = rojo
-  ctx.font = 'bold 34px sans-serif'
+  ctx.font = 'bold 30px sans-serif'
   ctx.textAlign = 'center'
   ctx.fillText('VS', W / 2, boxY + boxH / 2 + 12)
   ctx.textAlign = 'left'
 
-  // ── Barra inferior de estado ──
   const footerY = boxY + boxH + 40
   let footerTexto, footerColor
 
   if (datos.ganador === 'empate') {
     footerColor = 'rgba(255,255,255,0.3)'
-    footerTexto = '🤝 ¡Empate! Nadie gana esta ronda'
+    footerTexto = 'EMPATE - Nadie gana esta ronda'
   } else if (datos.ganador === 'X' || datos.ganador === 'O') {
     let nombreGanador = datos.ganador === 'X' ? datos.nombreX : datos.nombreO
     let eleccionGanadora = datos.ganador === 'X' ? datos.eleccionX : datos.eleccionO
     footerColor = amarillo
-    footerTexto = `🏆 ¡Ganó ${nombreGanador} con ${OPCIONES[eleccionGanadora]?.emoji}!`
+    footerTexto = `GANO ${nombreGanador.replace('@', '').toUpperCase()} CON ${OPCIONES[eleccionGanadora]?.label}`
   } else {
     footerColor = amarillo
-    footerTexto = '🍃 Esperando que ambos elijan...'
+    footerTexto = 'ESPERANDO QUE AMBOS ELIJAN...'
   }
 
-  ctx.font = 'bold 22px sans-serif'
-  const footerAncho = ctx.measureText(footerTexto).width + 50
+  ctx.font = 'bold 20px sans-serif'
+  const footerAncho = Math.min(ctx.measureText(footerTexto).width + 50, W - marginX * 2)
   ctx.fillStyle = footerColor
   roundRect(ctx, (W - footerAncho) / 2, footerY, footerAncho, 50, 25)
   ctx.fill()
   ctx.fillStyle = '#0a0a0a'
   ctx.textAlign = 'center'
-  ctx.fillText(footerTexto, W / 2, footerY + 32)
+  ctx.fillText(footerTexto, W / 2, footerY + 32, footerAncho - 20)
   ctx.textAlign = 'left'
 
   return canvas.toBuffer('image/png')
 }
 
 function nombreDe(jid, esBot) {
-  if (esBot) return 'Bot 🤖'
+  if (esBot) return 'Bot'
   return '@' + jid.split('@')[0]
 }
 
@@ -235,8 +267,8 @@ async function enviarEstado(conn, m, game, chatId) {
   let mentions = [game.players.X, game.players.O].filter(j => j !== 'bot')
 
   let caption = revelado
-    ? (ganador === 'empate' ? '🤝 ¡Empate!' : `🏆 ¡Ganó ${ganador === 'X' ? datos.nombreX : datos.nombreO}!`)
-    : '✊ Piedra, papel o tijera'
+    ? (ganador === 'empate' ? 'Empate' : `Gano ${ganador === 'X' ? datos.nombreX : datos.nombreO}`)
+    : 'Piedra, papel o tijera'
 
   let enviado = await conn.sendMessage(m.chat, { image: buffer, caption, mentions }, { quoted: m })
 
@@ -278,7 +310,7 @@ let handler = async (m, { conn, text }) => {
     if (game) return enviarEstado(conn, m, game, chatId)
     return conn.sendMessage(m.chat, {
       text:
-        `╭─⪼ 🌿 *SAITAMA-BOT*\n│ ✊ PIEDRA, PAPEL O TIJERA\n│\n` +
+        `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 PIEDRA, PAPEL O TIJERA\n│\n` +
         `│ 🍃 .ppt @usuario — retar a alguien\n` +
         `│ 🍃 .ppt bot — jugar contra el bot\n` +
         `│ 🍃 .ppt piedra / papel / tijera — elegir\n` +
@@ -305,7 +337,7 @@ let handler = async (m, { conn, text }) => {
     delete global.__ppt[chatId]
     let mentions = [m.sender, ganadorJid].filter(j => j !== 'bot')
     return conn.sendMessage(m.chat, {
-      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🏳️ @${m.sender.split('@')[0]} se rindió\n│ 🏆 Ganador: ${ganadorJid === 'bot' ? '🤖 Bot' : '@' + ganadorJid.split('@')[0]} (+5 puntos)\n╰───────────────⬣`,
+      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🏳️ @${m.sender.split('@')[0]} se rindió\n│ 🍃 Ganador: ${ganadorJid === 'bot' ? 'Bot' : '@' + ganadorJid.split('@')[0]} (+5 puntos)\n╰───────────────⬣`,
       mentions
     }, { quoted: m })
   }
@@ -324,7 +356,7 @@ let handler = async (m, { conn, text }) => {
     global.__ppt[chatId] = {
       players: { X: m.sender, O: vsBot ? 'bot' : mentioned },
       eleccionX: null,
-      eleccionO: vsBot ? OPCIONES[['piedra', 'papel', 'tijera'][Math.floor(Math.random() * 3)]] && null : null,
+      eleccionO: null,
       vsBot,
       imageKeys: [],
       createdAt: Date.now()
@@ -357,7 +389,6 @@ let handler = async (m, { conn, text }) => {
     game.eleccionO = eleccion
   }
 
-  // Si es contra el bot y ya eligió el humano, el bot elige de inmediato
   if (game.vsBot && game.eleccionX && !game.eleccionO) {
     const opciones = ['piedra', 'papel', 'tijera']
     game.eleccionO = opciones[Math.floor(Math.random() * 3)]
