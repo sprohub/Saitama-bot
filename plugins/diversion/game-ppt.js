@@ -34,29 +34,146 @@ function circuloDesenfocado(ctx, x, y, r, color, alpha) {
 }
 
 // ── Iconos dibujados a mano (sin emojis) ──
+
+// Mezcla un color hex con blanco para generar un tono claro (para el brillo/gradiente)
+function aclararColor(hex, cantidad) {
+  const c = hex.replace('#', '')
+  const r = parseInt(c.substring(0, 2), 16)
+  const g = parseInt(c.substring(2, 4), 16)
+  const b = parseInt(c.substring(4, 6), 16)
+  const nr = Math.round(r + (255 - r) * cantidad)
+  const ng = Math.round(g + (255 - g) * cantidad)
+  const nb = Math.round(b + (255 - b) * cantidad)
+  return `rgb(${nr},${ng},${nb})`
+}
+
+// 🪨 Roca: polígono irregular (no un círculo perfecto) con sombreado radial
 function dibujarPiedra(ctx, cx, cy, r, color) {
-  ctx.fillStyle = color
+  ctx.save()
+  ctx.translate(cx, cy)
+
+  const puntos = 10
+  const variacion = [1, 0.86, 1.08, 0.92, 1.12, 0.88, 1.05, 0.95, 1.1, 0.9]
   ctx.beginPath()
-  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  for (let i = 0; i < puntos; i++) {
+    const angulo = (Math.PI * 2 * i) / puntos
+    const radio = r * variacion[i]
+    const x = Math.cos(angulo) * radio
+    const y = Math.sin(angulo) * radio * 0.9 // achatada verticalmente, más "roca" que "pelota"
+    if (i === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
+  }
+  ctx.closePath()
+
+  const grad = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.1, 0, 0, r * 1.3)
+  grad.addColorStop(0, aclararColor(color, 0.35))
+  grad.addColorStop(1, color)
+  ctx.fillStyle = grad
   ctx.fill()
-}
-function dibujarPapel(ctx, cx, cy, size, color) {
-  ctx.fillStyle = color
-  roundRect(ctx, cx - size / 2, cy - size / 2, size, size, 14)
-  ctx.fill()
-}
-function dibujarTijera(ctx, cx, cy, size, color) {
-  ctx.strokeStyle = color
-  ctx.lineWidth = 14
-  ctx.lineCap = 'round'
-  const off = size / 2
+
+  // un par de "grietas" sutiles para textura de piedra
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)'
+  ctx.lineWidth = 3
   ctx.beginPath()
-  ctx.moveTo(cx - off, cy - off)
-  ctx.lineTo(cx + off, cy + off)
-  ctx.moveTo(cx + off, cy - off)
-  ctx.lineTo(cx - off, cy + off)
+  ctx.moveTo(-r * 0.2, -r * 0.1)
+  ctx.lineTo(r * 0.15, r * 0.25)
+  ctx.moveTo(r * 0.1, -r * 0.35)
+  ctx.lineTo(r * 0.3, -r * 0.05)
   ctx.stroke()
+
+  ctx.restore()
 }
+
+// 📄 Papel: hoja rectangular con la esquina superior derecha doblada + líneas de "texto"
+function dibujarPapel(ctx, cx, cy, size, color) {
+  const w = size * 0.72
+  const h = size
+  const doblez = size * 0.2
+
+  ctx.save()
+  ctx.translate(cx - w / 2, cy - h / 2)
+
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.lineTo(w - doblez, 0)
+  ctx.lineTo(w, doblez)
+  ctx.lineTo(w, h)
+  ctx.lineTo(0, h)
+  ctx.closePath()
+  ctx.fillStyle = color
+  ctx.fill()
+
+  // sombra del doblez de la esquina
+  ctx.beginPath()
+  ctx.moveTo(w - doblez, 0)
+  ctx.lineTo(w, doblez)
+  ctx.lineTo(w - doblez, doblez)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'
+  ctx.fill()
+
+  // líneas simulando texto
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)'
+  ctx.lineWidth = size * 0.03
+  ctx.lineCap = 'round'
+  for (let i = 0; i < 4; i++) {
+    const y = h * 0.42 + i * (h * 0.12)
+    const anchoLinea = i === 3 ? w * 0.5 : w * 0.7
+    ctx.beginPath()
+    ctx.moveTo(w * 0.14, y)
+    ctx.lineTo(w * 0.14 + anchoLinea, y)
+    ctx.stroke()
+  }
+
+  ctx.restore()
+}
+
+// ✂️ Tijera: dos aros (mangos) + dos hojas cruzadas hacia una punta, forma reconocible
+function dibujarTijera(ctx, cx, cy, size, color) {
+  ctx.save()
+  ctx.translate(cx, cy)
+
+  const anilloR = size * 0.16
+  const anilloGrosor = size * 0.075
+  const separacionAnillos = size * 0.24
+  const anilloY = size * 0.32
+  const puntaY = -size * 0.48
+
+  ctx.strokeStyle = color
+  ctx.lineWidth = anilloGrosor
+  ctx.lineCap = 'round'
+
+  // Aros (mangos)
+  ctx.beginPath()
+  ctx.arc(-separacionAnillos, anilloY, anilloR, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(separacionAnillos, anilloY, anilloR, 0, Math.PI * 2)
+  ctx.stroke()
+
+  // Hojas: cada una va desde su aro hasta cruzar y terminar en punta del lado opuesto
+  ctx.fillStyle = color
+  function hoja(origenX) {
+    ctx.beginPath()
+    ctx.moveTo(origenX, anilloY - anilloR * 0.3)
+    ctx.lineTo(origenX * 0.15, size * 0.02)
+    ctx.lineTo(-origenX * 0.06, puntaY)
+    ctx.lineTo(origenX * 0.08, size * 0.02)
+    ctx.closePath()
+    ctx.fill()
+  }
+  hoja(-separacionAnillos)
+  hoja(separacionAnillos)
+
+  // Pivote central
+  ctx.fillStyle = aclararColor(color, 0.4)
+  ctx.beginPath()
+  ctx.arc(0, size * 0.02, size * 0.045, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.restore()
+}
+
 function dibujarInterrogacion(ctx, cx, cy, color) {
   ctx.fillStyle = color
   ctx.font = 'bold 140px sans-serif'
