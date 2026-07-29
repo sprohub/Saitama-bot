@@ -1,3 +1,4 @@
+
 import fetch from 'node-fetch'
 import {
   generateWAMessageFromContent,
@@ -5,159 +6,296 @@ import {
   proto
 } from '@whiskeysockets/baileys'
 
+const API = 'https://dv-yer-api.online'
+const APIKEY = 'dvyer356363943798'
+const SEARCH_LIMIT = 10
+
+const _processing = new Set()
+
 function decorar(texto) {
-  return `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 ${texto.split('\n').join('\n│ 🍃 ')}\n╰───────────────⬣`
+  return `╭─⪼ 🌿 *SAITAMA-BOT*
+│ 🍃 ${texto.split('\n').join('\n│ 🍃 ')}
+╰───────────────⬣`
 }
 
-let handler = async (m, { conn, text, usedPrefix, command }) => {
-  if (!text) {
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: {
-        title: 'SAITAMA-BOT - SPOTIFY',
-        subtitle: 'Busca y descarga música',
-        hasMediaAttachment: false
-      },
-      body: {
-        text: decorar('Busca música en Spotify\n\n' + usedPrefix + command + ' <nombre>\nEjemplo: ' + usedPrefix + command + ' Twice')
-      },
-      footer: { text: '🍃 SAITAMA-BOT' },
-      nativeFlowMessage: {
-        buttons: [{
-          name: 'single_select',
+function safeText(t, max = 55) {
+  return String(t || '').trim().slice(0, max)
+}
+
+function buildSpotifySearch(q) {
+  return `${API}/spotifysearch?q=${encodeURIComponent(q)}&limit=${SEARCH_LIMIT}&lang=es18&apikey=${APIKEY}`
+}
+
+function buildSpotifyDownload(query) {
+  return `${API}/spotify?q=${encodeURIComponent(query)}&mode=link&pick=1&limit=10&apikey=${APIKEY}`
+}
+
+// 🔓 Desenvuelve mensajes ephemeral/viewOnce
+function unwrapMessage(message) {
+  const wrappers = [
+    'ephemeralMessage',
+    'viewOnceMessage',
+    'viewOnceMessageV2',
+    'viewOnceMessageV2Extension'
+  ]
+  let msg = message
+  let guard = 0
+  while (msg && guard < 5) {
+    const key = wrappers.find(w => msg[w])
+    if (!key) break
+    msg = msg[key].message
+    guard++
+  }
+  return msg
+}
+
+// 🔎 Extrae ID de botones/carrusel
+function extractSelectedId(content) {
+  const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
+  if (nativeFlow?.paramsJson) {
+    try {
+      const data = JSON.parse(nativeFlow.paramsJson)
+      return data.id || data.selectedId || data.selectedRowId || null
+    } catch {}
+  }
+
+  const listReply = content?.listResponseMessage?.singleSelectReply
+  if (listReply?.selectedRowId) return listReply.selectedRowId
+
+  const btnReply = content?.buttonsResponseMessage
+  if (btnReply?.selectedButtonId) return btnReply.selectedButtonId
+
+  const templateReply = content?.templateButtonReplyMessage
+  if (templateReply?.selectedId) return templateReply.selectedId
+
+  return null
+}
+
+// 🎵 Construye una tarjeta del carrusel
+async function construirTarjetaSpotify(conn, track) {
+  let media = null
+
+  if (track.image) {
+    try {
+      media = await prepareWAMessageMedia(
+        { image: { url: track.image } },
+        { upload: conn.waUploadToServer }
+      )
+    } catch {}
+  }
+
+  const query = `${track.title} ${track.artist || ''}`.trim()
+  const q64 = Buffer.from(query).toString('base64')
+
+  return {
+    header: {
+      title: '',
+      hasMediaAttachment: !!media,
+      imageMessage: media?.imageMessage
+    },
+    body: {
+      text:
+        `╭─⪼ 🌿
+│ 🎵 ${safeText(track.title)}
+│ 👤 ${safeText(track.artist || 'Desconocido', 40)}
+│ ⏱️ ${track.duration || '?'}
+╰───────────────⬣`
+    },
+    nativeFlowMessage: {
+      buttons: [
+        {
+          name: 'quick_reply',
           buttonParamsJson: JSON.stringify({
-            title: '🎵 SPOTIFY',
-            sections: [{
-              title: '🔍 BUSCAR',
-              rows: [{
-                header: '🎧 MÚSICA',
-                title: 'Buscar canción',
-                description: 'Ejemplo: Twice',
-                id: 'sp '
-              }]
-            }]
+            display_text: '🎧 Audio',
+            id: `spdl~${q64}`
           })
-        }]
+        }
+      ]
+    }
+  }
+}
+
+// 🎠 Envía carrusel
+async function enviarCarrusel(conn, m, resultados, bodyText) {
+  const cards = []
+
+  for (const track of resultados) {
+    cards.push(await construirTarjetaSpotify(conn, track))
+  }
+
+  const interactiveMessage = proto.Message.InteractiveMessage.create({
+    body: { text: bodyText },
+    footer: { text: '🌿 SAITAMA-BOT' },
+    header: { title: '', hasMediaAttachment: false },
+    carouselMessage: { cards }
+  })
+
+  const msg = generateWAMessageFromContent(
+    m.chat,
+    {
+      viewOnceMessage: {
+        message: {
+          messageContextInfo: {},
+          interactiveMessage
+        }
       }
-    })
+    },
+    { quoted: m }
+  )
 
-    const msg = generateWAMessageFromContent(m.chat, {
-      viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } }
+  await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+}
+
+// 🎵 Comando principal
+let handler = async (m, { conn, text, usedPrefix, command }) => {
+  const msgKey = `main_${m.id || m.key?.id}`
+  if (_processing.has(msgKey)) return
+  _processing.add(msgKey)
+  setTimeout(() => _processing.delete(msgKey), 15000)
+
+  if (!text) {
+    return conn.sendMessage(m.chat, {
+      text: decorar(
+        `Busca música en Spotify
+
+Usa: ${usedPrefix}${command} <nombre>
+
+Ejemplo:
+${usedPrefix}${command} bad bunny`
+      )
     }, { quoted: m })
-
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
-    return
   }
 
   await m.react('🔍')
 
   try {
-    let searchUrl = `https://api.delirius.store/search/spotify?q=${encodeURIComponent(text)}&limit=10`
-    let searchRes = await fetch(searchUrl)
-    let searchData = await searchRes.json()
+    const res = await fetch(buildSpotifySearch(text))
+    const data = await res.json()
 
-    if (!searchData.status || !searchData.data?.length) {
+    const resultados = data.results || data.data || data.result || []
+
+    if (!Array.isArray(resultados) || !resultados.length) {
       throw new Error('No se encontraron resultados')
     }
 
-    let resultados = searchData.data.slice(0, 10)
-    let primeraImagen = resultados[0].image || ''
-
-    let media = null
-    if (primeraImagen) {
-      media = await prepareWAMessageMedia({ image: { url: primeraImagen } }, { upload: conn.waUploadToServer })
-    }
-
-    let rows = resultados.map((track, i) => ({
-      header: '🎵 ' + (track.artist || 'Desconocido'),
-      title: track.title.substring(0, 35),
-      description: '💿 ' + (track.album || '') + ' | ⏱️ ' + (track.duration || '?'),
-      id: 'spotdl_' + i + '_' + Buffer.from(track.url).toString('base64') + '_' + Buffer.from(track.title).toString('base64')
-    }))
-
-    const interactiveMessage = proto.Message.InteractiveMessage.create({
-      header: {
-        title: 'SAITAMA-BOT - SPOTIFY',
-        subtitle: 'Selecciona una canción',
-        hasMediaAttachment: !!media,
-        imageMessage: media ? media.imageMessage : undefined
-      },
-      body: {
-        text: decorar('Búsqueda: ' + text + '\n\nElige una canción')
-      },
-      footer: { text: '🍃 SAITAMA-BOT' },
-      nativeFlowMessage: {
-        buttons: [{
-          name: 'single_select',
-          buttonParamsJson: JSON.stringify({
-            title: '🎵 RESULTADOS',
-            sections: [{ title: '📋 ' + text.toUpperCase(), rows }]
-          })
-        }]
-      }
-    })
-
-    const msg = generateWAMessageFromContent(m.chat, {
-      viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } }
-    }, { quoted: m })
-
-    await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
-
-  } catch (e) {
-    console.log(e)
-    await m.react('❌')
-    conn.sendMessage(m.chat, { text: decorar('No se encontraron resultados') }, { quoted: m })
-  }
-}
-
-handler.before = async (m, { conn }) => {
-  const nativeFlow = m.message?.interactiveResponseMessage?.nativeFlowResponseMessage
-  if (!nativeFlow) return false
-
-  try {
-    const data = JSON.parse(nativeFlow.paramsJson || '{}')
-    const id = data.id || data.selectedId || data.selectedRowId || null
-    if (!id || !id.startsWith('spotdl_')) return false
-
-    let parts = id.split('_')
-    let urlBase64 = parts[2]
-    let titleBase64 = parts[3]
-    let spotifyUrl = Buffer.from(urlBase64, 'base64').toString()
-    let titulo = Buffer.from(titleBase64, 'base64').toString()
-
-    await m.react('⏳')
-    await conn.sendMessage(m.chat, { text: decorar('Descargando...') }, { quoted: m })
-
-    let downloadUrl = `https://api.delirius.store/download/spotifydl?url=${encodeURIComponent(spotifyUrl)}`
-    let res = await fetch(downloadUrl)
-    let json = await res.json()
-
-    if (!json.status || !json.data?.download) {
-      throw new Error('No se pudo descargar')
-    }
-
-    await conn.sendMessage(m.chat, {
-      audio: { url: json.data.download },
-      mimetype: 'audio/mpeg',
-      fileName: (json.data.title || titulo) + '.mp3'
-    }, { quoted: m })
-
-    await conn.sendMessage(m.chat, {
-      image: { url: json.data.image },
-      caption: decorar('Descarga completada\n\n🎧 » ' + (json.data.title || titulo) + '\n👤 » ' + (json.data.author || ''))
-    }, { quoted: m })
+    await enviarCarrusel(
+      conn,
+      m,
+      resultados.slice(0, SEARCH_LIMIT),
+      `╭─⪼ 🌿
+│ 🍃 Resultados para: ${text}
+╰───────────────⬣`
+    )
 
     await m.react('✅')
-    return true
 
   } catch (e) {
-    console.log(e)
-    await conn.sendMessage(m.chat, { text: decorar('Error: ' + e.message) }, { quoted: m })
+    console.log('[SPOTIFY SEARCH ERROR]', e)
     await m.react('❌')
-    return true
+
+    await conn.sendMessage(m.chat, {
+      text: decorar('No se encontraron resultados')
+    }, { quoted: m })
   }
 }
 
-handler.help = ['spotify']
+// ⬇️ Manejo de botones del carrusel
+handler.before = async (m, { conn }) => {
+  const content = unwrapMessage(m.message)
+  if (!content) return false
+
+  const id = extractSelectedId(content)
+  if (!id || !id.startsWith('spdl~')) return false
+
+  const msgKey = `before_${m.id || m.key?.id}`
+  if (_processing.has(msgKey)) return true
+
+  _processing.add(msgKey)
+  setTimeout(() => _processing.delete(msgKey), 30000)
+
+  let query
+
+  try {
+    query = Buffer.from(id.split('~')[1], 'base64').toString()
+  } catch {
+    await conn.sendMessage(m.chat, {
+      text: decorar('Error al procesar la selección')
+    }, { quoted: m })
+    return true
+  }
+
+  await m.react('⏳')
+
+  await conn.sendMessage(m.chat, {
+    text: decorar('Descargando...')
+  }, { quoted: m })
+
+  try {
+    const res = await fetch(buildSpotifyDownload(query))
+    const json = await res.json()
+
+    if (!json.ok && !json.download_url && !json.url) {
+      throw new Error(json.message || json.error || 'No se pudo descargar')
+    }
+
+    const audioUrl =
+      json.download_url ||
+      json.url ||
+      json.stream_url
+
+    if (!audioUrl) {
+      throw new Error('La API no devolvió un enlace válido')
+    }
+
+    const titulo = json.title || query
+    const artista = json.artist || 'Desconocido'
+    const portada = json.thumbnail || json.image || null
+
+    // 🎧 Enviar audio
+    await conn.sendMessage(m.chat, {
+      audio: { url: audioUrl },
+      mimetype: 'audio/mpeg',
+      fileName: `${titulo}.mp3`
+    }, { quoted: m })
+
+    // 🖼️ Enviar portada + info
+    if (portada) {
+      await conn.sendMessage(m.chat, {
+        image: { url: portada },
+        caption: decorar(
+          `Descarga completada
+
+🎵 » ${titulo}
+👤 » ${artista}`
+        )
+      }, { quoted: m })
+    } else {
+      await conn.sendMessage(m.chat, {
+        text: decorar(
+          `Descarga completada
+
+🎵 » ${titulo}
+👤 » ${artista}`
+        )
+      }, { quoted: m })
+    }
+
+    await m.react('✅')
+
+  } catch (e) {
+    console.log('[SPOTIFY DOWNLOAD ERROR]', e)
+
+    await m.react('❌')
+
+    await conn.sendMessage(m.chat, {
+      text: decorar(`Error: ${e.message}`)
+    }, { quoted: m })
+  }
+
+  return true
+}
+
+handler.help = ['spotify', 'sp']
 handler.tags = ['downloader']
 handler.command = /^(spotify|sp)$/i
 handler.desc = 'Busca y descarga música de Spotify'
