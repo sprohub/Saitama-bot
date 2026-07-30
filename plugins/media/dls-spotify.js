@@ -6,7 +6,7 @@ import {
 } from '@whiskeysockets/baileys'
 
 const DVYER_API = 'https://dv-yer-api.online'
-const DVYER_APIKEY = 'dvyer356363943798'
+const DVYER_APIKEY = 'dvyer356363943798' // 👈 reemplaza por tu key real de https://dv-yer-api.online/perfil
 const SEARCH_LIMIT = 10
 
 const _processing = new Set()
@@ -15,12 +15,17 @@ function decorar(texto) {
   return `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 ${texto.split('\n').join('\n│ 🍃 ')}\n╰───────────────⬣`
 }
 
+// La key va en el header x-api-key, no como parámetro en la URL
+function dvyerHeaders() {
+  return { 'x-api-key': DVYER_APIKEY }
+}
+
 function buildSearchUrl(query, limit = SEARCH_LIMIT) {
-  return `${DVYER_API}/spotifysearch?q=${encodeURIComponent(query)}&limit=${limit}&lang=es18&apikey=${DVYER_APIKEY}`
+  return `${DVYER_API}/spotifysearch?q=${encodeURIComponent(query)}&limit=${limit}&lang=es18`
 }
 
 function buildDownloadUrl(query, pick) {
-  return `${DVYER_API}/spotify?q=${encodeURIComponent(query)}&mode=link&pick=${pick}&limit=${SEARCH_LIMIT}&apikey=${DVYER_APIKEY}`
+  return `${DVYER_API}/spotify?q=${encodeURIComponent(query)}&mode=link&pick=${pick}&limit=${SEARCH_LIMIT}`
 }
 
 // La API puede nombrar los campos distinto según la versión; probamos varias opciones
@@ -164,7 +169,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   await m.react('🔍')
 
   try {
-    const res = await fetch(buildSearchUrl(consulta))
+    const res = await fetch(buildSearchUrl(consulta), { headers: dvyerHeaders() })
     const data = await res.json()
 
     const resultados = campo(data, 'results', 'data', 'tracks')
@@ -212,7 +217,7 @@ handler.before = async (m, { conn }) => {
   await conn.sendMessage(m.chat, { text: decorar('Descargando...') }, { quoted: m })
 
   try {
-    const res = await fetch(buildDownloadUrl(queryOriginal, pick))
+    const res = await fetch(buildDownloadUrl(queryOriginal, pick), { headers: dvyerHeaders() })
     const json = await res.json()
 
     if (!json.ok && !json.status) throw new Error(json?.message || json?.error || 'No se pudo descargar')
