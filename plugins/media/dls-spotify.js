@@ -1,264 +1,596 @@
-import fetch from 'node-fetch'
-import {
-  generateWAMessageFromContent,
-  prepareWAMessageMedia,
-  proto
-} from '@whiskeysockets/baileys'
+import axios from 'axios'
+import fs from 'fs'
+import fsp from 'fs/promises'
+import path from 'path'
+import http from 'http'
+import https from 'https'
+import { pipeline } from 'stream/promises'
+import { randomUUID } from 'crypto'
+import Jimp from 'jimp'
 
-const DVYER_API = 'https://dv-yer-api.online'
-const DVYER_APIKEY = 'dvyer356363943798' // 👈 reemplaza por tu key real de https://dv-yer-api.online/perfil
-const SEARCH_LIMIT = 10
+// ---------------------------------------------------------------------------
+// CONFIG
+// ---------------------------------------------------------------------------
+const DL_API_URL = 'https://api.evogb.org/dl/spotify'
+const SEARCH_API_URL = 'https://api.evogb.org/search/spotify'
+const EVOGB_KEY = process.env.EVOGB_KEY || 'DravenMJ'
 
-const _processing = new Set()
+const API_TIMEOUT = 30_000
+const REQUEST_TIMEOUT = 5 * 60 * 1000
+const MAX_AUDIO_BYTES = 60 * 1024 * 1024 // 60MB
+const MIN_AUDIO_BYTES = 10 * 1024
 
-function decorar(texto) {
-  return `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 ${texto.split('\n').join('\n│ 🍃 ')}\n╰───────────────⬣`
+const DELETE_RETRIES = 4
+const DELETE_RETRY_DELAY_MS = 120
+
+const HTTP_AGENT = new http.Agent({ keepAlive: true, maxSockets: 40, maxFreeSockets: 20 })
+const HTTPS_AGENT = new https.Agent({ keepAlive: true, maxSockets: 40, maxFreeSockets: 20 })
+
+// ---------------------------------------------------------------------------
+// DECORACIÓN (equivalente local a wrap/item, ya que tu bot no tiene _deco.js)
+// ---------------------------------------------------------------------------
+function wrap(titulo, items) {
+  return `╭─⪼ 🌿 *SAITAMA-BOT · ${titulo}*\n${items.map(i => `│ 🍃 ${i}`).join('\n')}\n╰───────────────⬣`
+}
+function item(texto) { return texto }
+
+// ---------------------------------------------------------------------------
+// CACHE PERSISTENTE (data/spotify_cache/*.mp3 + data/spotify_cache.json)
+// ---------------------------------------------------------------------------
+const CACHE_DIR = path.join(process.cwd(), 'data', 'spotify_cache')
+const CACHE_INDEX_FILE = path.join(process.cwd(), 'data', 'spotify_cache.json')
+const CACHE_TTL_MS = Number(process.env.SPOTIFY_CACHE_TTL_HOURS || 720) * 60 * 60 * 1000
+let cacheWriteQueue = Promise.resolve()
+
+// ---------------------------------------------------------------------------
+// CACHE DE BUSQUEDAS POR TEXTO (data/spotify_search_cache.json)
+// Evita llamar a la API /search/spotify de nuevo si ya se busco ese mismo
+// texto antes, saltando directo al cache de audio.
+// ---------------------------------------------------------------------------
+const SEARCH_CACHE_FILE = path.join(process.cwd(), 'data', 'spotify_search_cache.json')
+const SEARCH_CACHE_TTL_MS = CACHE_TTL_MS
+let searchCacheWriteQueue = Promise.resolve()
+
+async function ensureCacheDir() {
+  await fsp.mkdir(CACHE_DIR, { recursive: true })
 }
 
-// La key va en el header x-api-key, no como parámetro en la URL
-function dvyerHeaders() {
-  return { 'x-api-key': DVYER_APIKEY }
-}
-
-function buildSearchUrl(query, limit = SEARCH_LIMIT) {
-  return `${DVYER_API}/spotifysearch?q=${encodeURIComponent(query)}&limit=${limit}&lang=es18`
-}
-
-function buildDownloadUrl(query, pick) {
-  return `${DVYER_API}/spotify?q=${encodeURIComponent(query)}&mode=link&pick=${pick}&limit=${SEARCH_LIMIT}`
-}
-
-// La API puede nombrar los campos distinto según la versión; probamos varias opciones
-function campo(obj, ...nombres) {
-  for (const n of nombres) {
-    if (obj?.[n] !== undefined && obj[n] !== null && obj[n] !== '') return obj[n]
+async function ensureCacheIndexFile() {
+  await fsp.mkdir(path.dirname(CACHE_INDEX_FILE), { recursive: true })
+  try {
+    await fsp.access(CACHE_INDEX_FILE)
+  } catch {
+    await fsp.writeFile(CACHE_INDEX_FILE, '{}', 'utf8')
   }
-  return null
 }
 
-function isHttpUrl(v) { return /^https?:\/\//i.test(String(v || '')) }
+async function readCacheIndex() {
+  await ensureCacheIndexFile()
+  try {
+    const raw = await fsp.readFile(CACHE_INDEX_FILE, 'utf8')
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeCacheIndex(data) {
+  cacheWriteQueue = cacheWriteQueue
+    .then(async () => {
+      await ensureCacheIndexFile()
+      await fsp.writeFile(CACHE_INDEX_FILE, JSON.stringify(data, null, 2), 'utf8')
+    })
+    .catch((err) => {
+      console.error('SPOTIFY CACHE INDEX WRITE ERROR:', err?.message || err)
+    })
+  return cacheWriteQueue
+}
+
+// ---------------------------------------------------------------------------
+// helpers del cache de busquedas
+// ---------------------------------------------------------------------------
+function normalizeSearchQuery(query = '') {
+  return String(query || '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+async function ensureSearchCacheFile() {
+  await fsp.mkdir(path.dirname(SEARCH_CACHE_FILE), { recursive: true })
+  try {
+    await fsp.access(SEARCH_CACHE_FILE)
+  } catch {
+    await fsp.writeFile(SEARCH_CACHE_FILE, '{}', 'utf8')
+  }
+}
+
+async function readSearchCacheIndex() {
+  await ensureSearchCacheFile()
+  try {
+    const raw = await fsp.readFile(SEARCH_CACHE_FILE, 'utf8')
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeSearchCacheIndex(data) {
+  searchCacheWriteQueue = searchCacheWriteQueue
+    .then(async () => {
+      await ensureSearchCacheFile()
+      await fsp.writeFile(SEARCH_CACHE_FILE, JSON.stringify(data, null, 2), 'utf8')
+    })
+    .catch((err) => {
+      console.error('SPOTIFY SEARCH CACHE WRITE ERROR:', err?.message || err)
+    })
+  return searchCacheWriteQueue
+}
+
+async function getCachedSearchUrl(query) {
+  const key = normalizeSearchQuery(query)
+  if (!key) return ''
+  const index = await readSearchCacheIndex()
+  const entry = index[key]
+  if (!entry) return ''
+  if (!entry.expiresAt || Date.now() >= entry.expiresAt) {
+    delete index[key]
+    writeSearchCacheIndex(index).catch(() => {})
+    return ''
+  }
+  return entry.url || ''
+}
+
+async function setCachedSearchUrl(query, url) {
+  const key = normalizeSearchQuery(query)
+  if (!key || !url) return
+  const index = await readSearchCacheIndex()
+  index[key] = { url, cachedAt: Date.now(), expiresAt: Date.now() + SEARCH_CACHE_TTL_MS }
+  await writeSearchCacheIndex(index)
+}
+
+function extractTrackId(spotifyUrl = '') {
+  const match = String(spotifyUrl || '').match(/\/(track|album|playlist)\/([A-Za-z0-9]+)/)
+  return match ? `${match[1]}-${match[2]}` : ''
+}
+
+async function getCachedTrack(spotifyUrl) {
+  const trackId = extractTrackId(spotifyUrl)
+  if (!trackId) return null
+
+  const index = await readCacheIndex()
+  const entry = index[trackId]
+  if (!entry) return null
+
+  if (!entry.expiresAt || Date.now() >= entry.expiresAt) {
+    delete index[trackId]
+    writeCacheIndex(index).catch(() => {})
+    return null
+  }
+
+  const exists = await fsp.access(entry.filePath).then(() => true).catch(() => false)
+  if (!exists) {
+    delete index[trackId]
+    writeCacheIndex(index).catch(() => {})
+    return null
+  }
+
+  return entry
+}
+
+async function setCachedTrack(spotifyUrl, entry) {
+  const trackId = extractTrackId(spotifyUrl)
+  if (!trackId || !entry?.filePath) return
+
+  const index = await readCacheIndex()
+  index[trackId] = {
+    trackId,
+    filePath: entry.filePath,
+    fileName: entry.fileName,
+    name: entry.name || '',
+    artist: entry.artist || '',
+    album: entry.album || '',
+    duration: entry.duration || '',
+    year: entry.year || '',
+    image: entry.image || '',
+    // guardamos el jpeg ya procesado en base64 para no volver a
+    // descargar ni re-comprimir la portada en cada entrega desde cache.
+    jpegThumbnailBase64: entry.jpegThumbnailBase64 || '',
+    contentType: entry.contentType || 'audio/mpeg',
+    size: Number(entry.size || 0),
+    cachedAt: Date.now(),
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  }
+  await writeCacheIndex(index)
+}
+
+async function pruneExpiredCache() {
+  try {
+    await ensureCacheDir()
+    const index = await readCacheIndex()
+    const now = Date.now()
+    let changed = false
+
+    for (const key of Object.keys(index)) {
+      const entry = index[key]
+      if (!entry?.expiresAt || now >= entry.expiresAt) {
+        if (entry?.filePath) await deleteFileSafe(entry.filePath)
+        delete index[key]
+        changed = true
+      }
+    }
+
+    if (changed) await writeCacheIndex(index)
+  } catch (err) {
+    console.error('SPOTIFY CACHE PRUNE ERROR:', err?.message || err)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// HELPERS
+// ---------------------------------------------------------------------------
+function cleanText(value = '') {
+  return String(value || '').replace(/\s+/g, ' ').trim()
+}
+
+function humanBytes(bytes = 0) {
+  const size = Number(bytes || 0)
+  if (!Number.isFinite(size) || size <= 0) return 'N/D'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = size
+  let index = 0
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024
+    index += 1
+  }
+  return `${value >= 100 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`
+}
+
+function safeFileName(name) {
+  return (
+    String(name || 'spotify-audio')
+      .replace(/[\\/:*?"<>|]/g, '')
+      .replace(/[^\w .()[\]-]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120) || 'spotify-audio'
+  )
+}
+
+function normalizeMp3Name(name) {
+  const parsed = path.parse(String(name || '').trim())
+  const base = safeFileName(parsed.name || name || 'spotify-audio')
+  return `${base || 'spotify-audio'}.mp3`
+}
+
+function isSpotifyUrl(text = '') {
+  return /open\.spotify\.com\/(track|album|playlist)\//i.test(String(text || ''))
+}
+
 function extractSpotifyUrl(text) {
-  const m = String(text || '').match(/https?:\/\/(?:open\.)?spotify\.(?:com|link)\/[^\s]+/i)
-  return m ? m[0].trim() : ''
+  const match = String(text || '').match(/https?:\/\/(?:open\.)?spotify\.com\/[^\s]+/i)
+  return match ? match[0].trim() : ''
 }
 
-function formatDuration(segundos) {
-  const s = Number(segundos) || 0
-  const m = Math.floor(s / 60)
-  const sec = Math.floor(s % 60)
-  return `${m}:${sec.toString().padStart(2, '0')}`
+function waitMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(1, Number(ms || 0))))
 }
 
-// 🔓 Desenvuelve el mensaje si viene envuelto en ephemeral/viewOnce/etc
-function unwrapMessage(message) {
-  const wrappers = [
-    'ephemeralMessage',
-    'viewOnceMessage',
-    'viewOnceMessageV2',
-    'viewOnceMessageV2Extension',
-    'documentWithCaptionMessage'
-  ]
-  let msg = message
-  let guard = 0
-  while (msg && guard < 5) {
-    const key = wrappers.find(w => msg[w])
-    if (!key) break
-    msg = msg[key].message
-    guard++
-  }
-  return msg
-}
+async function deleteFileSafe(filePath) {
+  const target = String(filePath || '').trim()
+  if (!target) return true
 
-function extractSelectedId(content) {
-  const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
-  if (nativeFlow?.paramsJson) {
+  for (let attempt = 0; attempt <= DELETE_RETRIES; attempt += 1) {
     try {
-      const data = JSON.parse(nativeFlow.paramsJson)
-      const id = data.id || data.selectedId || data.selectedRowId
-      if (id) return id
-    } catch (e) {
-      console.log('[spotify] error parseando nativeFlow.paramsJson:', e, nativeFlow.paramsJson)
+      await fsp.unlink(target)
+      return true
+    } catch (error) {
+      const code = String(error?.code || '').toUpperCase()
+      if (code === 'ENOENT') return true
+      const retryable = code === 'EBUSY' || code === 'EPERM' || code === 'EACCES'
+      if (retryable && attempt < DELETE_RETRIES) {
+        await waitMs(DELETE_RETRY_DELAY_MS * (attempt + 1))
+        continue
+      }
+      return false
     }
   }
-
-  const listReply = content?.listResponseMessage?.singleSelectReply
-  if (listReply?.selectedRowId) return listReply.selectedRowId
-
-  const btnReply = content?.buttonsResponseMessage
-  if (btnReply?.selectedButtonId) return btnReply.selectedButtonId
-
-  return null
+  return false
 }
 
-// 🍃 Construye una tarjeta del carrusel: portada + info + botón de descarga integrado
-async function construirTarjeta(conn, track, queryOriginal, pick) {
-  const titulo = campo(track, 'title', 'name', 'track') || 'Desconocido'
-  const artista = campo(track, 'artist', 'artists', 'author') || ''
-  const duracion = campo(track, 'duration_seconds', 'duration', 'duration_ms')
-  const duracionSeg = campo(track, 'duration_ms') ? duracion / 1000 : duracion
-  const portada = campo(track, 'image', 'thumbnail', 'cover', 'album_image')
-
-  let media = null
-  if (portada) {
-    try { media = await prepareWAMessageMedia({ image: { url: portada } }, { upload: conn.waUploadToServer }) } catch {}
-  }
-
-  const queryB64 = Buffer.from(queryOriginal).toString('base64')
-  const tituloB64 = Buffer.from(String(titulo)).toString('base64')
-
-  return {
-    header: {
-      title: '',
-      hasMediaAttachment: !!media,
-      imageMessage: media?.imageMessage
+// ---------------------------------------------------------------------------
+// BUSQUEDA (api.evogb.org/search/spotify)
+// ---------------------------------------------------------------------------
+async function searchFirstTrackUrl(query) {
+  const response = await axios.get(SEARCH_API_URL, {
+    timeout: API_TIMEOUT,
+    params: { query, key: EVOGB_KEY },
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/145 Safari/537.36',
+      Accept: 'application/json',
     },
-    body: {
-      text: decorar(
-        `🎵 ${String(titulo).slice(0, 55)}\n` +
-        `👤 ${artista}` +
-        (duracionSeg ? `\n⏱️ ${formatDuration(duracionSeg)}` : '')
-      )
-    },
-    nativeFlowMessage: {
-      buttons: [
-        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: '⬇️ Descargar', id: `spdl~${pick}~${queryB64}~${tituloB64}` }) }
-      ]
-    }
-  }
-}
-
-async function enviarCarrusel(conn, m, resultados, queryOriginal, bodyText) {
-  const cards = []
-  for (let i = 0; i < resultados.length; i++) {
-    cards.push(await construirTarjeta(conn, resultados[i], queryOriginal, i + 1))
-  }
-
-  const interactiveMessage = proto.Message.InteractiveMessage.create({
-    body: { text: bodyText },
-    footer: { text: '🍃 SAITAMA-BOT' },
-    header: { title: '', hasMediaAttachment: false },
-    carouselMessage: { cards }
+    httpAgent: HTTP_AGENT,
+    httpsAgent: HTTPS_AGENT,
+    validateStatus: () => true,
   })
 
-  const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
-  await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+  if (response.status >= 400 || !response.data?.status) {
+    throw new Error(response.data?.error || response.data?.message || `HTTP ${response.status}`)
+  }
+
+  const list = Array.isArray(response.data?.result) ? response.data.result : []
+  const first = list.find((track) => track?.link)
+  if (!first) throw new Error('No encontre resultados en Spotify para esa busqueda.')
+
+  return cleanText(first.link)
 }
 
-let handler = async (m, { conn, text, usedPrefix, command }) => {
-  const msgKey = `sp_${m.id || m.key?.id}`
-  if (_processing.has(msgKey)) return
-  _processing.add(msgKey)
-  setTimeout(() => _processing.delete(msgKey), 15000)
+// resuelve la url de spotify usando primero el cache de busquedas;
+// solo llama a la API si no hay nada guardado para ese texto.
+async function resolveSpotifyUrl(input) {
+  const directUrl = extractSpotifyUrl(input)
+  if (directUrl && isSpotifyUrl(directUrl)) return directUrl
 
-  if (!text?.trim()) {
-    return conn.sendMessage(m.chat, {
-      text: decorar(`Busca música en Spotify\n\n${usedPrefix}${command} <nombre o link>\nEjemplo: ${usedPrefix}${command} Bad Bunny`)
-    }, { quoted: m })
+  const cachedUrl = await getCachedSearchUrl(input)
+  if (cachedUrl) return cachedUrl
+
+  const foundUrl = await searchFirstTrackUrl(input)
+  setCachedSearchUrl(input, foundUrl).catch(() => {})
+  return foundUrl
+}
+
+// ---------------------------------------------------------------------------
+// LLAMADA A LA API EVOGB (metadata + link de descarga)
+// ---------------------------------------------------------------------------
+async function fetchSpotifyData(spotifyUrl) {
+  const response = await axios.get(DL_API_URL, {
+    timeout: API_TIMEOUT,
+    params: { url: spotifyUrl, key: EVOGB_KEY },
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/145 Safari/537.36',
+      Accept: 'application/json',
+    },
+    httpAgent: HTTP_AGENT,
+    httpsAgent: HTTPS_AGENT,
+    validateStatus: () => true,
+  })
+
+  if (response.status >= 400 || !response.data?.status || !response.data?.data) {
+    const apiError = response.data?.error || response.data?.message || `HTTP ${response.status}`
+    throw new Error(apiError)
   }
 
-  const input = text.trim()
+  const data = response.data.data
+  if (!data.url) throw new Error('La API no devolvio un enlace de audio.')
 
-  if (isHttpUrl(input) && !extractSpotifyUrl(input)) {
-    return conn.sendMessage(m.chat, {
-      text: decorar('Envía un link válido de Spotify, o el nombre de la canción.')
-    }, { quoted: m })
-  }
-
-  const consulta = extractSpotifyUrl(input) || input
-
-  await m.react('🔍')
-
-  try {
-    const res = await fetch(buildSearchUrl(consulta), { headers: dvyerHeaders() })
-    const data = await res.json()
-
-    const resultados = campo(data, 'results', 'data', 'tracks')
-    if (!data.ok && !data.status) throw new Error(data?.message || data?.error || 'No se encontraron resultados')
-    if (!resultados?.length) throw new Error('No se encontraron resultados')
-
-    await enviarCarrusel(conn, m, resultados.slice(0, SEARCH_LIMIT), consulta, decorar(`Resultados para: ${input}`))
-    await m.react('✅')
-  } catch (e) {
-    console.error('[spotify] ERROR buscando:', e)
-    await m.react('❌')
-    conn.sendMessage(m.chat, { text: decorar(e.message || 'No se encontraron resultados') }, { quoted: m })
+  return {
+    name: cleanText(data.name || 'Spotify'),
+    artist: cleanText(data.artist || ''),
+    album: cleanText(data.album || ''),
+    duration: cleanText(data.duration || ''),
+    year: data.year || '',
+    image: cleanText(data.image || ''),
+    imageHD: cleanText(data.imageHD || ''),
+    remoteUrl: data.url,
   }
 }
 
-handler.before = async (m, { conn }) => {
-  const content = unwrapMessage(m.message)
-  if (!content) return false
+// ---------------------------------------------------------------------------
+// DESCARGA DE AUDIO DIRECTO A LA CARPETA DE CACHE
+// ---------------------------------------------------------------------------
+async function downloadToCache(remoteUrl, trackId, fallbackName, maxAudioBytes = MAX_AUDIO_BYTES) {
+  await ensureCacheDir()
+  const outputPath = path.join(CACHE_DIR, `${trackId || randomUUID()}.mp3`)
 
-  const id = extractSelectedId(content)
-  if (!id || !id.startsWith('spdl~')) return false
+  const response = await axios.get(remoteUrl, {
+    responseType: 'stream',
+    timeout: REQUEST_TIMEOUT,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/145 Safari/537.36',
+      Accept: '*/*',
+    },
+    httpAgent: HTTP_AGENT,
+    httpsAgent: HTTPS_AGENT,
+    maxRedirects: 5,
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+    validateStatus: () => true,
+  })
 
-  const msgKey = `spdl_before_${m.id || m.key?.id}`
-  if (_processing.has(msgKey)) return true
-  _processing.add(msgKey)
-  setTimeout(() => _processing.delete(msgKey), 30000)
-
-  const parts = id.split('~')
-  if (parts.length < 4) {
-    await conn.sendMessage(m.chat, { text: decorar('❌ Error al procesar la selección') }, { quoted: m })
-    return true
+  if (response.status >= 400) {
+    throw new Error(`El servidor de audio respondio con estado ${response.status}`)
   }
 
-  const pick = parts[1]
-  let queryOriginal, titulo
+  const contentLength = Number(response.headers?.['content-length'] || 0)
+  if (contentLength > maxAudioBytes) {
+    throw new Error(`El audio pesa ${humanBytes(contentLength)} y supera el limite permitido (${humanBytes(maxAudioBytes)}).`)
+  }
+
+  let downloaded = 0
+  response.data.on('data', (chunk) => {
+    downloaded += chunk.length
+    if (downloaded > maxAudioBytes) {
+      response.data.destroy(new Error('El audio es demasiado grande para enviarlo por WhatsApp.'))
+    }
+  })
+
   try {
-    queryOriginal = Buffer.from(parts[2], 'base64').toString()
-    titulo = Buffer.from(parts[3], 'base64').toString()
+    await pipeline(response.data, fs.createWriteStream(outputPath))
+  } catch (error) {
+    await deleteFileSafe(outputPath)
+    throw error
+  }
+
+  const stat = await fsp.stat(outputPath).catch(() => null)
+  if (!stat?.size || stat.size < MIN_AUDIO_BYTES) {
+    await deleteFileSafe(outputPath)
+    throw new Error('El archivo de audio descargado es invalido.')
+  }
+
+  return {
+    filePath: outputPath,
+    fileName: normalizeMp3Name(fallbackName),
+    size: stat.size,
+    contentType: response.headers?.['content-type'] || 'audio/mpeg',
+  }
+}
+
+async function getBuffer(url = '', timeout = 12_000) {
+  const target = cleanText(url)
+  if (!target || !/^https?:\/\//i.test(target)) return null
+  try {
+    const response = await axios.get(target, {
+      responseType: 'arraybuffer', timeout, httpAgent: HTTP_AGENT, httpsAgent: HTTPS_AGENT, maxRedirects: 4, validateStatus: () => true,
+    })
+    if (Number(response.status || 0) >= 400) return null
+    return Buffer.from(response.data)
   } catch {
-    await conn.sendMessage(m.chat, { text: decorar('❌ Error al procesar la selección') }, { quoted: m })
-    return true
+    return null
   }
+}
 
-  await m.react('⏳')
-  await conn.sendMessage(m.chat, { text: decorar('Descargando...') }, { quoted: m })
-
+// 🔧 ADAPTADO: usaba sharp, que no corre en arm7/32-bit (tu Termux).
+// Reemplazado por Jimp, que ya usas en otros plugins y sí funciona ahí.
+async function buildJpegThumbnail(sourceBuffer) {
+  if (!sourceBuffer?.length) return null
   try {
-    const res = await fetch(buildDownloadUrl(queryOriginal, pick), { headers: dvyerHeaders() })
-    const json = await res.json()
+    const imagen = await Jimp.read(sourceBuffer)
+    imagen.cover(320, 320).quality(75)
+    return await imagen.getBufferAsync(Jimp.MIME_JPEG)
+  } catch (error) {
+    console.error('SPOTIFY THUMBNAIL ERROR:', error?.message || error)
+    return null
+  }
+}
 
-    if (!json.ok && !json.status) throw new Error(json?.message || json?.error || 'No se pudo descargar')
+// ---------------------------------------------------------------------------
+// UI / MENSAJES
+// ---------------------------------------------------------------------------
+function buildUsageMessage() {
+  return wrap('SPOTIFY', [
+    item('Uso: .spotify <cancion o enlace de spotify>'),
+    item('Ejemplo busqueda: .spotify ghostemane squeeze'),
+    item('Ejemplo enlace: .spotify https://open.spotify.com/track/...'),
+    item('Como documento con portada: .spotify ghostemane squeeze'),
+    item('Como audio reproducible: .spau ghostemane squeeze / .spvoz ghostemane squeeze'),
+  ])
+}
 
-    const downloadUrl = campo(json, 'download_url', 'download_url_full', 'url', 'link', 'stream_url')
-    if (!downloadUrl) throw new Error('La API no devolvió un link de descarga válido')
+function buildErrorMessage(errorText) {
+  const text = String(errorText || 'No se pudo preparar el audio.').replace(/\n/g, '\n\u{1D101} ')
+  return wrap('SPOTIFY', [item(`❌ ${text}`)])
+}
 
-    const tituloFinal = campo(json, 'title') || titulo
-    const autor = campo(json, 'artist', 'author', 'artists') || ''
-    const portada = campo(json, 'image', 'thumbnail', 'cover')
+async function sendLocalAudio(conn, m, data) {
+  const audioBuffer = await fsp.readFile(data.filePath)
+  const contentType = 'audio/mpeg'
 
-    await conn.sendMessage(m.chat, {
-      audio: { url: downloadUrl },
+  // si ya viene un jpeg procesado (desde cache), lo usamos directo
+  // en vez de descargar la portada y volver a comprimirla.
+  const jpegThumbnail = data.jpegThumbnail || await buildJpegThumbnail(data.thumbBuffer)
+
+  const title = data.artist ? `${data.name} - ${data.artist}` : data.name
+
+  const caption = wrap('SPOTIFY', [
+    item(`🎧 ${title}`),
+    ...(data.album ? [item(`💿 Album: ${data.album}`)] : []),
+    item(`${data.duration ? `⏱️ ${data.duration} • ` : ''}🎵 MP3${data.size ? ` • ${humanBytes(data.size)}` : ''}`),
+    ...(data.year ? [item(`📅 Año: ${data.year}`)] : []),
+  ])
+
+  await conn.sendMessage(
+    m.chat,
+    {
+      document: audioBuffer,
+      mimetype: contentType,
+      fileName: data.fileName,
+      jpegThumbnail,
+      caption,
+    },
+    { quoted: m }
+  )
+
+  return jpegThumbnail
+}
+
+// ---------------------------------------------------------------------------
+// ENVIO COMO AUDIO REPRODUCIBLE (spau / spvoz)
+// No lleva caption ni portada porque WhatsApp no lo soporta en type "audio".
+// ---------------------------------------------------------------------------
+async function sendLocalAudioAsVoice(conn, m, data) {
+  const audioBuffer = await fsp.readFile(data.filePath)
+  await conn.sendMessage(
+    m.chat,
+    {
+      audio: audioBuffer,
       mimetype: 'audio/mpeg',
-      fileName: `${tituloFinal}.mp3`
-    }, { quoted: m })
+      fileName: data.fileName,
+      ptt: false,
+    },
+    { quoted: m }
+  )
+}
 
-    if (portada) {
-      await conn.sendMessage(m.chat, {
-        image: { url: portada },
-        caption: decorar(`Descarga completada\n\n🎧 ${tituloFinal}\n👤 ${autor}`)
-      }, { quoted: m })
-    } else {
-      await conn.sendMessage(m.chat, {
-        text: decorar(`Descarga completada\n\n🎧 ${tituloFinal}\n👤 ${autor}`)
-      }, { quoted: m })
+// ---------------------------------------------------------------------------
+// COMANDO
+// ---------------------------------------------------------------------------
+const handler = async (m, { conn, text, command }) => {
+  try {
+    pruneExpiredCache().catch(() => {})
+
+    const input = String(text || '').trim()
+    if (!input) {
+      await conn.sendMessage(m.chat, { text: buildUsageMessage() }, { quoted: m })
+      return
     }
 
-    await m.react('✅')
-  } catch (e) {
-    console.error('[spotify] ERROR descargando:', e)
-    await m.react('❌')
-    await conn.sendMessage(m.chat, { text: decorar(`Error: ${e.message}`) }, { quoted: m })
-  }
+    // segun el alias usado, decidimos si se manda como documento o como audio.
+    const sendAsVoice = command === 'spau' || command === 'spvoz'
 
-  return true
-}
+    await m.react('⏳')
 
-handler.help = ['spotify']
-handler.tags = ['downloader']
-handler.command = /^(spotify|sp)$/i
-handler.desc = 'Busca y descarga música de Spotify'
+    // resolveSpotifyUrl usa el cache de busquedas antes de llamar
+    // a la API, asi que un texto repetido no vuelve a golpear /search.
+    const spotifyUrl = await resolveSpotifyUrl(input)
 
-export default handler
+    const cached = await getCachedTrack(spotifyUrl)
+    if (cached) {
+      if (sendAsVoice) {
+        await sendLocalAudioAsVoice(conn, m, {
+          filePath: cached.filePath,
+          fileName: cached.fileName,
+        })
+      } else {
+        // si ya hay jpeg en cache, se usa directo (sin red, sin reprocesar).
+        let jpegThumbnail = null
+        if (cached.jpegThumbnailBase64) {
+          jpegThumbnail = Buffer.from(cached.jpegThumbnailBase64, 'base64')
+        }
+        const thumbBuffer = jpegThumbnail ? null : await getBuffer(cached.image)
+        const usedJpeg = await sendLocalAudio(conn, m, {
+          filePath: cached.filePath,
+          fileName: cached.fileName,
+          contentType: cached.contentType,
+          size: cached.size,
+          name: cached.name,
+          artist: cached.artist,
+          album: cached.album,
+          duration: cached.duration,
+          year: cached.year,
+          jpegThumbnail,
+          thumbBuffer,
+        })
+        // Si el cache aun no tenia jpeg guardado, lo guardamos ahora para
+        // que la proxima entrega desde cache sea instantanea.
+        if (!cached.jpegThumbnailBase64 && usedJpeg) {
+          setCachedTrack(spotifyUrl, {
+            ...cached,
+            jpegThumbnailBase64: usedJpeg.toString('base64'),
+          }).catch(() => {})
+        }
+      }
+      await m.react('✅')
+      return
+    }
+
+    const trackId = extractTrackId(spotifyUrl)
+    const trackData = await fetchSpotifyData(spotifyUrl)
