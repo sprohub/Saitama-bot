@@ -31,6 +31,12 @@ function campo(obj, ...nombres) {
   return null
 }
 
+function isHttpUrl(v) { return /^https?:\/\//i.test(String(v || '')) }
+function extractSpotifyUrl(text) {
+  const m = String(text || '').match(/https?:\/\/(?:open\.)?spotify\.(?:com|link)\/[^\s]+/i)
+  return m ? m[0].trim() : ''
+}
+
 function formatDuration(segundos) {
   const s = Number(segundos) || 0
   const m = Math.floor(s / 60)
@@ -141,21 +147,31 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
 
   if (!text?.trim()) {
     return conn.sendMessage(m.chat, {
-      text: decorar(`Busca música en Spotify\n\n${usedPrefix}${command} <nombre>\nEjemplo: ${usedPrefix}${command} Bad Bunny`)
+      text: decorar(`Busca música en Spotify\n\n${usedPrefix}${command} <nombre o link>\nEjemplo: ${usedPrefix}${command} Bad Bunny`)
     }, { quoted: m })
   }
+
+  const input = text.trim()
+
+  if (isHttpUrl(input) && !extractSpotifyUrl(input)) {
+    return conn.sendMessage(m.chat, {
+      text: decorar('Envía un link válido de Spotify, o el nombre de la canción.')
+    }, { quoted: m })
+  }
+
+  const consulta = extractSpotifyUrl(input) || input
 
   await m.react('🔍')
 
   try {
-    const res = await fetch(buildSearchUrl(text.trim()))
+    const res = await fetch(buildSearchUrl(consulta))
     const data = await res.json()
 
     const resultados = campo(data, 'results', 'data', 'tracks')
     if (!data.ok && !data.status) throw new Error(data?.message || data?.error || 'No se encontraron resultados')
     if (!resultados?.length) throw new Error('No se encontraron resultados')
 
-    await enviarCarrusel(conn, m, resultados.slice(0, SEARCH_LIMIT), text.trim(), decorar(`Resultados para: ${text.trim()}`))
+    await enviarCarrusel(conn, m, resultados.slice(0, SEARCH_LIMIT), consulta, decorar(`Resultados para: ${input}`))
     await m.react('✅')
   } catch (e) {
     console.error('[spotify] ERROR buscando:', e)
@@ -214,11 +230,16 @@ handler.before = async (m, { conn }) => {
       fileName: `${tituloFinal}.mp3`
     }, { quoted: m })
 
-    await conn.sendMessage(m.chat, {
-      ...(portada ? { image: { url: portada } } : {}),
-      ...(portada ? {} : { text: undefined }),
-      caption: decorar(`Descarga completada\n\n🎧 ${tituloFinal}\n👤 ${autor}`)
-    }, { quoted: m })
+    if (portada) {
+      await conn.sendMessage(m.chat, {
+        image: { url: portada },
+        caption: decorar(`Descarga completada\n\n🎧 ${tituloFinal}\n👤 ${autor}`)
+      }, { quoted: m })
+    } else {
+      await conn.sendMessage(m.chat, {
+        text: decorar(`Descarga completada\n\n🎧 ${tituloFinal}\n👤 ${autor}`)
+      }, { quoted: m })
+    }
 
     await m.react('✅')
   } catch (e) {
