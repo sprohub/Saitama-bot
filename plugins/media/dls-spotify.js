@@ -594,3 +594,56 @@ const handler = async (m, { conn, text, command }) => {
 
     const trackId = extractTrackId(spotifyUrl)
     const trackData = await fetchSpotifyData(spotifyUrl)
+    const preferredName = trackData.artist ? `${trackData.name} - ${trackData.artist}` : trackData.name
+
+    const downloaded = await downloadToCache(trackData.remoteUrl, trackId, preferredName, MAX_AUDIO_BYTES)
+
+    let jpegThumbnailBase64 = ''
+
+    if (sendAsVoice) {
+      await sendLocalAudioAsVoice(conn, m, downloaded)
+    } else {
+      // usamos "image" (scdn.co, estable) primero; "imageHD" (token temporal) queda como respaldo
+      const thumbBuffer = await getBuffer(trackData.image || trackData.imageHD)
+
+      const usedJpeg = await sendLocalAudio(conn, m, {
+        ...downloaded,
+        name: trackData.name,
+        artist: trackData.artist,
+        album: trackData.album,
+        duration: trackData.duration,
+        year: trackData.year,
+        thumbBuffer,
+      })
+      if (usedJpeg) jpegThumbnailBase64 = usedJpeg.toString('base64')
+    }
+
+    await setCachedTrack(spotifyUrl, {
+      filePath: downloaded.filePath,
+      fileName: downloaded.fileName,
+      contentType: downloaded.contentType,
+      size: downloaded.size,
+      name: trackData.name,
+      artist: trackData.artist,
+      album: trackData.album,
+      duration: trackData.duration,
+      year: trackData.year,
+      // guardamos "image" (estable) en el índice de cache, no el token temporal
+      image: trackData.image || trackData.imageHD,
+      jpegThumbnailBase64,
+    })
+
+    await m.react('✅')
+  } catch (error) {
+    console.error('SPOTIFY ERROR:', error?.message || error)
+    await m.react('❌')
+    await conn.sendMessage(m.chat, { text: buildErrorMessage(String(error?.message || error)) }, { quoted: m })
+  }
+}
+
+handler.command = ['spotify', 'spotifysearch', 'sp', 'spoti', 'spau', 'spvoz']
+handler.help = ['spotify <cancion o link>']
+handler.tags = ['downloader']
+handler.desc = 'Busca o descarga audio de Spotify (evogb, con cache local). .spotify = documento con portada | .spau / .spvoz = audio reproducible'
+
+export default handler
