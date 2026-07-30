@@ -7,7 +7,6 @@ import https from 'https'
 import { pipeline } from 'stream/promises'
 import { randomUUID } from 'crypto'
 import Jimp from 'jimp'
-import { generarTarjetaSpotify } from '../../lib/spotifyCard.js'
 
 // ---------------------------------------------------------------------------
 // CONFIG
@@ -531,16 +530,6 @@ async function sendLocalAudioAsVoice(conn, m, data) {
   )
 }
 
-async function enviarTarjetaVinilo(conn, m, { imagenUrl, titulo, artista }) {
-  if (!imagenUrl) return
-  try {
-    const tarjeta = await generarTarjetaSpotify({ imagenUrl, titulo, artista })
-    await conn.sendMessage(m.chat, { image: tarjeta }, { quoted: m })
-  } catch (e) {
-    console.error('SPOTIFY CARD ERROR:', e?.message || e)
-  }
-}
-
 // ---------------------------------------------------------------------------
 // COMANDO
 // ---------------------------------------------------------------------------
@@ -600,11 +589,6 @@ const handler = async (m, { conn, text, command }) => {
         }
       }
       await m.react('✅')
-      await enviarTarjetaVinilo(conn, m, {
-        imagenUrl: cached.image,
-        titulo: cached.name,
-        artista: cached.artist,
-      })
       return
     }
 
@@ -650,11 +634,6 @@ const handler = async (m, { conn, text, command }) => {
     })
 
     await m.react('✅')
-    await enviarTarjetaVinilo(conn, m, {
-      imagenUrl: trackData.image || trackData.imageHD,
-      titulo: trackData.name,
-      artista: trackData.artist,
-    })
   } catch (error) {
     console.error('SPOTIFY ERROR:', error?.message || error)
     await m.react('❌')
