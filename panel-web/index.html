@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saitama Bot</title>
+<style>
+  :root {
+    --amarillo: #f4c430;
+    --rojo: #d92c27;
+    --fondo: #0b0c0f;
+    --panel: #14161b;
+    --panel2: #191c22;
+    --borde: rgba(255,255,255,0.08);
+    --blanco: #f5f6f8;
+    --gris: #8890a0;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--fondo);
+    color: var(--blanco);
+    font-family: var(--sans);
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 24px;
+    background: rgba(11,12,15,0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--borde);
+    flex-wrap: wrap;
+  }
+
+  .marca { font-weight: 900; font-size: 18px; letter-spacing: 0.3px; }
+  .marca .s { color: var(--amarillo); }
+  .marca .b { color: var(--rojo); }
+
+  .nav-links {
+    display: flex;
+    gap: 22px;
+    font-size: 14px;
+    color: var(--gris);
+  }
+  .nav-links a:hover { color: var(--blanco); }
+
+  .nav-cta { display: flex; gap: 10px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    border: 1px solid var(--borde);
+    white-space: nowrap;
+  }
+  .btn-amarillo { background: var(--amarillo); color: #1a1204; border: none; }
+  .btn-amarillo:hover { filter: brightness(1.08); }
+  .btn-rojo { background: var(--rojo); color: #fff; border: none; }
+  .btn-rojo:hover { filter: brightness(1.08); }
+  .btn-outline { background: transparent; color: var(--blanco); }
+  .btn-outline:hover { border-color: var(--amarillo); }
+
+  /* ── HERO con el "shockwave" (elemento firma) ── */
+  .hero {
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+    padding: 110px 24px 80px;
+  }
+
+  .shockwave {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid var(--amarillo);
+    transform: translate(-50%, -50%);
+    animation: onda 1.8s cubic-bezier(0.2, 0.6, 0.3, 1) 0.15s 1 both;
+    pointer-events: none;
+  }
+  .shockwave.retraso { border-color: var(--rojo); animation-delay: 0.4s; }
+
+  @keyframes onda {
+    0%   { width: 40px; height: 40px; opacity: 0.9; }
+    100% { width: 900px; height: 900px; opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shockwave { animation: none; display: none; }
+  }
+
+  .hero .eyebrow {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--gris);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .hero h1 {
+    font-size: clamp(40px, 8vw, 78px);
+    font-weight: 900;
+    margin: 10px 0 16px;
+    line-height: 1.02;
+    letter-spacing: -1px;
+  }
+  .hero h1 .s { color: var(--amarillo); }
+  .hero h1 .b { color: var(--rojo); }
+
+  .hero p.tagline {
+    max-width: 560px;
+    margin: 0 auto 34px;
+    color: var(--gris);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  .hero-cta {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 56px;
+  }
+
+  .cifras {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .cifra { text-align: center; }
+  .cifra .valor {
+    font-family: var(--mono);
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--blanco);
+  }
+  .cifra .label {
+    font-size: 12px;
+    color: var(--gris);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+
+  /* ── SECCIONES ── */
+  section { max-width: 1080px; margin: 0 auto; padding: 70px 24px; }
+
+  .titulo-seccion {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--gris);
+    font-weight: 700;
+    margin: 0 0 8px;
+  }
+  .titulo-seccion .punto { color: var(--amarillo); }
+
+  h2.titulo-grande {
+    font-size: 30px;
+    font-weight: 800;
+    margin: 0 0 36px;
+  }
+
+  /* Características */
+  .caracteristicas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 16px;
+  }
+  .caracteristica {
+    background: var(--panel);
+    border: 1px solid var(--borde);
+    border-radius: 16px;
+    padding: 22px;
+  }
+  .caracteristica .icono { font-size: 26px; margin-bottom: 12px; display: block; }
+  .caracteristica h3 { font-size: 16px; margin: 0 0 6px; }
+  .caracteristica p { font-size: 13.5px; color: var(--gris); line-height: 1.5; margin: 0; }
+
+  /* Actualizaciones */
+  .timeline { border-left: 2px solid var(--borde); padding-left: 22px; }
+  .entrada { position: relative; padding-bottom: 30px; }
+  .entrada:last-child { padding-bottom: 0; }
+  .entrada::before {
+    content: '';
+    position: absolute;
+    left: -28px;
+    top: 4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--amarillo);
+  }
+  .entrada .meta {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--gris);
+    margin-bottom: 4px;
+  }
+  .entrada .version { color: var(--amarillo); font-weight: 700; }
+  .entrada h3 { font-size: 16px; margin: 0 0 6px; }
+  .entrada p { font-size: 13.5px; color: #c7cbd1; line-height: 1.5; margin: 0; }
+  .sin-actualizaciones { color: var(--gris); font-size: 14px; }
+
+  /* Comandos preview */
+  .comandos-preview {
+    background: var(--panel);
+    border: 1px solid var(--borde);
+    border-radius: 18px;
+    padding: 34px;
+    text-align: center;
+  }
+  .comandos-preview p { color: var(--gris); font-size: 14.5px; margin: 0 0 20px; }
+  .comandos-preview .total { font-family: var(--mono); color: var(--amarillo); font-weight: 700; }
+
+  /* Contacto */
+  .contacto-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .contacto-card {
+    background: var(--panel2);
+    border: 1px solid var(--borde);
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .contacto-card .icono { font-size: 24px; }
+  .contacto-card h3 { font-size: 15px; margin: 0; }
+  .contacto-card p { font-size: 13px; color: var(--gris); margin: 0; }
+  .contacto-card .btn { align-self: flex-start; margin-top: 4px; }
+
+  footer {
+    text-align: center;
+    padding: 40px 24px 50px;
+    color: var(--gris);
+    font-size: 12.5px;
+    border-top: 1px solid var(--borde);
+  }
+  footer .marca-footer { color: var(--amarillo); font-weight: 800; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="marca"><span class="s">SAITAMA</span> <span class="b">BOT</span></div>
+  <div class="nav-links">
+    <a href="#caracteristicas">Qué hace</a>
+    <a href="#actualizaciones">Actualizaciones</a>
+    <a href="#comandos">Comandos</a>
+    <a href="#contacto">Contacto</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn btn-amarillo" id="navWhatsapp" href="#" target="_blank" rel="noopener">Canal de WhatsApp</a>
+    <a class="btn btn-outline" id="navGithub" href="#" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</nav>
+
+<section class="hero" style="max-width:100%;">
+  <div class="shockwave"></div>
+  <div class="shockwave retraso"></div>
+  <div class="eyebrow">Bot de WhatsApp</div>
+  <h1><span class="s">SAITAMA</span> <span class="b">BOT</span></h1>
+  <p class="tagline">Automatización, moderación y utilidades para tus grupos de WhatsApp — siempre activo, siempre al día.</p>
+
+  <div class="hero-cta">
+    <a class="btn btn-amarillo" id="heroWhatsapp" href="#" target="_blank" rel="noopener">📲 Únete al canal de WhatsApp</a>
+    <a class="btn btn-outline" id="heroGithub" href="#" target="_blank" rel="noopener">💻 Ver en GitHub</a>
+  </div>
+
+  <div class="cifras">
+    <div class="cifra"><div class="valor" id="cifraUsuarios">—</div><div class="label">Usuarios</div></div>
+    <div class="cifra"><div class="valor" id="cifraGrupos">—</div><div class="label">Grupos</div></div>
+    <div class="cifra"><div class="valor" id="cifraComandos">—</div><div class="label">Comandos</div></div>
+    <div class="cifra"><div class="valor" id="cifraUptime">—</div><div class="label">Activo</div></div>
+  </div>
+</section>
+
+<section id="caracteristicas">
+  <p class="titulo-seccion"><span class="punto">●</span> Qué hace</p>
+  <h2 class="titulo-grande">Todo lo que necesita tu grupo</h2>
+  <div class="caracteristicas">
+    <div class="caracteristica">
+      <span class="icono">👋</span>
+      <h3>Bienvenidas personalizadas</h3>
+      <p>Tarjetas visuales automáticas para quien entra o sale del grupo, con mensajes editables.</p>
+    </div>
+    <div class="caracteristica">
+      <span class="icono">🛡️</span>
+      <h3>Moderación</h3>
+      <p>Anti-link, control de administradores y reglas configurables por grupo.</p>
+    </div>
+    <div class="caracteristica">
+      <span class="icono">📊</span>
+      <h3>Estadísticas en vivo</h3>
+      <p>Panel con el estado del bot y todos los comandos disponibles, actualizado en tiempo real.</p>
+    </div>
+    <div class="caracteristica">
+      <span class="icono">⚙️</span>
+      <h3>Fácil de administrar</h3>
+      <p>Menús interactivos por botones para activar o desactivar funciones sin comandos complicados.</p>
+    </div>
+  </div>
+</section>
+
+<section id="actualizaciones">
+  <p class="titulo-seccion"><span class="punto">●</span> Novedades</p>
+  <h2 class="titulo-grande">Actualizaciones</h2>
+  <div class="timeline" id="timelineActualizaciones">
+    <p class="sin-actualizaciones">Cargando…</p>
+  </div>
+</section>
+
+<section id="comandos">
+  <p class="titulo-seccion"><span class="punto">●</span> Comandos</p>
+  <h2 class="titulo-grande">Panel de comandos</h2>
+  <div class="comandos-preview">
+    <p>Actualmente hay <span class="total" id="totalComandosPreview">—</span> comandos cargados, agrupados por categoría y buscables.</p>
+    <a class="btn btn-amarillo" href="/comandos.html">Ver todos los comandos →</a>
+  </div>
+</section>
+
+<section id="contacto">
+  <p class="titulo-seccion"><span class="punto">●</span> Enlaces</p>
+  <h2 class="titulo-grande">Contacto y enlaces</h2>
+  <div class="contacto-grid">
+    <div class="contacto-card">
+      <span class="icono">📲</span>
+      <h3>Canal de WhatsApp</h3>
+      <p>Anuncios y novedades del bot.</p>
+      <a class="btn btn-amarillo" id="cardWhatsappCanal" href="#" target="_blank" rel="noopener">Unirme</a>
+    </div>
+    <div class="contacto-card">
+      <span class="icono">💻</span>
+      <h3>Repositorio en GitHub</h3>
+      <p>Código fuente, issues y contribuciones.</p>
+      <a class="btn btn-outline" id="cardGithub" href="#" target="_blank" rel="noopener">Ver repo</a>
+    </div>
+    <div class="contacto-card">
+      <span class="icono">💬</span>
+      <h3>Contacto directo</h3>
+      <p>Soporte o dudas por WhatsApp.</p>
+      <a class="btn btn-outline" id="cardContactoWhatsapp" href="#" target="_blank" rel="noopener">Escribir</a>
+    </div>
+    <div class="contacto-card">
+      <span class="icono">✉️</span>
+      <h3>Correo</h3>
+      <p>Para propuestas o soporte formal.</p>
+      <a class="btn btn-outline" id="cardContactoEmail" href="#">Enviar correo</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span class="marca-footer">SAITAMA BOT</span> · Sitio generado automáticamente a partir del estado del bot
+</footer>
+
+<script>
+  // ═══════════════════════════════════════════
+  //  EDITA ESTOS ENLACES CON TUS DATOS REALES
+  // ═══════════════════════════════════════════
+  const ENLACES = {
+    whatsappCanal: 'https://whatsapp.com/channel/TU-CANAL-AQUI',
+    github: 'https://github.com/tu-usuario/tu-repo',
+    contactoWhatsapp: 'https://wa.me/000000000000',
+    contactoEmail: 'mailto:tu-correo@ejemplo.com'
+  }
+
+  function aplicarEnlaces() {
+    const asignaciones = {
+      navWhatsapp: ENLACES.whatsappCanal,
+      heroWhatsapp: ENLACES.whatsappCanal,
+      cardWhatsappCanal: ENLACES.whatsappCanal,
+      navGithub: ENLACES.github,
+      heroGithub: ENLACES.github,
+      cardGithub: ENLACES.github,
+      cardContactoWhatsapp: ENLACES.contactoWhatsapp,
+      cardContactoEmail: ENLACES.contactoEmail
+    }
+    for (const [id, url] of Object.entries(asignaciones)) {
+      const el = document.getElementById(id)
+      if (el) el.href = url
+    }
+  }
+
+  function escapar(texto) {
+    const div = document.createElement('div')
+    div.textContent = texto ?? ''
+    return div.innerHTML
+  }
+
+  async function cargarEstado() {
+    try {
+      const res = await fetch('/api/estado', { cache: 'no-store' })
+      const data = await res.json()
+      document.getElementById('cifraUsuarios').textContent = data.usuarios ?? '—'
+      document.getElementById('cifraGrupos').textContent = data.grupos ?? '—'
+      document.getElementById('cifraComandos').textContent = data.comandos ?? '—'
+      document.getElementById('cifraUptime').textContent = data.uptimeTexto ?? '—'
+      document.getElementById('totalComandosPreview').textContent = data.comandos ?? '—'
+    } catch (e) {
+      // si falla, se quedan los guiones — no rompe la página
+    }
+  }
+
+  async function cargarActualizaciones() {
+    const contenedor = document.getElementById('timelineActualizaciones')
+    try {
+      const res = await fetch('/api/actualizaciones', { cache: 'no-store' })
+      const data = await res.json()
+      const items = data.actualizaciones || []
+
+      if (items.length === 0) {
+        contenedor.innerHTML = '<p class="sin-actualizaciones">Todavía no hay actualizaciones publicadas.</p>'
+        return
+      }
+
+      contenedor.innerHTML = items.map((item) => `
+        <div class="entrada">
+          <div class="meta">
+            <span class="version">v${escapar(item.version || '')}</span>
+            <span>${escapar(item.fecha || '')}</span>
+          </div>
+          <h3>${escapar(item.titulo || '')}</h3>
+          <p>${escapar(item.detalle || '')}</p>
+        </div>
+      `).join('')
+    } catch (e) {
+      contenedor.innerHTML = '<p class="sin-actualizaciones">No se pudieron cargar las actualizaciones.</p>'
+    }
+  }
+
+  aplicarEnlaces()
+  cargarEstado()
+  cargarActualizaciones()
+  setInterval(cargarEstado, 8000)
+</script>
+
+</body>
+</html>
