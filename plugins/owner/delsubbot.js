@@ -174,25 +174,29 @@ async function enviarCarta(conn, m, opciones, textoFallback) {
 
 const handler = async (m, { conn, args, isROwner, usedPrefix }) => {
   try {
-    const id = (args[0] || '').trim()
+    const identificador = (args[0] || '').trim()
 
-    if (!id) {
+    if (!identificador) {
       return conn.sendMessage(m.chat, {
         text: wrap('SUBBOTS', [
-          `Uso: ${usedPrefix}delsubbot <id>`,
-          `Usa ${usedPrefix}listsubbots para ver los IDs disponibles.`
+          `Uso: ${usedPrefix}delsubbot <id o numero>`,
+          `Usa ${usedPrefix}listsubbots para ver los subbots disponibles.`
         ])
       }, { quoted: m })
     }
 
+    const numeroNormalizado = identificador.replace(/\D/g, '')
     const todos = listarSubbots()
-    const subbot = todos.find(s => s.id === id)
+    const subbot = todos.find(s =>
+      s.id === identificador ||
+      (numeroNormalizado && String(s.numero || '').replace(/\D/g, '') === numeroNormalizado)
+    )
 
     if (!subbot) {
       return enviarCarta(
         conn, m,
-        { botName: 'SAITAMA-BOT', exito: false, motivo: `No se encontro ningun subbot con el ID: ${id}` },
-        `No se encontro ningun subbot con el ID: ${id}`
+        { botName: 'SAITAMA-BOT', exito: false, motivo: `No se encontro ningun subbot con ese ID o numero: ${identificador}` },
+        `No se encontro ningun subbot con ese ID o numero: ${identificador}`
       )
     }
 
@@ -204,7 +208,7 @@ const handler = async (m, { conn, args, isROwner, usedPrefix }) => {
       )
     }
 
-    const resultado = eliminarSubbot(id)
+    const resultado = eliminarSubbot(subbot.id)
 
     if (resultado.ok) {
       return enviarCarta(
@@ -216,7 +220,7 @@ const handler = async (m, { conn, args, isROwner, usedPrefix }) => {
           numero: subbot.numero,
           owner: subbot.owner?.split('@')[0] || 'N/D'
         },
-        `Subbot ${id} eliminado correctamente.`
+        `Subbot ${subbot.id} eliminado correctamente.`
       )
     } else {
       const detalle = [
@@ -227,8 +231,8 @@ const handler = async (m, { conn, args, isROwner, usedPrefix }) => {
 
       return enviarCarta(
         conn, m,
-        { botName: 'SAITAMA-BOT', exito: false, motivo: detalle || `No se pudo eliminar el subbot ${id}.` },
-        detalle || `No se pudo eliminar el subbot ${id}.`
+        { botName: 'SAITAMA-BOT', exito: false, motivo: detalle || `No se pudo eliminar el subbot ${subbot.id}.` },
+        detalle || `No se pudo eliminar el subbot ${subbot.id}.`
       )
     }
   } catch (err) {
@@ -239,7 +243,7 @@ const handler = async (m, { conn, args, isROwner, usedPrefix }) => {
   }
 }
 
-handler.help = ['delsubbot <id>']
+handler.help = ['delsubbot <id o numero>']
 handler.tags = ['owner']
 handler.command = /^(delsubbot|eliminarsubbot)$/i
 
