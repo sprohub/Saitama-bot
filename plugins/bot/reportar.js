@@ -7,7 +7,9 @@
  *
  * Uso:
  * .reportar <descripción del problema>
- * .reportar (citando un mensaje) <descripción>  → incluye ese mensaje en el reporte
+ * .reportar (citando un mensaje) <descripción>       → incluye ese mensaje en el reporte
+ * .reportar <descripción> (mandado como caption de una imagen) → incluye la imagen
+ * .reportar (citando una imagen) <descripción>       → incluye esa imagen
  */
 
 const NUMERO_REPORTES = '573225396540@s.whatsapp.net'
@@ -19,12 +21,20 @@ function decorar(texto) {
   return `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 ${texto.split('\n').join('\n│ 🍃 ')}\n╰───────────────⬣`
 }
 
+function esImagen(msg) {
+  return msg?.mtype === 'imageMessage' || !!msg?.msg?.mimetype?.startsWith?.('image/')
+}
+
 const handler = async (m, { conn, text, command }) => {
   const descripcion = (text || '').trim()
 
+  // La imagen puede venir en el propio mensaje (.reportar como caption)
+  // o en el mensaje citado (citando una imagen ya existente)
+  const origenImagen = esImagen(m) ? m : (m.quoted && esImagen(m.quoted) ? m.quoted : null)
+
   if (!descripcion) {
     return conn.sendMessage(m.chat, {
-      text: decorar(`Uso:\n.${command} <descripción del problema>\n\nEjemplo:\n.${command} El comando .play no está funcionando\n\nTambién puedes citar un mensaje junto con tu reporte para incluirlo.`)
+      text: decorar(`Uso:\n.${command} <descripción del problema>\n\nEjemplo:\n.${command} El comando .play no está funcionando\n\nTambién puedes citar un mensaje o una imagen, o mandar la imagen con el comando como descripción, para incluirla en el reporte.`)
     }, { quoted: m })
   }
 
@@ -52,10 +62,23 @@ const handler = async (m, { conn, text, command }) => {
     `\n📝 Descripción:\n${descripcion}`
 
   try {
-    await conn.sendMessage(NUMERO_REPORTES, { text: decorar(textoReporte) })
+    if (origenImagen) {
+      try {
+        const buffer = await origenImagen.download()
+        await conn.sendMessage(NUMERO_REPORTES, {
+          image: buffer,
+          caption: decorar(textoReporte)
+        })
+      } catch (e) {
+        console.error('[reportar] ERROR descargando/enviando imagen, se manda solo el texto:', e)
+        await conn.sendMessage(NUMERO_REPORTES, { text: decorar(textoReporte) })
+      }
+    } else {
+      await conn.sendMessage(NUMERO_REPORTES, { text: decorar(textoReporte) })
+    }
 
-    // Si citó un mensaje, se lo reenvía aparte para dar contexto completo
-    if (m.quoted) {
+    // Si citó un mensaje que NO era la imagen ya adjunta, se reenvía aparte para dar contexto completo
+    if (m.quoted && m.quoted !== origenImagen) {
       try {
         await conn.sendMessage(NUMERO_REPORTES, { forward: m.quoted })
       } catch (e) {
@@ -77,7 +100,7 @@ const handler = async (m, { conn, text, command }) => {
 }
 
 handler.command = ['reportar', 'report']
-handler.help = ['reportar <descripción> (envía un reporte al owner)']
+handler.help = ['reportar <descripción> (envía un reporte al owner, con imagen opcional)']
 handler.tags = ['tools']
 
 export default handler
