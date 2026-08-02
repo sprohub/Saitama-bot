@@ -167,14 +167,11 @@ function decorar(texto) {
 }
 
 let handler = async (m, { conn }) => {
-  let cuerpoTexto = 'Equipo y enlaces oficiales\n\n'
+  let cuerpoTexto = 'Equipo detrás del bot\n\n'
   for (const p of PROPIETARIOS) {
-    cuerpoTexto += `${p.nombre} (${p.rol})\n`
-    for (const link of p.links) {
-      cuerpoTexto += `${link.texto}: ${link.url}\n`
-    }
-    cuerpoTexto += '\n'
+    cuerpoTexto += `${p.nombre} — ${p.rol}\n`
   }
+  cuerpoTexto += '\nToca los botones para abrir cada enlace'
   cuerpoTexto = cuerpoTexto.trim()
 
   let imagenBuffer
