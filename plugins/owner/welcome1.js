@@ -1,9 +1,13 @@
 import fs from 'fs'
 import path from 'path'
+import os from 'os'
 import { fileURLToPath } from 'url'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import fetch from 'node-fetch'
 import { generateWAMessageFromContent, proto } from '@whiskeysockets/baileys'
-import { createCanvas, loadImage } from '@napi-rs/canvas'
 
+const execAsync = promisify(exec)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const settingsPath = path.resolve('./json/settings.json')
 const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
@@ -13,15 +17,17 @@ const NOMBRES_FONDOS = ['welcome (1).jpg', 'welcome (2).jpg', 'welcome (3).jpg']
 // 👉 Imagen que se usa cuando el usuario no tiene foto de perfil pública
 const NOMBRE_SIN_PERFIL = 'sinperfil.jpg'
 
+// 🎨 Paleta de la plantilla nueva "cupón" (inspirada en las 3 imágenes que
+// mandaste: crema, lavanda, verde menta, con acentos cálidos oscuros)
+const PALETAS_CUPON = [
+  { fondo: '#f3e6c8', panel: '#fffaf0', acento: '#b3392c', texto: '#3a2c1a', textoSuave: '#8a7458' },
+  { fondo: '#c9b8dd', panel: '#f6f1fb', acento: '#4b2e73', texto: '#2c1f3d', textoSuave: '#6d5a87' },
+  { fondo: '#c3dab0', panel: '#f4f9ee', acento: '#3f5e2e', texto: '#233a1a', textoSuave: '#6c8a5b' }
+]
+
 // ═══════════════════════════════════════════
 //  RESOLUCIÓN ROBUSTA DE RUTAS lib/
 // ═══════════════════════════════════════════
-// Antes se asumía que lib/ estaba SIEMPRE un nivel arriba de este archivo
-// (path.join(__dirname, '..', 'lib')). Si este handler vive más profundo
-// (p.ej. plugins/group/welcome.js) esa ruta no coincide con la carpeta lib/
-// real del proyecto y la imagen falla en silencio (fondo negro de respaldo).
-// Ahora se prueban varias profundidades posibles + cwd, y si el nombre no
-// coincide exacto (mayúsculas/espacios) se busca igual dentro de esas carpetas.
 const BASES_POSIBLES = [
   path.join(__dirname, '..'),
   path.join(__dirname, '..', '..'),
@@ -34,12 +40,10 @@ function normalizarNombre(s) {
 }
 
 function resolverArchivoLib(nombreArchivo) {
-  // 1) Coincidencia exacta en alguna de las carpetas candidatas
   for (const base of BASES_POSIBLES) {
     const candidato = path.join(base, 'lib', nombreArchivo)
     if (fs.existsSync(candidato)) return candidato
   }
-  // 2) Coincidencia flexible (ignora mayúsculas, espacios, guiones, paréntesis)
   const objetivo = normalizarNombre(nombreArchivo)
   for (const base of BASES_POSIBLES) {
     const dirLib = path.join(base, 'lib')
@@ -51,13 +55,7 @@ function resolverArchivoLib(nombreArchivo) {
       }
     } catch {}
   }
-  // 3) No se encontró en ninguna ruta: log de diagnóstico con todas las rutas probadas
-  console.log(
-    '[welcome][DEBUG] no se encontró',
-    nombreArchivo,
-    '— rutas probadas:',
-    BASES_POSIBLES.map((b) => path.join(b, 'lib'))
-  )
+  console.log('[welcome][DEBUG] no se encontró', nombreArchivo, '— rutas probadas:', BASES_POSIBLES.map((b) => path.join(b, 'lib')))
   return null
 }
 
@@ -75,63 +73,45 @@ function isOwner(m) {
 // === UTILS JSON (mismo formato que tu archivo on/off original) ===
 function readSettings() {
   try {
-    if (!fs.existsSync(settingsPath)) {
-      fs.writeFileSync(settingsPath, JSON.stringify({}, null, 2))
-    }
+    if (!fs.existsSync(settingsPath)) fs.writeFileSync(settingsPath, JSON.stringify({}, null, 2))
     return JSON.parse(fs.readFileSync(settingsPath))
   } catch {
     return {}
   }
 }
-
 function saveSettings(data) {
   fs.writeFileSync(settingsPath, JSON.stringify(data, null, 2))
 }
-
 function getChatConfig(botNumber, chatId) {
   let settings = readSettings()
   if (!settings[botNumber]) settings[botNumber] = {}
   if (!settings[botNumber][chatId]) {
-    settings[botNumber][chatId] = {
-      antilink: false,
-      welcome: false,
-      antiarabe: false,
-      modoadmin: false,
-      reglas: false
-    }
+    settings[botNumber][chatId] = { antilink: false, welcome: false, antiarabe: false, modoadmin: false, reglas: false }
     saveSettings(settings)
   }
   return settings
 }
-
 function getWelcome(botNumber, chatId) {
-  const settings = getChatConfig(botNumber, chatId)
-  return !!settings[botNumber][chatId].welcome
+  return !!getChatConfig(botNumber, chatId)[botNumber][chatId].welcome
 }
-
 function setWelcome(botNumber, chatId, enable) {
   const settings = getChatConfig(botNumber, chatId)
   settings[botNumber][chatId].welcome = enable
   saveSettings(settings)
 }
-
-// === TODOS los grupos donde está el bot, sin importar si es admin ===
 async function gruposDelBot(conn) {
   const chats = await conn.groupFetchAllParticipating()
   return Object.values(chats)
 }
-
-// === Cuenta en cuántos de esos grupos el welcome está activo ===
 function contarGruposActivos(botNumber, grupos) {
   return grupos.filter((g) => getWelcome(botNumber, g.id)).length
 }
 
 // ═══════════════════════════════════════════
-//  ANTI-DUPLICADOS — reforzado
+//  ANTI-DUPLICADOS
 // ═══════════════════════════════════════════
 const eventosProcesados = new Map()
 const VENTANA_DEDUPE_MS = 20 * 1000
-
 function yaSeProceso(id) {
   if (!id) return false
   const ahora = Date.now()
@@ -156,7 +136,6 @@ function unwrapMessage(message) {
   }
   return msg
 }
-
 function extractSelectedId(content) {
   const nativeFlow = content?.interactiveResponseMessage?.nativeFlowResponseMessage
   if (nativeFlow?.paramsJson) {
@@ -178,7 +157,6 @@ function extractSelectedId(content) {
 async function resolverJidReal(conn, jid) {
   if (!jid) return { jidReal: jid, resuelto: false }
   if (!jid.endsWith('@lid')) return { jidReal: jid, resuelto: true }
-
   try {
     const mapeo = conn.signalRepository?.lidMapping
     if (mapeo?.getPNForLID) {
@@ -186,17 +164,12 @@ async function resolverJidReal(conn, jid) {
       if (real) return { jidReal: real, resuelto: true }
     }
   } catch {}
-
   try {
     const contacto = conn.store?.contacts?.[jid] || conn.contacts?.[jid]
-    if (contacto?.jid && contacto.jid !== jid) {
-      return { jidReal: contacto.jid, resuelto: true }
-    }
+    if (contacto?.jid && contacto.jid !== jid) return { jidReal: contacto.jid, resuelto: true }
   } catch {}
-
   return { jidReal: jid, resuelto: false }
 }
-
 function obtenerNombreVisible(conn, jidReal, resuelto) {
   try {
     const contacto = conn.store?.contacts?.[jidReal] || conn.contacts?.[jidReal]
@@ -208,36 +181,55 @@ function obtenerNombreVisible(conn, jidReal, resuelto) {
 }
 
 // ═══════════════════════════════════════════
-//  TARJETA VISUAL — nueva plantilla "póster"
-//  Fondo a pantalla completa (aleatorio de lib/),
-//  foto de perfil circular grande con anillo,
-//  cinta diagonal de estado y panel inferior "glass".
+//  IMÁGENES → base64 (para incrustar en el SVG)
 // ═══════════════════════════════════════════
-async function cargarImagenSegura(fuente) {
+async function archivoABase64(rutaLocal) {
+  if (!rutaLocal || !fs.existsSync(rutaLocal)) return null
   try {
-    if (!fuente) return null
-    return await loadImage(fuente)
+    const buffer = fs.readFileSync(rutaLocal)
+    const ext = path.extname(rutaLocal).toLowerCase()
+    const mime = ext === '.png' ? 'image/png' : 'image/jpeg'
+    return `data:${mime};base64,${buffer.toString('base64')}`
   } catch (e) {
-    console.log('[welcome][DEBUG] fallo cargando imagen:', fuente, '->', e?.message)
+    console.log('[welcome][DEBUG] fallo leyendo imagen local:', rutaLocal, '->', e?.message)
+    return null
+  }
+}
+async function urlABase64(url) {
+  if (!url) return null
+  try {
+    const resp = await fetch(url)
+    if (!resp.ok) return null
+    const buffer = Buffer.from(await resp.arrayBuffer())
+    const mime = resp.headers.get('content-type') || 'image/jpeg'
+    return `data:${mime};base64,${buffer.toString('base64')}`
+  } catch (e) {
+    console.log('[welcome][DEBUG] fallo descargando imagen:', url, '->', e?.message)
     return null
   }
 }
 
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.arcTo(x + w, y, x + w, y + h, r)
-  ctx.arcTo(x + w, y + h, x, y + h, r)
-  ctx.arcTo(x, y + h, x, y, r)
-  ctx.arcTo(x, y, x + w, y, r)
-  ctx.closePath()
+function escaparXML(t) {
+  return String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-function dibujarFondoCover(ctx, img, W, H) {
-  const escala = Math.max(W / img.width, H / img.height)
-  const w = img.width * escala
-  const h = img.height * escala
-  ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h)
+// Envuelve texto en líneas por cantidad de caracteres (aprox., sin medir fuente real)
+function envolver(texto, maxCaracteres, maxLineas) {
+  const palabras = String(texto || '').split(' ')
+  const lineas = []
+  let actual = ''
+  for (const p of palabras) {
+    const prueba = actual ? actual + ' ' + p : p
+    if (prueba.length > maxCaracteres) {
+      lineas.push(actual)
+      actual = p
+      if (lineas.length >= maxLineas) break
+    } else {
+      actual = prueba
+    }
+  }
+  if (actual && lineas.length < maxLineas) lineas.push(actual)
+  return lineas
 }
 
 function formatFecha(fecha) {
@@ -246,189 +238,53 @@ function formatFecha(fecha) {
   const mes = meses[fecha.getMonth()]
   return `${d} ${mes.charAt(0).toUpperCase() + mes.slice(1)} ${fecha.getFullYear()}`
 }
-
 function formatHora(fecha) {
   return `${fecha.getHours().toString().padStart(2, '0')}:${fecha.getMinutes().toString().padStart(2, '0')}`
 }
 
-/**
- * Genera la tarjeta de bienvenida/despedida — plantilla "póster".
- * - Fondo: pantalla completa, aleatorio entre welcome (1/2/3).jpg
- * - Foto de perfil del usuario (o sinperfil.jpg si no tiene) en círculo grande
- * - Cinta diagonal de estado en la esquina superior izquierda
- * - Nombre con respaldo sólido (siempre legible) y panel inferior sólido
- *   con grupo, miembros, fecha/hora y mensaje
- */
-async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembros, mensaje }) {
-  const W = 1080
-  const H = 1350
-  const canvas = createCanvas(W, H)
-  const ctx = canvas.getContext('2d')
-
-  const esBienvenida = tipo === 'bienvenida'
-  const texto = '#ffffff'
-  const gris = '#c9d1d9'
-  // Colores desaturados (menos "neón") para que no compitan con la foto de fondo
-  const verde = '#6fae7c'
-  const rojo = '#c9695f'
-  const colorAcento = esBienvenida ? verde : rojo
-
-  // ── 1) Fondo aleatorio a pantalla completa ──
-  const rutaFondo = elegirFondoAleatorio()
-  const imgFondo = await cargarImagenSegura(rutaFondo)
-  if (imgFondo) {
-    dibujarFondoCover(ctx, imgFondo, W, H)
-  } else {
-    ctx.fillStyle = '#111418'
-    ctx.fillRect(0, 0, W, H)
+// Convierte un SVG (string) a buffer PNG usando ffmpeg
+async function svgAPng(svgTexto) {
+  const tmpDir = os.tmpdir()
+  const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`
+  const svgPath = path.join(tmpDir, `${id}.svg`)
+  const pngPath = path.join(tmpDir, `${id}.png`)
+  fs.writeFileSync(svgPath, svgTexto)
+  try {
+    await execAsync(`ffmpeg -y -i "${svgPath}" "${pngPath}"`)
+    return fs.readFileSync(pngPath)
+  } finally {
+    try { fs.unlinkSync(svgPath) } catch {}
+    try { fs.unlinkSync(pngPath) } catch {}
   }
+}
 
-  // ── 2) Degradado oscuro: fuerte abajo (panel), leve arriba (legibilidad) ──
-  const gradTop = ctx.createLinearGradient(0, 0, 0, H * 0.4)
-  gradTop.addColorStop(0, 'rgba(0,0,0,0.55)')
-  gradTop.addColorStop(1, 'rgba(0,0,0,0)')
-  ctx.fillStyle = gradTop
-  ctx.fillRect(0, 0, W, H * 0.4)
-
-  const gradBottom = ctx.createLinearGradient(0, H * 0.45, 0, H)
-  gradBottom.addColorStop(0, 'rgba(0,0,0,0)')
-  gradBottom.addColorStop(1, 'rgba(0,0,0,0.88)')
-  ctx.fillStyle = gradBottom
-  ctx.fillRect(0, H * 0.45, W, H * 0.55)
-
+// ═══════════════════════════════════════════
+//  PLANTILLA 1 — "Póster" (foto de fondo, cinta diagonal, panel inferior)
+// ═══════════════════════════════════════════
+async function construirSvgPoster({ tipo, numero, userPicUrl, groupName, miembros, mensaje }) {
+  const W = 1080, H = 1350
+  const esBienvenida = tipo === 'bienvenida'
+  const colorAcento = esBienvenida ? '#6fae7c' : '#c9695f'
+  const gris = '#c9d1d9'
   const centerX = W / 2
 
-  // ── 3) Cinta diagonal de estado (esquina superior izquierda) ──
-  ctx.save()
-  ctx.translate(0, 0)
-  ctx.rotate(-Math.PI / 4)
-  ctx.fillStyle = colorAcento
-  ctx.fillRect(-140, 70, 480, 64)
-  ctx.restore()
-  ctx.fillStyle = '#0b0b0b'
-  ctx.font = 'bold 30px sans-serif'
-  ctx.textAlign = 'center'
-  ctx.save()
-  ctx.translate(150, 150)
-  ctx.rotate(-Math.PI / 4)
-  ctx.fillText(esBienvenida ? 'NUEVO MIEMBRO' : 'SE HA IDO', 0, 10)
-  ctx.restore()
+  const rutaFondo = elegirFondoAleatorio()
+  const fondoB64 = await archivoABase64(rutaFondo)
 
-  // ── 4) Marca del bot arriba a la derecha ──
-  ctx.textAlign = 'right'
-  ctx.font = 'bold 22px sans-serif'
-  ctx.fillStyle = 'rgba(255,255,255,0.85)'
-  ctx.fillText(' SAITAMA-BOT', W - 50, 70)
+  let fotoB64 = await urlABase64(userPicUrl)
+  if (!fotoB64) fotoB64 = await archivoABase64(resolverArchivoLib(NOMBRE_SIN_PERFIL))
 
-  // ── 5) Foto de perfil del usuario en círculo grande, con anillo ──
   const circR = 175
   const circY = 430
-  let imgUser = await cargarImagenSegura(userPicUrl)
-  if (!imgUser) {
-    imgUser = await cargarImagenSegura(resolverArchivoLib(NOMBRE_SIN_PERFIL))
-  }
 
-  // Sombra suave detrás del círculo
-  ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,0.6)'
-  ctx.shadowBlur = 40
-  ctx.beginPath()
-  ctx.arc(centerX, circY, circR + 10, 0, Math.PI * 2)
-  ctx.fillStyle = '#000'
-  ctx.fill()
-  ctx.restore()
-
-  // Anillo doble (blanco fino + color de acento)
-  ctx.beginPath()
-  ctx.arc(centerX, circY, circR + 14, 0, Math.PI * 2)
-  ctx.fillStyle = colorAcento
-  ctx.fill()
-  ctx.beginPath()
-  ctx.arc(centerX, circY, circR + 6, 0, Math.PI * 2)
-  ctx.fillStyle = '#ffffff'
-  ctx.fill()
-
-  ctx.save()
-  ctx.beginPath()
-  ctx.arc(centerX, circY, circR, 0, Math.PI * 2)
-  ctx.closePath()
-  ctx.clip()
-  if (imgUser) {
-    const escala = Math.max((circR * 2) / imgUser.width, (circR * 2) / imgUser.height)
-    const iw = imgUser.width * escala
-    const ih = imgUser.height * escala
-    ctx.drawImage(imgUser, centerX - iw / 2, circY - ih / 2, iw, ih)
-  } else {
-    ctx.fillStyle = '#181c22'
-    ctx.fillRect(centerX - circR, circY - circR, circR * 2, circR * 2)
-    ctx.fillStyle = gris
-    ctx.font = 'bold 120px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText('?', centerX, circY + 42)
-  }
-  ctx.restore()
-
-  // ── 6) Fondo sólido detrás del nombre — garantiza legibilidad
-  //       aunque la foto de fondo sea muy cargada/contrastada ──
-  ctx.save()
-  ctx.font = 'bold 46px sans-serif'
-  const anchoNombre = ctx.measureText(numero).width
-  ctx.font = 'bold 26px sans-serif'
   const textoEstado = esBienvenida ? '¡SE UNIÓ AL GRUPO!' : 'HA SALIDO DEL GRUPO'
-  const anchoEstado = ctx.measureText(textoEstado).width
-  const anchoCaja = Math.min(W - 120, Math.max(anchoNombre, anchoEstado) + 90)
+  const anchoCaja = Math.min(W - 120, Math.max(numero.length * 26, textoEstado.length * 15) + 90)
   const cajaX = centerX - anchoCaja / 2
   const cajaY = circY + circR + 40
   const cajaH = 130
-  ctx.fillStyle = 'rgba(6,7,9,0.6)'
-  roundRect(ctx, cajaX, cajaY, anchoCaja, cajaH, 26)
-  ctx.fill()
-  ctx.restore()
 
-  // ── 7) Nombre / número, sobre el respaldo sólido ──
-  ctx.textAlign = 'center'
-  ctx.fillStyle = texto
-  ctx.font = 'bold 46px sans-serif'
-  ctx.fillText(numero, centerX, circY + circR + 90)
-
-  ctx.fillStyle = colorAcento
-  ctx.font = 'bold 26px sans-serif'
-  ctx.fillText(textoEstado, centerX, circY + circR + 130)
-
-  // ── 8) Panel inferior SÓLIDO con datos del grupo
-  //       (antes era "glass" muy transparente; con fotos de fondo
-  //       fuertes casi no se leía nada encima) ──
-  const cardX = 60
-  const cardW = W - cardX * 2
-  const cardH = 380
-  const cardY = H - cardH - 60
-
-  ctx.fillStyle = 'rgba(9,10,13,0.86)'
-  roundRect(ctx, cardX, cardY, cardW, cardH, 32)
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(255,255,255,0.10)'
-  ctx.lineWidth = 2
-  roundRect(ctx, cardX, cardY, cardW, cardH, 32)
-  ctx.stroke()
-
-  let y = cardY + 56
-  ctx.textAlign = 'center'
-  ctx.font = 'bold 18px sans-serif'
-  ctx.fillStyle = gris
-  ctx.fillText('GRUPO', centerX, y)
-  y += 38
-  ctx.font = 'bold 32px sans-serif'
-  ctx.fillStyle = texto
+  const cardX = 60, cardW = W - cardX * 2, cardH = 380, cardY = H - cardH - 60
   const nombreGrupo = groupName.length > 28 ? groupName.slice(0, 28) + '…' : groupName
-  ctx.fillText(nombreGrupo, centerX, y)
-  y += 44
-
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)'
-  ctx.beginPath()
-  ctx.moveTo(cardX + 40, y)
-  ctx.lineTo(cardX + cardW - 40, y)
-  ctx.stroke()
-  y += 48
 
   const ahora = new Date()
   const columnas = [
@@ -437,68 +293,182 @@ async function generarImagenEvento({ tipo, numero, userPicUrl, groupName, miembr
     { label: 'HORA', valor: formatHora(ahora) }
   ]
   const colAncho = cardW / 3
-  columnas.forEach((col, i) => {
+
+  const frase = mensaje || (esBienvenida ? 'Un nuevo miembro se une a la comunidad. ¡Bienvenido/a!' : 'Gracias por haber sido parte de esta familia.')
+  const lineasFrase = envolver(frase, 46, 2)
+
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <clipPath id="clipFoto"><circle cx="${centerX}" cy="${circY}" r="${circR}" /></clipPath>
+    <linearGradient id="gradTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="black" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="black" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="gradBottom" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="black" stop-opacity="0"/>
+      <stop offset="100%" stop-color="black" stop-opacity="0.88"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Fondo -->
+  ${fondoB64
+    ? `<image href="${fondoB64}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>`
+    : `<rect width="${W}" height="${H}" fill="#111418"/>`}
+  <rect x="0" y="0" width="${W}" height="${H * 0.4}" fill="url(#gradTop)" />
+  <rect x="0" y="${H * 0.45}" width="${W}" height="${H * 0.55}" fill="url(#gradBottom)" />
+
+  <!-- Cinta diagonal -->
+  <g transform="rotate(-45 150 150)">
+    <rect x="-140" y="70" width="480" height="64" fill="${colorAcento}" />
+    <text x="150" y="160" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="30" fill="#0b0b0b">${esBienvenida ? 'NUEVO MIEMBRO' : 'SE HA IDO'}</text>
+  </g>
+
+  <!-- Marca -->
+  <text x="${W - 50}" y="70" text-anchor="end" font-family="sans-serif" font-weight="bold" font-size="22" fill="rgba(255,255,255,0.85)">SAITAMA-BOT</text>
+
+  <!-- Foto circular con anillo -->
+  <circle cx="${centerX}" cy="${circY}" r="${circR + 14}" fill="${colorAcento}" />
+  <circle cx="${centerX}" cy="${circY}" r="${circR + 6}" fill="#ffffff" />
+  ${fotoB64
+    ? `<image href="${fotoB64}" x="${centerX - circR}" y="${circY - circR}" width="${circR * 2}" height="${circR * 2}" clip-path="url(#clipFoto)" preserveAspectRatio="xMidYMid slice"/>`
+    : `<circle cx="${centerX}" cy="${circY}" r="${circR}" fill="#181c22"/><text x="${centerX}" y="${circY + 42}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="120" fill="${gris}">?</text>`}
+
+  <!-- Respaldo del nombre -->
+  <rect x="${cajaX}" y="${cajaY}" width="${anchoCaja}" height="${cajaH}" rx="26" fill="rgba(6,7,9,0.6)" />
+  <text x="${centerX}" y="${circY + circR + 90}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="46" fill="#ffffff">${escaparXML(numero)}</text>
+  <text x="${centerX}" y="${circY + circR + 130}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="26" fill="${colorAcento}">${textoEstado}</text>
+
+  <!-- Panel inferior -->
+  <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="32" fill="rgba(9,10,13,0.86)" stroke="rgba(255,255,255,0.10)" stroke-width="2" />
+  <text x="${centerX}" y="${cardY + 56}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="18" fill="${gris}">GRUPO</text>
+  <text x="${centerX}" y="${cardY + 94}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="32" fill="#ffffff">${escaparXML(nombreGrupo)}</text>
+  <line x1="${cardX + 40}" y1="${cardY + 138}" x2="${cardX + cardW - 40}" y2="${cardY + 138}" stroke="rgba(255,255,255,0.15)" />
+
+  ${columnas.map((col, i) => {
     const cx = cardX + colAncho * i + colAncho / 2
-    ctx.font = 'bold 16px sans-serif'
-    ctx.fillStyle = gris
-    ctx.fillText(col.label, cx, y)
-    ctx.font = 'bold 26px sans-serif'
-    ctx.fillStyle = texto
-    ctx.fillText(col.valor, cx, y + 34)
-  })
-  y += 72
+    const y = cardY + 186
+    return `<text x="${cx}" y="${y}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="16" fill="${gris}">${col.label}</text>
+    <text x="${cx}" y="${y + 34}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="26" fill="#ffffff">${escaparXML(col.valor)}</text>`
+  }).join('\n  ')}
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)'
-  ctx.beginPath()
-  ctx.moveTo(cardX + 40, y)
-  ctx.lineTo(cardX + cardW - 40, y)
-  ctx.stroke()
-  y += 40
-
-  const frase = mensaje || (esBienvenida
-    ? 'Un nuevo miembro se une a la comunidad. ¡Bienvenido/a!'
-    : 'Gracias por haber sido parte de esta familia.')
-
-  ctx.font = 'italic 21px sans-serif'
-  ctx.fillStyle = gris
-  const maxAncho = cardW - 90
-  const palabras = frase.split(' ')
-  let linea = ''
-  const lineas = []
-  for (const palabra of palabras) {
-    const prueba = linea ? linea + ' ' + palabra : palabra
-    if (ctx.measureText(prueba).width > maxAncho && linea) {
-      lineas.push(linea)
-      linea = palabra
-    } else {
-      linea = prueba
-    }
-  }
-  if (linea) lineas.push(linea)
-  lineas.slice(0, 2).forEach((l, i) => {
-    ctx.fillText(l, centerX, y + i * 28)
-  })
-
-  return canvas.toBuffer('image/png')
+  <line x1="${cardX + 40}" y1="${cardY + 258}" x2="${cardX + cardW - 40}" y2="${cardY + 258}" stroke="rgba(255,255,255,0.15)" />
+  ${lineasFrase.map((l, i) => `<text x="${centerX}" y="${cardY + 298 + i * 28}" text-anchor="middle" font-family="sans-serif" font-style="italic" font-size="21" fill="${gris}">${escaparXML(l)}</text>`).join('\n  ')}
+</svg>`.trim()
 }
 
 // ═══════════════════════════════════════════
-//  .testwelcome — vista previa sin necesidad de que alguien
-//  entre/salga de verdad. Usa los datos del propio invocador.
+//  PLANTILLA 2 — "Cupón" (paleta pastel + tarjeta tipo ticket)
+//  Inspirada en las 3 imágenes: crema/lavanda/verde con acentos cálidos
+// ═══════════════════════════════════════════
+async function construirSvgCupon({ tipo, numero, userPicUrl, groupName, miembros, mensaje }) {
+  const W = 1080, H = 1350
+  const esBienvenida = tipo === 'bienvenida'
+  const paleta = PALETAS_CUPON[Math.floor(Math.random() * PALETAS_CUPON.length)]
+  const centerX = W / 2
+
+  let fotoB64 = await urlABase64(userPicUrl)
+  if (!fotoB64) fotoB64 = await archivoABase64(resolverArchivoLib(NOMBRE_SIN_PERFIL))
+
+  const circR = 165
+  const circY = 300
+
+  const cardX = 90, cardW = W - cardX * 2, cardY = 560, cardH = 620
+  const nombreGrupo = groupName.length > 26 ? groupName.slice(0, 26) + '…' : groupName
+  const textoEstado = esBienvenida ? '¡Bienvenido/a al grupo!' : 'Hasta luego 👋'
+
+  const ahora = new Date()
+  const frase = mensaje || (esBienvenida ? 'Un nuevo miembro se une a la comunidad.' : 'Gracias por haber sido parte de esta familia.')
+  const lineasFrase = envolver(frase, 40, 2)
+
+  // "dientes" de recorte tipo cupón en el borde superior/inferior de la tarjeta
+  const dientesArriba = []
+  const dientesAbajo = []
+  const pasoDiente = 30
+  for (let x = cardX; x <= cardX + cardW; x += pasoDiente) {
+    dientesArriba.push(`<circle cx="${x}" cy="${cardY}" r="10" fill="${paleta.fondo}" />`)
+    dientesAbajo.push(`<circle cx="${x}" cy="${cardY + cardH}" r="10" fill="${paleta.fondo}" />`)
+  }
+
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <defs>
+    <clipPath id="clipFoto"><circle cx="${centerX}" cy="${circY}" r="${circR}" /></clipPath>
+  </defs>
+
+  <rect width="${W}" height="${H}" fill="${paleta.fondo}" />
+
+  <!-- Marca -->
+  <text x="${W - 50}" y="70" text-anchor="end" font-family="sans-serif" font-weight="bold" font-size="22" fill="${paleta.textoSuave}">SAITAMA-BOT</text>
+
+  <!-- Etiqueta de estado, arriba -->
+  <rect x="${centerX - 190}" y="90" width="380" height="60" rx="30" fill="${paleta.acento}" />
+  <text x="${centerX}" y="130" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="26" fill="#ffffff">${escaparXML(esBienvenida ? 'NUEVO MIEMBRO' : 'SE HA IDO')}</text>
+
+  <!-- Foto circular -->
+  <circle cx="${centerX}" cy="${circY}" r="${circR + 12}" fill="${paleta.panel}" />
+  <circle cx="${centerX}" cy="${circY}" r="${circR + 6}" fill="${paleta.acento}" />
+  ${fotoB64
+    ? `<image href="${fotoB64}" x="${centerX - circR}" y="${circY - circR}" width="${circR * 2}" height="${circR * 2}" clip-path="url(#clipFoto)" preserveAspectRatio="xMidYMid slice"/>`
+    : `<circle cx="${centerX}" cy="${circY}" r="${circR}" fill="${paleta.panel}"/><text x="${centerX}" y="${circY + 34}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="100" fill="${paleta.textoSuave}">?</text>`}
+
+  <text x="${centerX}" y="${circY + circR + 55}" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="42" fill="${paleta.texto}">${escaparXML(numero)}</text>
+  <text x="${centerX}" y="${circY + circR + 95}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="24" fill="${paleta.acento}">${escaparXML(textoEstado)}</text>
+
+  <!-- Tarjeta tipo "cupón/ticket" -->
+  <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="18" fill="${paleta.panel}" stroke="${paleta.acento}" stroke-width="3" stroke-dasharray="10 8" />
+  ${dientesArriba.join('\n  ')}
+  ${dientesAbajo.join('\n  ')}
+
+  <text x="${centerX}" y="${cardY + 70}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="18" fill="${paleta.textoSuave}">GRUPO</text>
+  <text x="${centerX}" y="${cardY + 112}" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="34" fill="${paleta.texto}">${escaparXML(nombreGrupo)}</text>
+
+  <line x1="${cardX + 50}" y1="${cardY + 160}" x2="${cardX + cardW - 50}" y2="${cardY + 160}" stroke="${paleta.acento}" stroke-width="2" stroke-dasharray="6 6" />
+
+  <text x="${cardX + cardW * 0.2}" y="${cardY + 220}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="16" fill="${paleta.textoSuave}">MIEMBROS</text>
+  <text x="${cardX + cardW * 0.2}" y="${cardY + 258}" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="30" fill="${paleta.texto}">${escaparXML(String(miembros))}</text>
+
+  <text x="${cardX + cardW * 0.5}" y="${cardY + 220}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="16" fill="${paleta.textoSuave}">FECHA</text>
+  <text x="${cardX + cardW * 0.5}" y="${cardY + 258}" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="24" fill="${paleta.texto}">${escaparXML(formatFecha(ahora))}</text>
+
+  <text x="${cardX + cardW * 0.8}" y="${cardY + 220}" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="16" fill="${paleta.textoSuave}">HORA</text>
+  <text x="${cardX + cardW * 0.8}" y="${cardY + 258}" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="30" fill="${paleta.texto}">${escaparXML(formatHora(ahora))}</text>
+
+  <line x1="${cardX + 50}" y1="${cardY + 300}" x2="${cardX + cardW - 50}" y2="${cardY + 300}" stroke="${paleta.acento}" stroke-width="2" stroke-dasharray="6 6" />
+
+  ${lineasFrase.map((l, i) => `<text x="${centerX}" y="${cardY + 350 + i * 34}" text-anchor="middle" font-family="sans-serif" font-style="italic" font-size="24" fill="${paleta.textoSuave}">${escaparXML(l)}</text>`).join('\n  ')}
+
+  <!-- código de barras decorativo, como en las imágenes de referencia -->
+  ${Array.from({ length: 40 }).map((_, i) => {
+    const bw = 2 + (i % 3)
+    const bx = cardX + 60 + i * 9
+    if (bx > cardX + cardW - 60) return ''
+    return `<rect x="${bx}" y="${cardY + cardH - 70}" width="${bw}" height="40" fill="${paleta.texto}" opacity="0.7" />`
+  }).join('\n  ')}
+</svg>`.trim()
+}
+
+/**
+ * Genera la imagen del evento (bienvenida/despedida), alternando al azar
+ * entre la plantilla "póster" (foto de fondo) y la nueva "cupón" (pastel).
+ */
+async function generarImagenEvento(datos) {
+  const usarCupon = Math.random() < 0.5
+  const svg = usarCupon ? await construirSvgCupon(datos) : await construirSvgPoster(datos)
+  return svgAPng(svg)
+}
+
+// ═══════════════════════════════════════════
+//  .testwelcome — vista previa
 // ═══════════════════════════════════════════
 async function ejecutarTestWelcome(m, conn, textoArg) {
   if (!isOwner(m)) {
-    return m.reply(
-      `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo el dueño del bot puede usar este comando.\n╰───────────────⬣`
-    )
+    return m.reply(`╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo el dueño del bot puede usar este comando.\n╰───────────────⬣`)
   }
   if (!m.isGroup) {
-    return m.reply(
-      `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Este comando solo funciona dentro de un grupo.\n╰───────────────⬣`
-    )
+    return m.reply(`╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Este comando solo funciona dentro de un grupo.\n╰───────────────⬣`)
   }
 
-  // Argumento opcional: .testwelcome bye / despedida → previsualiza la despedida
   const arg = (textoArg || '').trim().toLowerCase()
   const esDespedida = ['bye', 'despedida', 'salida', 'adios', 'adiós'].includes(arg)
 
@@ -557,14 +527,10 @@ const handler = async (m, { conn, command, text }) => {
   }
 
   if (!isOwner(m)) {
-    return m.reply(
-      `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo el dueño del bot puede usar este comando.\n╰───────────────⬣`
-    )
+    return m.reply(`╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo el dueño del bot puede usar este comando.\n╰───────────────⬣`)
   }
 
-  await m.reply(
-    `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Cargando grupos...\n╰───────────────⬣`
-  )
+  await m.reply(`╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Cargando grupos...\n╰───────────────⬣`)
 
   const botNumber = conn.user?.jid || conn.user.id
   const grupos = await gruposDelBot(conn)
@@ -596,7 +562,6 @@ const handler = async (m, { conn, command, text }) => {
     const chunk = grupos.slice(i, i + FILAS_POR_SECCION)
     const desde = i + 1
     const hasta = i + chunk.length
-
     sections.push({
       title: `📋 Grupos ${desde}-${hasta}`,
       rows: chunk.map((g) => {
@@ -659,9 +624,7 @@ handler.before = async (m, { conn }) => {
 
   if (id && id.startsWith('welcome|')) {
     if (!isOwner(m)) {
-      await conn.sendMessage(m.chat, {
-        text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo el dueño del bot puede usar esto.\n╰───────────────⬣`
-      }, { quoted: m })
+      await conn.sendMessage(m.chat, { text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Solo el dueño del bot puede usar esto.\n╰───────────────⬣` }, { quoted: m })
       return true
     }
 
@@ -670,27 +633,19 @@ handler.before = async (m, { conn }) => {
     if (destino === 'all') {
       const grupos = await gruposDelBot(conn)
       grupos.forEach((g) => setWelcome(botNumber, g.id, accion === 'on'))
-
-      await conn.sendMessage(m.chat, {
-        text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Bienvenida ${accion === 'on' ? 'activada ✅' : 'desactivada ❌'} en ${grupos.length} grupo(s).\n╰───────────────⬣`
-      }, { quoted: m })
+      await conn.sendMessage(m.chat, { text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Bienvenida ${accion === 'on' ? 'activada ✅' : 'desactivada ❌'} en ${grupos.length} grupo(s).\n╰───────────────⬣` }, { quoted: m })
       return true
     }
 
     if (accion === 'toggle') {
       const actual = getWelcome(botNumber, destino)
       setWelcome(botNumber, destino, !actual)
-
-      await conn.sendMessage(m.chat, {
-        text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Bienvenida ${!actual ? 'activada ✅' : 'desactivada ❌'} en ese grupo.\n╰───────────────⬣`
-      }, { quoted: m })
+      await conn.sendMessage(m.chat, { text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Bienvenida ${!actual ? 'activada ✅' : 'desactivada ❌'} en ese grupo.\n╰───────────────⬣` }, { quoted: m })
       return true
     }
 
     setWelcome(botNumber, destino, accion === 'on')
-    await conn.sendMessage(m.chat, {
-      text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Bienvenida ${accion === 'on' ? 'activada ✅' : 'desactivada ❌'} en este grupo.\n╰───────────────⬣`
-    }, { quoted: m })
+    await conn.sendMessage(m.chat, { text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ 🍃 Bienvenida ${accion === 'on' ? 'activada ✅' : 'desactivada ❌'} en este grupo.\n╰───────────────⬣` }, { quoted: m })
     return true
   }
 
@@ -703,7 +658,6 @@ handler.before = async (m, { conn }) => {
   m._welcomeHandled = true
 
   const participante = m.messageStubParameters?.[0] || m.sender
-
   const idEvento = `${m.chat}_${m.messageStubType}_${participante}`
   if (yaSeProceso(idEvento)) return false
 
@@ -748,9 +702,7 @@ handler.before = async (m, { conn }) => {
 
     await conn.sendMessage(m.chat, {
       image: imagenBuffer,
-      caption: esEntrada
-        ? `🌿 ${etiquetaUsuario} se unió al grupo.`
-        : `🍃 ${etiquetaUsuario} salió del grupo.`,
+      caption: esEntrada ? `🌿 ${etiquetaUsuario} se unió al grupo.` : `🍃 ${etiquetaUsuario} salió del grupo.`,
       mentions: mentionsArray
     })
   } catch (e) {
