@@ -9,7 +9,7 @@ const settingsPath = path.resolve('./json/settings.json')
 const FILAS_POR_SECCION = 10 // límite de WhatsApp por sección en un single_select
 
 // 👉 Nombres de los 3 fondos aleatorios (deben estar dentro de la carpeta lib/ del proyecto)
-const NOMBRES_FONDOS = ['welcome (1).jpg', 'welcome (2).jpg', 'welcome (3).jpg']
+const NOMBRES_FONDOS = ['welcome (1).png', 'welcome (2).png', 'welcome (3).png']
 // 👉 Imagen que se usa cuando el usuario no tiene foto de perfil pública
 const NOMBRE_SIN_PERFIL = 'sinperfil.jpg'
 
