@@ -580,3 +580,99 @@ handler.before = async (m, { conn }) => {
     const clave2 = claveWizard(m.chat, m.sender)
     const estado2 = global.__anuncioWizard[clave2]
 
+if (!estado2 || estado2.paso !== 'grupos') {
+      await conn.sendMessage(m.chat, { text: decorar('Esa selección ya expiró, empieza de nuevo con .anuncio') }, { quoted: m })
+      return true
+    }
+
+    if (accionGrupo === 'todos') {
+      const grupos = await obtenerGruposDelBot(conn)
+      delete global.__anuncioWizard[clave2]
+      await finalizarCreacion(conn, m, estado2, grupos.map(g => g.id))
+      return true
+    }
+
+    if (accionGrupo === 'actual') {
+      delete global.__anuncioWizard[clave2]
+      await finalizarCreacion(conn, m, estado2, [m.chat])
+      return true
+    }
+
+    if (accionGrupo === 'manual') {
+      const grupos = await obtenerGruposDelBot(conn)
+      if (!grupos.length) {
+        delete global.__anuncioWizard[clave2]
+        await conn.sendMessage(m.chat, { text: decorar('No encontré grupos donde esté el bot') }, { quoted: m })
+        return true
+      }
+      let listaTexto = 'Escribe los números separados por coma\nEjemplo: 1,3,5\n\n'
+      grupos.forEach((g, i) => {
+        listaTexto += `${i + 1}. ${g.subject} (${g.miembros} miembros)\n`
+      })
+      estado2.paso = 'grupos_manual'
+      estado2.actualizado = Date.now()
+      await conn.sendMessage(m.chat, { text: decorar(listaTexto.trim()) }, { quoted: m })
+      return true
+    }
+
+    return true
+  }
+
+  return false
+}
+
+// 📢 Pregunta en qué grupos publicar: "todos" o "elegir manualmente", con botones planos
+async function pedirGrupos(conn, m) {
+  const interactiveMessage = proto.Message.InteractiveMessage.create({
+    header: { title: '', hasMediaAttachment: false },
+    body: { text: decorar('¿En qué grupos se debe publicar este anuncio?') },
+    footer: { text: '🍃 SAITAMA-BOT' },
+    nativeFlowMessage: {
+      buttons: [
+        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: 'Todos los grupos', id: 'anuncio_grupos~todos' }) },
+        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: 'Solo este grupo', id: 'anuncio_grupos~actual' }) },
+        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: 'Elegir manualmente', id: 'anuncio_grupos~manual' }) }
+      ]
+    }
+  })
+  const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
+  await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
+}
+
+// ✅ Crea el anuncio (una copia independiente) en cada grupo elegido y lo programa
+async function finalizarCreacion(conn, m, estado, gruposIds) {
+  if (!gruposIds.length) {
+    await conn.sendMessage(m.chat, { text: decorar('No se seleccionó ningún grupo, se canceló la creación') }, { quoted: m })
+    return
+  }
+
+  const creados = []
+  for (const chatId of gruposIds) {
+    const anuncio = crearAnuncioObjeto({
+      intervalo: estado.intervalo,
+      mensaje: estado.mensaje,
+      imagenBase64: estado.imagenBase64,
+      creadoPor: m.sender
+    })
+    const cfg = chatConfig(chatId)
+    cfg.anuncios.push(anuncio)
+    programarAnuncio(conn, chatId, anuncio)
+    creados.push({ chatId, id: anuncio.id })
+  }
+  global.markDatabaseModified()
+
+  let resumen = `Anuncio creado en ${creados.length} grupo${creados.length === 1 ? '' : 's'}\n\n`
+  for (const c of creados) {
+    resumen += `ID ${c.id}\n`
+  }
+  await conn.sendMessage(m.chat, { text: decorar(resumen.trim()) }, { quoted: m })
+}
+
+handler.help = ['anuncio <crear/lista/grupos/contar/pausar/eliminar>', 'testanuncio <id>']
+handler.tags = ['group']
+handler.command = /^(anuncio|anuncios|programar|testanuncio)$/i
+handler.desc = 'Sistema de anuncios programados para grupos, con menú guiado, plantilla visual y modo de prueba'
+handler.owner = true
+
+export default handler
+
