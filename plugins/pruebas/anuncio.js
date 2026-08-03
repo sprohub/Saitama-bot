@@ -271,6 +271,16 @@ function crearAnuncioObjeto({ intervalo, mensaje, imagenBase64, creadoPor }) {
   }
 }
 
+async function obtenerGruposDelBot(conn) {
+  try {
+    const grupos = await conn.groupFetchAllParticipating()
+    return Object.values(grupos).map(g => ({ id: g.id, subject: g.subject, miembros: g.participants?.length || 0 }))
+  } catch (e) {
+    console.error('[anuncios] error obteniendo grupos:', e)
+    return []
+  }
+}
+
 function unwrapMessage(message) {
   const wrappers = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'documentWithCaptionMessage']
   let msg = message
@@ -303,32 +313,15 @@ function extractSelectedId(content) {
 async function enviarMenu(conn, m) {
   const interactiveMessage = proto.Message.InteractiveMessage.create({
     header: { title: '', hasMediaAttachment: false },
-    body: {
-      text: decorar(
-        'Sistema de anuncios programados\n\n' +
-        'Elige una opción del menú\n' +
-        'O escribe directamente:\n' +
-        '.anuncio crear <intervalo> | <mensaje>'
-      )
-    },
+    body: { text: decorar('¿Qué deseas hacer?') },
     footer: { text: '🍃 SAITAMA-BOT' },
     nativeFlowMessage: {
-      buttons: [{
-        name: 'single_select',
-        buttonParamsJson: JSON.stringify({
-          title: '📢 MENÚ DE ANUNCIOS',
-          sections: [{
-            title: '¿Qué deseas hacer?',
-            rows: [
-              { title: 'Crear anuncio', description: 'Te guío paso a paso', id: 'anuncio_menu~crear' },
-              { title: 'Ver lista', description: 'Anuncios activos en este grupo', id: 'anuncio_menu~lista' },
-              { title: 'Contar anuncios', description: 'Cuántos hay publicados', id: 'anuncio_menu~contar' },
-              { title: 'Pausar / Reanudar', description: 'Requiere el ID del anuncio', id: 'anuncio_menu~pausar' },
-              { title: 'Eliminar', description: 'Requiere el ID del anuncio', id: 'anuncio_menu~eliminar' }
-            ]
-          }]
-        })
-      }]
+      buttons: [
+        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: 'Crear anuncio', id: 'anuncio_menu~crear' }) },
+        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: 'Ver lista', id: 'anuncio_menu~lista' }) },
+        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: 'Contar anuncios', id: 'anuncio_menu~contar' }) },
+        { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: 'Gestionar (pausar/eliminar)', id: 'anuncio_menu~pausar' }) }
+      ]
     }
   })
 
@@ -350,19 +343,40 @@ async function mostrarLista(conn, chatId, quoted) {
   return conn.sendMessage(chatId, { text: decorar(texto.trim()) }, quoted ? { quoted } : {})
 }
 
-let handler = async (m, { conn, text, isOwner }) => {
-  const args = (text || '').trim()
-  const partes = args.split(' ')
-  const sub = (partes[0] || '').toLowerCase()
-  const resto = partes.slice(1).join(' ')
-
+let handler = async (m, { conn, text, isOwner, command }) => {
   if (!isOwner) {
     return conn.sendMessage(m.chat, { text: decorar('Solo el owner puede usar este comando') }, { quoted: m })
   }
 
-  if (!m.isGroup && sub !== 'contar') {
+  if (!m.isGroup) {
     return conn.sendMessage(m.chat, { text: decorar('Este comando es para grupos') }, { quoted: m })
   }
+
+  // ── .testanuncio <id> — envía de inmediato una vista previa, sin esperar el intervalo ──
+  if (command === 'testanuncio') {
+    const idPrueba = (text || '').trim()
+    const cfgPrueba = chatConfig(m.chat)
+
+    if (!idPrueba) {
+      return conn.sendMessage(m.chat, {
+        text: decorar('Uso: .testanuncio <id>\nUsa .anuncio lista para ver los IDs disponibles')
+      }, { quoted: m })
+    }
+
+    const anuncioPrueba = cfgPrueba.anuncios.find(a => a.id === idPrueba)
+    if (!anuncioPrueba) {
+      return conn.sendMessage(m.chat, { text: decorar('No encontré un anuncio con ese ID') }, { quoted: m })
+    }
+
+    await conn.sendMessage(m.chat, { text: decorar('Enviando vista previa...') }, { quoted: m })
+    await enviarAnuncio(conn, m.chat, anuncioPrueba, true)
+    return
+  }
+
+  const args = (text || '').trim()
+  const partes = args.split(' ')
+  const sub = (partes[0] || '').toLowerCase()
+  const resto = partes.slice(1).join(' ')
 
   if (!sub) {
     return enviarMenu(conn, m)
@@ -401,19 +415,25 @@ let handler = async (m, { conn, text, isOwner }) => {
     }, { quoted: m })
   }
 
+  if (sub === 'grupos') {
+    const grupos = await obtenerGruposDelBot(conn)
+    if (!grupos.length) {
+      return conn.sendMessage(m.chat, { text: decorar('No encontré grupos donde esté el bot') }, { quoted: m })
+    }
+    let texto = `El bot está en ${grupos.length} grupo${grupos.length === 1 ? '' : 's'}\n\n`
+    grupos.forEach((g, i) => {
+      texto += `${i + 1}. ${g.subject} (${g.miembros} miembros)\n`
+    })
+    return conn.sendMessage(m.chat, { text: decorar(texto.trim()) }, { quoted: m })
+  }
+
   if (sub === 'lista' || sub === 'ver') return mostrarLista(conn, m.chat, m)
 
   if (sub === 'contar') {
-    if (m.isGroup) {
-      const local = contarAnuncios(true, m.chat)
-      const global_ = contarAnuncios(false)
-      return conn.sendMessage(m.chat, {
-        text: decorar(`Anuncios en este grupo\nTotal: ${local.total}\nActivos: ${local.activos}\n\nEn todo el bot\nTotal: ${global_.total}\nActivos: ${global_.activos}`)
-      }, { quoted: m })
-    }
+    const local = contarAnuncios(true, m.chat)
     const global_ = contarAnuncios(false)
     return conn.sendMessage(m.chat, {
-      text: decorar(`Anuncios en todo el bot\nTotal: ${global_.total}\nActivos: ${global_.activos}`)
+      text: decorar(`Anuncios en este grupo\nTotal: ${local.total}\nActivos: ${local.activos}\n\nEn todo el bot\nTotal: ${global_.total}\nActivos: ${global_.activos}`)
     }, { quoted: m })
   }
 
@@ -465,7 +485,7 @@ handler.before = async (m, { conn }) => {
     if (accion === 'pausar' || accion === 'eliminar') {
       await mostrarLista(conn, m.chat, m)
       await conn.sendMessage(m.chat, {
-        text: decorar(`Copia el ID que quieras y escribe:\n.anuncio ${accion} <id>`)
+        text: decorar(`Copia el ID que quieras y escribe:\n.anuncio pausar <id>\n.anuncio reanudar <id>\n.anuncio eliminar <id>`)
       }, { quoted: m })
       return true
     }
@@ -520,28 +540,18 @@ handler.before = async (m, { conn }) => {
     if (content.imageMessage) {
       let imagenBase64 = null
       try { imagenBase64 = (await m.download()).toString('base64') } catch {}
-      const anuncio = crearAnuncioObjeto({ intervalo: estado.intervalo, mensaje: estado.mensaje, imagenBase64, creadoPor: m.sender })
-      const cfg = chatConfig(m.chat)
-      cfg.anuncios.push(anuncio)
-      global.markDatabaseModified()
-      programarAnuncio(conn, m.chat, anuncio)
-      delete global.__anuncioWizard[clave]
-      await conn.sendMessage(m.chat, {
-        text: decorar(`Anuncio creado con imagen\nID: ${anuncio.id}\nCada: ${estado.intervalo.etiqueta}`)
-      }, { quoted: m })
+      estado.imagenBase64 = imagenBase64
+      estado.paso = 'grupos'
+      estado.actualizado = Date.now()
+      await pedirGrupos(conn, m)
       return true
     }
 
     if (texto.toLowerCase() === 'no') {
-      const anuncio = crearAnuncioObjeto({ intervalo: estado.intervalo, mensaje: estado.mensaje, imagenBase64: null, creadoPor: m.sender })
-      const cfg = chatConfig(m.chat)
-      cfg.anuncios.push(anuncio)
-      global.markDatabaseModified()
-      programarAnuncio(conn, m.chat, anuncio)
-      delete global.__anuncioWizard[clave]
-      await conn.sendMessage(m.chat, {
-        text: decorar(`Anuncio creado\nID: ${anuncio.id}\nCada: ${estado.intervalo.etiqueta}`)
-      }, { quoted: m })
+      estado.imagenBase64 = null
+      estado.paso = 'grupos'
+      estado.actualizado = Date.now()
+      await pedirGrupos(conn, m)
       return true
     }
 
@@ -549,13 +559,24 @@ handler.before = async (m, { conn }) => {
     return true
   }
 
-  return false
-}
+  if (estado.paso === 'grupos_manual') {
+    const grupos = await obtenerGruposDelBot(conn)
+    const seleccion = texto.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n >= 1 && n <= grupos.length)
 
-handler.help = ['anuncio <crear/lista/contar/pausar/eliminar>']
-handler.tags = ['group']
-handler.command = /^(anuncio|anuncios|programar)$/i
-handler.desc = 'Sistema de anuncios programados para grupos, con menú guiado y plantilla visual'
-handler.owner = true
+    if (!seleccion.length) {
+      await conn.sendMessage(m.chat, { text: decorar('No entendí esa selección\nEscribe los números separados por coma, ej: 1,3,5') }, { quoted: m })
+      return true
+    }
 
-export default handler
+    const idsElegidos = [...new Set(seleccion)].map(n => grupos[n - 1].id)
+    delete global.__anuncioWizard[clave]
+    await finalizarCreacion(conn, m, estado, idsElegidos)
+    return true
+  }
+
+  // ── Botones de selección de grupos (paso final del asistente) ──
+  if (id && id.startsWith('anuncio_grupos~')) {
+    const accionGrupo = id.split('~')[1]
+    const clave2 = claveWizard(m.chat, m.sender)
+    const estado2 = global.__anuncioWizard[clave2]
+
