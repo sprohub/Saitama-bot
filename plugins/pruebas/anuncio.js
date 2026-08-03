@@ -311,9 +311,10 @@ function extractSelectedId(content) {
 }
 
 async function enviarMenu(conn, m) {
-  const card = {
+  const interactiveMessage = proto.Message.InteractiveMessage.create({
     header: { title: '', hasMediaAttachment: false },
-    body: { text: decorar('¿Qué deseas hacer?') },
+    body: { text: decorar('Sistema de anuncios programados\n\nElige una opción, o escribe directamente:\n.anuncio crear <intervalo> | <mensaje>') },
+    footer: { text: '🍃 SAITAMA-BOT' },
     nativeFlowMessage: {
       buttons: [
         { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: 'Crear anuncio', id: 'anuncio_menu~crear' }) },
@@ -322,13 +323,6 @@ async function enviarMenu(conn, m) {
         { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: 'Gestionar (pausar/eliminar)', id: 'anuncio_menu~pausar' }) }
       ]
     }
-  }
-
-  const interactiveMessage = proto.Message.InteractiveMessage.create({
-    body: { text: decorar('Sistema de anuncios programados\n\nElige una opción, o escribe directamente:\n.anuncio crear <intervalo> | <mensaje>') },
-    footer: { text: '🍃 SAITAMA-BOT' },
-    header: { title: '', hasMediaAttachment: false },
-    carouselMessage: { cards: [card] }
   })
 
   const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
@@ -482,6 +476,7 @@ handler.before = async (m, { conn }) => {
       }, { quoted: m })
       return true
     }
+
     if (accion === 'lista') { await mostrarLista(conn, m.chat, m); return true }
     if (accion === 'contar') {
       const local = contarAnuncios(true, m.chat)
@@ -578,37 +573,6 @@ handler.before = async (m, { conn }) => {
     delete global.__anuncioWizard[clave]
     await finalizarCreacion(conn, m, estado, idsElegidos)
     return true
-estado.paso = 'grupos'
-      estado.actualizado = Date.now()
-      await pedirGrupos(conn, m)
-      return true
-    }
-
-    if (texto.toLowerCase() === 'no') {
-      estado.imagenBase64 = null
-      estado.paso = 'grupos'
-      estado.actualizado = Date.now()
-      await pedirGrupos(conn, m)
-      return true
-    }
-
-    await conn.sendMessage(m.chat, { text: decorar('Envía una foto, o escribe "no" para continuar sin imagen') }, { quoted: m })
-    return true
-  }
-
-  if (estado.paso === 'grupos_manual') {
-    const grupos = await obtenerGruposDelBot(conn)
-    const seleccion = texto.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n >= 1 && n <= grupos.length)
-
-    if (!seleccion.length) {
-      await conn.sendMessage(m.chat, { text: decorar('No entendí esa selección\nEscribe los números separados por coma, ej: 1,3,5') }, { quoted: m })
-      return true
-    }
-
-    const idsElegidos = [...new Set(seleccion)].map(n => grupos[n - 1].id)
-    delete global.__anuncioWizard[clave]
-    await finalizarCreacion(conn, m, estado, idsElegidos)
-    return true
   }
 
   // ── Botones de selección de grupos (paso final del asistente) ──
@@ -660,9 +624,10 @@ estado.paso = 'grupos'
 
 // 📢 Pregunta en qué grupos publicar: "todos" o "elegir manualmente", con botones planos
 async function pedirGrupos(conn, m) {
-  const card = {
+  const interactiveMessage = proto.Message.InteractiveMessage.create({
     header: { title: '', hasMediaAttachment: false },
     body: { text: decorar('¿En qué grupos se debe publicar este anuncio?') },
+    footer: { text: '🍃 SAITAMA-BOT' },
     nativeFlowMessage: {
       buttons: [
         { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: 'Todos los grupos', id: 'anuncio_grupos~todos' }) },
@@ -670,13 +635,6 @@ async function pedirGrupos(conn, m) {
         { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: 'Elegir manualmente', id: 'anuncio_grupos~manual' }) }
       ]
     }
-  }
-
-  const interactiveMessage = proto.Message.InteractiveMessage.create({
-    body: { text: decorar('Último paso') },
-    footer: { text: '🍃 SAITAMA-BOT' },
-    header: { title: '', hasMediaAttachment: false },
-    carouselMessage: { cards: [card] }
   })
   const msg = generateWAMessageFromContent(m.chat, { viewOnceMessage: { message: { messageContextInfo: {}, interactiveMessage } } }, { quoted: m })
   await conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
