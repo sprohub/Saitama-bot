@@ -62,7 +62,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     await m.react('⏳')
 
     try {
-      let downloadUrl = `https://api.delirius.store/download/tiktok?url=${encodeURIComponent(query)}`
+      let downloadUrl = `https://api.delirius.online/download/tiktok?url=${encodeURIComponent(query)}`
       let res = await fetch(downloadUrl)
       let json = await res.json()
 
@@ -99,7 +99,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
   await m.react('🔍')
 
   try {
-    let searchUrl = `https://api.delirius.store/search/tiktoksearch?query=${encodeURIComponent(query)}`
+    let searchUrl = `https://api.delirius.online/search/tiktoksearch?query=${encodeURIComponent(query)}`
     let searchRes = await fetch(searchUrl)
     let searchData = await searchRes.json()
 
@@ -179,7 +179,7 @@ handler.before = async (m, { conn }) => {
       text: `╭─⪼ 🌿 *SAITAMA-BOT*\n│ ⏳ Descargando...\n╰───────────────⬣`
     }, { quoted: m })
 
-    let downloadUrl = `https://api.delirius.store/download/tiktok?url=${encodeURIComponent(videoUrl)}`
+    let downloadUrl = `https://api.delirius.online/download/tiktok?url=${encodeURIComponent(videoUrl)}`
     let res = await fetch(downloadUrl)
     let json = await res.json()
 
