@@ -1,6 +1,6 @@
 import fetch from 'node-fetch'
 
-const API_URL = 'https://api.delirius.store/download/mega'
+const API_URL = 'https://api.delirius.online/download/mega'
 
 let handler = async (m, { conn, text, usedPrefix, command }) => {
   const raw = text?.trim()
