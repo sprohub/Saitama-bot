@@ -10,7 +10,7 @@ const STICKER_PACK_AUTHOR = 'Sprohub'
 const TEMP_DIR = path.join(process.cwd(), 'tmp')
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true })
 
-const API_BASE = 'https://api.delirius.store/canvas'
+const API_BASE = 'https://api.delirius.online/canvas'
 
 // Endpoints disponibles:
 //   brat       -> imagen estática "brat" clásico
