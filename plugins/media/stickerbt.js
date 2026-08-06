@@ -33,8 +33,8 @@ import os from 'os'
 
 const execAsync = promisify(exec)
 
-const SEARCH_URL = 'https://api.delirius.store/search/stickerly'
-const DOWNLOAD_URL = 'https://api.delirius.store/download/stickerly'
+const SEARCH_URL = 'https://api.delirius.online/search/stickerly'
+const DOWNLOAD_URL = 'https://api.delirius.online/download/stickerly'
 const MAX_STICKERS = 10
 const MAX_RESULTADOS = 10
 const PACK_NAME = 'SAITAMA-PACK'
