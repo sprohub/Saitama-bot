@@ -1,6 +1,6 @@
 import fetch from 'node-fetch'
 
-const API_URL = 'https://api.delirius.store/canvas/phub'
+const API_URL = 'https://api.delirius.online/canvas/phub'
 
 // Imagen de perfil fija (siempre la misma, sin pedir foto ni link)
 const FIXED_IMAGE = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_640.png'
