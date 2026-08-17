@@ -7,7 +7,7 @@ import {
 } from '@whiskeysockets/baileys'
 
 const SAITAMA_IMG = 'https://i.ibb.co/TB7cZfFG/SAITAMAmenu.jpg'
-const DELIRIUS_API = 'https://api.delirius.store' // 👈 dominio correcto (antes decía .online, no existe)
+const DELIRIUS_API = 'https://api.delirius.online' // 👈 dominio correcto (antes decía .online, no existe)
 const REQUEST_TIMEOUT = 60000
 
 const _processing = new Set()
