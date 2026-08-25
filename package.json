@@ -1,6 +1,6 @@
 {
   "name": "hinata-bot-md",
-  "version": "2.2.0",
+  "version": "25.9.1",
   "description": "La kunoichi del Clan Hyuga ahora en tu WhatsApp",
   "main": "index.js",
   "type": "module",
