@@ -2,7 +2,7 @@
  * plugins/tools/stickerbt.js
  * Comando: .stickerbt
  *
- * Busca packs de stickers en Sticker.ly (vía API de delirius.store)
+ * Busca packs de stickers en Sticker.ly (vía API de delirius)
  * por palabra clave, muestra hasta 10 resultados en un menú de
  * botones, y al elegir uno descarga y envía sus stickers (hasta 10),
  * renombrando el "pack name" de cada uno a SAITAMA-PACK.
@@ -11,15 +11,9 @@
  * .stickerbt my melody
  * .stickerbt meme
  *
- * APIs usadas (verificadas en vivo, respuesta confirmada):
- * - Búsqueda: https://api.delirius.store/search/stickerly?query=<texto>
- *   → { status, data: [ { name, author, url, sticker_count, preview, ... } ] }
- * - Descarga: https://api.delirius.store/download/stickerly?url=<url_del_pack>
- *   → { status, data: { name, stickers: ["https://...png", ...] } }
- *
- * Los stickers de esta API llegan en .png, así que se convierten a
- * .webp con ffmpeg antes de enviarlos (WhatsApp solo acepta webp
- * para stickers).
+ * Los stickers que ya vienen en .webp (incluso animados) se envían
+ * directo, solo cambiando el EXIF. Los png/jpg se convierten a webp
+ * con ffmpeg.
  */
 
 import { generateWAMessageFromContent, proto } from '@whiskeysockets/baileys'
@@ -100,6 +94,13 @@ async function descargarBuffer(url) {
   return Buffer.from(arrayBuffer)
 }
 
+// Detecta si el buffer ya es un webp (estático o animado)
+function esWebp(buf) {
+  return buf.length > 12 &&
+    buf.toString('ascii', 0, 4) === 'RIFF' &&
+    buf.toString('ascii', 8, 12) === 'WEBP'
+}
+
 // Convierte un buffer de imagen (png/jpg) a webp usando ffmpeg
 async function convertirAWebp(bufferImagen) {
   const tmpDir = os.tmpdir()
@@ -165,19 +166,24 @@ async function enviarStickersDelPack(conn, m, packUrl) {
   for (const url of stickerUrls.slice(0, MAX_STICKERS)) {
     try {
       const bufferOriginal = await descargarBuffer(url)
-      const bufferWebp = await convertirAWebp(bufferOriginal)
+
+      // Si ya es webp (animado o no) no se pasa por ffmpeg
+      const bufferWebp = esWebp(bufferOriginal)
+        ? bufferOriginal
+        : await convertirAWebp(bufferOriginal)
+
       const bufferFinal = await renombrarPack(bufferWebp, PACK_NAME, AUTHOR_NAME)
       await conn.sendMessage(m.chat, { sticker: bufferFinal }, { quoted: m })
       enviados++
       await new Promise(res => setTimeout(res, 400))
     } catch (e) {
-      console.error('[stickerbt] ERROR procesando sticker:', url, e)
+      console.error('[stickerbt] ERROR procesando sticker:', url, e?.message || e)
     }
   }
 
   if (enviados === 0) {
     await conn.sendMessage(m.chat, {
-      text: decorar('❌ Encontré el pack pero ningún sticker se pudo enviar. Revisa que ffmpeg esté instalado.')
+      text: decorar('❌ Encontré el pack pero ningún sticker se pudo enviar.')
     }, { quoted: m })
   }
 }
