@@ -116,16 +116,15 @@ async function preguntarSaitama(pregunta, senderJid) {
       'Authorization': `Bearer ${GROQ_KEY}`
     },
     body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
+      model: 'openai/gpt-oss-20b',
       messages: [
         { role: 'system', content: systemPrompt },
         ...historial,
         { role: 'user', content: pregunta }
       ],
-      max_tokens: 150,
-      temperature: vigilante ? 1.0 : 0.9,
-      presence_penalty: 0.6,
-      frequency_penalty: 0.4
+      max_completion_tokens: 600,
+      reasoning_effort: 'low',
+      temperature: vigilante ? 1.0 : 0.9
     })
   })
 
