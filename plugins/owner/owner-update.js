@@ -3,10 +3,20 @@ import { createCanvas, loadImage } from '@napi-rs/canvas'
 
 const BANNER = 'https://i.ibb.co/jkhp8BZD/wof.jpg'
 
-// ── Helpers de comandos/texto (sin cambios) ──────────────────────────────
-const run = (cmd) => new Promise((resolve, reject) =>
-  exec(cmd, { maxBuffer: 1024 * 1024 * 10 }, (err, stdout) =>
-    err ? reject(err) : resolve(stdout.trim())
+// ── Helpers de comandos/texto ─────────────────────────────────────────────
+// LC_ALL=C fuerza git en inglés (así "Already up to date" y el parseo funcionan
+// aunque el servidor esté en español). stderr se incluye en el error real.
+const run = (cmd, trim = true) => new Promise((resolve, reject) =>
+  exec(
+    cmd,
+    {
+      maxBuffer: 1024 * 1024 * 10,
+      env: { ...process.env, LC_ALL: 'C', LANG: 'C', GIT_TERMINAL_PROMPT: '0' }
+    },
+    (err, stdout, stderr) => {
+      if (err) return reject(new Error(`${stderr || ''}\n${err.message}`.trim()))
+      resolve(trim ? stdout.trim() : stdout)
+    }
   )
 )
 
@@ -25,15 +35,16 @@ const parseGitOutput = (stdout) => {
   const creados    = (stdout.match(/create mode \d+ (.+)/g) || []).map(c => c.split(' ').pop())
   const eliminados = (stdout.match(/delete mode \d+ (.+)/g) || []).map(c => c.split(' ').pop())
   const changedMatch = stdout.match(/(\d+) files? changed/)
-  const summary      = stdout.match(/\d+ files? changed, \d+ insertions?\(\+\), \d+ deletions?\(-\)/)
-  const summaryNums  = summary ? summary[0].match(/\d+/g) : null
+  const summary      = stdout.match(/\d+ files? changed(?:, \d+ insertions?\(\+\))?(?:, \d+ deletions?\(-\))?/)
+  const ins = summary ? (summary[0].match(/(\d+) insertions?/) || [])[1] : null
+  const del = summary ? (summary[0].match(/(\d+) deletions?/) || [])[1] : null
 
   return {
     creados,
     eliminados,
     archivosModificados: changedMatch ? changedMatch[1] : null,
-    lineasAgregadas:     summaryNums  ? summaryNums[1]  : null,
-    lineasEliminadas:    summaryNums  ? summaryNums[2]  : null
+    lineasAgregadas:     changedMatch ? (ins || '0') : null,
+    lineasEliminadas:    changedMatch ? (del || '0') : null
   }
 }
 
@@ -96,7 +107,7 @@ async function cargarImagenSegura(fuente) {
   }
 }
 
-// Pseudo-blur: reduce y agranda la imagen varias veces (rápido, sin dependencias nativas)
+// Pseudo-blur: reduce y agranda la imagen varias veces
 function dibujarFondoDesenfocado(ctx, img, W, H) {
   const off = createCanvas(W, H)
   const octx = off.getContext('2d')
@@ -123,7 +134,7 @@ function dibujarFondoDesenfocado(ctx, img, W, H) {
   ctx.drawImage(src, 0, 0, W, H)
 }
 
-// Pequeño "commit graph": dos nodos unidos por una línea, con los hashes antes/después
+// Mini "commit graph": dos nodos unidos por una línea, con hashes antes/después
 function dibujarCommitGraph(ctx, x, y, w, hashAntes, hashDespues, amarillo) {
   const puntoR = 10
   const x1 = x
@@ -249,10 +260,9 @@ async function generarImagenUpdate(datos) {
 
   // ── Commit graph (antes -> después) ──
   dibujarCommitGraph(ctx, marginX, 300, W - marginX * 2, datos.hashAntes, datos.hashDespues, amarillo)
-  ctx.textAlign = 'left' // dibujarCommitGraph deja el canvas en 'right', hay que resetearlo
+  ctx.textAlign = 'left'
 
   if (datos.estado === 'al_dia') {
-    // ── Vista simplificada: una sola tarjeta con info general ──
     const cardY = 360
     const cardH = 210
     ctx.fillStyle = 'rgba(255,255,255,0.05)'
@@ -271,7 +281,6 @@ async function generarImagenUpdate(datos) {
     ctx.fillText(`Último commit: ${datos.ultimoCommitCuando}`, marginX + 34, cardY + 140)
     ctx.fillText('No hay cambios nuevos en el repositorio remoto', marginX + 34, cardY + 168)
   } else {
-    // ── Dos tarjetas grandes: VERSIÓN / ARCHIVOS ──
     const cardY = 360
     const cardH = 150
     const cardW = (W - marginX * 2 - 30) / 2
@@ -310,7 +319,7 @@ async function generarImagenUpdate(datos) {
       card2X + 34, cardY + cardH - 20
     )
 
-    // ── Fila inferior: LÍNEAS AGREGADAS / ELIMINADAS con barra comparativa ──
+    // Fila inferior: líneas agregadas / eliminadas
     const filaY = cardY + cardH + 30
     const filaH = 130
     ctx.fillStyle = 'rgba(255,255,255,0.05)'
@@ -338,9 +347,30 @@ async function generarImagenUpdate(datos) {
   return canvas.toBuffer('image/png')
 }
 
+// Genera la imagen sin que un fallo del canvas rompa todo el update
+async function imagenSegura(datos) {
+  try {
+    return await generarImagenUpdate(datos)
+  } catch (e) {
+    console.error('[update] Error generando imagen:', e)
+    return null
+  }
+}
+
+// Envía imagen + caption, o solo texto si la imagen falló
+async function enviarResultado(conn, m, imagen, caption, mentions) {
+  if (imagen) {
+    return conn.sendMessage(m.chat, { image: imagen, caption, mentions }, { quoted: m })
+  }
+  return conn.sendMessage(m.chat, { text: caption, mentions }, { quoted: m })
+}
+
 // ── Handler ───────────────────────────────────────────
-const handler = async (m, { conn }) => {
+// Uso:  .update          → git pull normal (con autostash)
+//       .update force    → descarta cambios locales y deja el bot igual al remoto
+const handler = async (m, { conn, args }) => {
   const who = m.sender
+  const forzar = (args?.[0] || '').toLowerCase() === 'force'
 
   await react(conn, m, '⏳')
 
@@ -359,6 +389,7 @@ const handler = async (m, { conn }) => {
       versionAntes       = await run('git describe --tags --abbrev=0 2>/dev/null || echo "sin-tag"')
       ultimoCommitCuando = await run('git log -1 --pretty=%cr')
       rama               = await run('git branch --show-current')
+      if (!rama) rama = 'main'
     } catch {
       hashAntes          = 'unknown'
       versionAntes       = 'sin-tag'
@@ -367,19 +398,15 @@ const handler = async (m, { conn }) => {
     }
 
     // ── 2. Verificar conflictos ────────────────────────
-    const statusOutput    = await run('git status --porcelain')
-    const tieneConflictos = statusOutput
-      .split('\n')
-      .some(l => l.startsWith('UU') || l.startsWith('AA') || l.startsWith('DD'))
+    // trim=false para no comerse el espacio inicial de " M archivo"
+    const statusOutput = await run('git status --porcelain', false)
+    const lineasStatus = statusOutput.split('\n').filter(Boolean)
+    const conflictLines = lineasStatus.filter(l => ['UU', 'AA', 'DD', 'AU', 'UA', 'DU', 'UD'].includes(l.slice(0, 2)))
 
-    if (tieneConflictos) {
+    if (conflictLines.length && !forzar) {
       await react(conn, m, '⚠️')
 
-      const archivos = statusOutput
-        .split('\n')
-        .filter(l => l.startsWith('UU') || l.startsWith('AA'))
-        .map(l => `│   ⫸ ${l.slice(3)}`)
-        .join('\n')
+      const archivos = conflictLines.map(l => `│   ⫸ ${l.slice(3)}`).join('\n')
 
       return conn.sendMessage(m.chat, {
         text: marco('⚠️ _Conflictos detectados_',
@@ -389,38 +416,49 @@ const handler = async (m, { conn }) => {
 ${archivos}
 │
 │  ⫸ Solución
-│     ↳ _git checkout -- . && git pull_`)
+│     ↳ _Usa_ *.update force* _para descartar cambios locales_`)
       }, { quoted: m })
     }
 
-    // ── 3. Auto stash si hay cambios locales ───────────
-    const hayLocales = statusOutput.trim().length > 0
-    if (hayLocales) await run('git stash')
-
-    // ── 4. Git pull ────────────────────────────────────
-    const stdout = await run('git pull')
-
-    if (hayLocales) {
-      try { await run('git stash pop') } catch { /* ignorar */ }
+    // ── 3. Git pull / force ────────────────────────────
+    let stdout
+    if (forzar) {
+      await run('git fetch origin')
+      const diffStat = await run(`git diff --stat HEAD origin/${rama}`).catch(() => '')
+      await run(`git reset --hard origin/${rama}`)
+      stdout = diffStat
+    } else {
+      // --no-rebase evita el error "divergent branches"
+      // --autostash guarda y restaura los cambios locales automáticamente
+      stdout = await run('git pull --no-rebase --autostash')
     }
 
+    // ── 4. Comparar hashes (más fiable que buscar texto) ──
+    let hashDespues
+    try {
+      hashDespues = await run('git rev-parse --short HEAD')
+    } catch {
+      hashDespues = 'unknown'
+    }
+
+    const alDia = hashDespues === hashAntes
+
     // ── 5. Ya estaba al día ────────────────────────────
-    if (stdout.includes('Already up to date')) {
+    if (alDia) {
       await react(conn, m, '✅')
 
-      const imagenBuffer = await generarImagenUpdate({
+      const imagenBuffer = await imagenSegura({
         estado: 'al_dia',
         rama,
         versionAntes,
         hashAntes,
-        hashDespues: hashAntes,
+        hashDespues,
         ultimoCommitCuando,
         commitMsg: null
       })
 
-      return conn.sendMessage(m.chat, {
-        image: imagenBuffer,
-        caption: marco('✅ _Sin cambios_',
+      return enviarResultado(conn, m, imagenBuffer,
+        marco('✅ _Sin cambios_',
 `│  ⫸ El bot ya está al día
 │
 │  ⫸ Rama     — ${rama}
@@ -428,25 +466,34 @@ ${archivos}
 │  ⫸ Último   — _${ultimoCommitCuando}_
 │
 │  👤 @${who.split('@')[0]}`),
-        mentions: [who]
-      }, { quoted: m })
+        [who]
+      )
     }
 
     // ── 6. Actualización exitosa ───────────────────────
     await react(conn, m, '✅')
 
-    let hashDespues, versionDespues, commitMsg
+    let versionDespues, commitMsg
     try {
-      hashDespues    = await run('git rev-parse --short HEAD')
       versionDespues = await run('git describe --tags --abbrev=0 2>/dev/null || echo "sin-tag"')
       commitMsg      = await run('git log -1 --pretty=%s')
     } catch {
-      hashDespues    = 'unknown'
       versionDespues = 'sin-tag'
       commitMsg      = 'sin descripción'
     }
 
-    const { creados, eliminados, archivosModificados, lineasAgregadas, lineasEliminadas } = parseGitOutput(stdout)
+    // Si el pull no trajo estadísticas (p. ej. fast-forward raro), las pedimos directo
+    let statsTexto = stdout
+    if (!/files? changed/.test(statsTexto)) {
+      statsTexto = await run(`git diff --stat --summary ${hashAntes} ${hashDespues}`).catch(() => stdout)
+    }
+    // "create mode" solo aparece con --summary; lo añadimos si falta
+    if (!/create mode|delete mode/.test(statsTexto)) {
+      const resumen = await run(`git diff --summary ${hashAntes} ${hashDespues}`).catch(() => '')
+      statsTexto += '\n' + resumen
+    }
+
+    const { creados, eliminados, archivosModificados, lineasAgregadas, lineasEliminadas } = parseGitOutput(statsTexto)
 
     let body = ''
     body += `│  ⫸ Rama     — ${rama}\n`
@@ -468,7 +515,7 @@ ${archivos}
 
     body += `│  👤 @${who.split('@')[0]}`
 
-    const imagenBuffer = await generarImagenUpdate({
+    const imagenBuffer = await imagenSegura({
       estado: 'actualizado',
       rama,
       versionAntes,
@@ -484,45 +531,70 @@ ${archivos}
       lineasEliminadas
     })
 
-    await conn.sendMessage(m.chat, {
-      image: imagenBuffer,
-      caption: marco('🚀 _Actualización completada_', body),
-      mentions: [who]
-    }, { quoted: m })
+    await enviarResultado(conn, m, imagenBuffer,
+      marco('🚀 _Actualización completada_', body),
+      [who]
+    )
 
-    // ── 7. Aviso de reinicio manual (sin cambios) ───────
-    // NOTA: se quitó el process.exit(0) automático.
-    // El bot corre con "node main.js" sin gestor de procesos (PM2, etc),
-    // así que matar el proceso aquí apagaba el bot por completo
-    // sin que nada lo volviera a levantar.
-    // Los archivos ya están actualizados en disco gracias al git pull.
-    // Para aplicar los cambios en memoria, reinicia manualmente:
-    //   Ctrl + C   →   node main.js
-    await conn.sendMessage(m.chat, {
-      text: marco('⚠️ _Reinicio manual requerido_',
+    // ── 7. Reinicio ────────────────────────────────────
+    // Con gestor de procesos (PM2, o proceso hijo con IPC) se reinicia solo.
+    // Sin gestor, matar el proceso apagaría el bot, así que se pide manual.
+    const hayGestor = Boolean(process.env.pm_id || process.env.PM2_HOME || process.send)
+
+    if (hayGestor) {
+      await conn.sendMessage(m.chat, {
+        text: marco('🔄 _Reiniciando bot..._',
+`│  ⫸ Archivos actualizados
+│     ↳ _El bot volverá en unos segundos_`)
+      }, { quoted: m })
+
+      setTimeout(() => process.exit(0), 2000)
+    } else {
+      await conn.sendMessage(m.chat, {
+        text: marco('⚠️ _Reinicio manual requerido_',
 `│  ⫸ Los archivos ya se actualizaron
 │     ↳ _git pull aplicado con éxito_
 │
 │  ⫸ Para cargar los cambios
 │     ↳ _Detén el bot (Ctrl + C)_
 │     ↳ _y vuelve a iniciarlo_`)
-    }, { quoted: m })
+      }, { quoted: m })
+    }
 
   } catch (err) {
     await react(conn, m, '❌')
+    console.error('[update] Error:', err)
 
     const error = err.message || String(err)
     const errorReplies = {
-      'not a git repository':   '│  ⫸ No es un repositorio git\n│     ↳ _Clona el bot con git clone_',
-      'Could not resolve host': '│  ⫸ Sin conexión a internet\n│     ↳ _Verifica tu red_',
-      'Merge conflict':         '│  ⫸ Conflicto de fusión\n│     ↳ _git stash && git pull --force_',
-      'Please commit':          '│  ⫸ Cambios locales sin guardar\n│     ↳ _git stash && git pull_'
+      'not a git repository':
+        '│  ⫸ No es un repositorio git\n│     ↳ _Clona el bot con git clone_',
+      'Could not resolve host':
+        '│  ⫸ Sin conexión a internet\n│     ↳ _Verifica tu red_',
+      'Authentication failed':
+        '│  ⫸ Credenciales inválidas\n│     ↳ _Revisa el token/usuario del remoto_',
+      'could not read Username':
+        '│  ⫸ El remoto pide credenciales\n│     ↳ _Usa un token en la URL del remoto_',
+      'divergent branches':
+        '│  ⫸ Ramas divergentes\n│     ↳ _Usa_ *.update force*',
+      'would be overwritten':
+        '│  ⫸ Archivos locales bloquean el pull\n│     ↳ _Usa_ *.update force*',
+      'Merge conflict':
+        '│  ⫸ Conflicto de fusión\n│     ↳ _Usa_ *.update force*',
+      'CONFLICT':
+        '│  ⫸ Conflicto al restaurar cambios locales\n│     ↳ _Usa_ *.update force*',
+      'Please commit':
+        '│  ⫸ Cambios locales sin guardar\n│     ↳ _Usa_ *.update force*',
+      'dubious ownership':
+        '│  ⫸ Git no confía en la carpeta\n│     ↳ _git config --global --add safe.directory $(pwd)_',
+      'Permission denied':
+        '│  ⫸ Permisos insuficientes\n│     ↳ _Revisa los permisos de la carpeta .git_'
     }
 
-    const match  = Object.keys(errorReplies).find(k => error.includes(k))
+    const match   = Object.keys(errorReplies).find(k => error.includes(k))
     const detalle = match
       ? errorReplies[match]
-      : `│  ⫸ Error inesperado\n│     ↳ _${error.slice(0, 200)}_`
+      : `│  ⫸ Error inesperado\n│     ↳ _${error.replace(/\s+/g, ' ').slice(0, 300)}_`
 
     return conn.sendMessage(m.chat, {
       text: marco('❌ _Update fallido_', detalle)
@@ -533,7 +605,7 @@ ${archivos}
 handler.help = ['update', 'up']
 handler.tags = ['owner']
 handler.command = /^(update|actualizar|up)$/i
-handler.desc = 'Actualiza saitama-bot a la última versión'
+handler.desc = 'Actualiza saitama-bot a la última versión (usa "force" para descartar cambios locales)'
 handler.owner = true
 
 export default handler
