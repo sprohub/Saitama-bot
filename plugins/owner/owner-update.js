@@ -1,5 +1,13 @@
 import { exec } from 'child_process'
-import { createCanvas, loadImage } from '@napi-rs/canvas'
+
+// Canvas opcional: si @napi-rs/canvas no está instalado, el plugin carga igual
+// y el update responde solo con texto.
+let createCanvas, loadImage
+try {
+  ({ createCanvas, loadImage } = await import('@napi-rs/canvas'))
+} catch {
+  console.warn('[update] @napi-rs/canvas no instalado: se enviará solo texto')
+}
 
 const BANNER = 'https://i.ibb.co/jkhp8BZD/wof.jpg'
 
@@ -349,6 +357,7 @@ async function generarImagenUpdate(datos) {
 
 // Genera la imagen sin que un fallo del canvas rompa todo el update
 async function imagenSegura(datos) {
+  if (!createCanvas) return null
   try {
     return await generarImagenUpdate(datos)
   } catch (e) {
